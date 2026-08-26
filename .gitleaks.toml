@@ -1,0 +1,25 @@
+title = "gitleaks config for ToolOnize"
+
+# Keep allowlists extremely narrow. Never broadly ignore docs/.
+# RFC documentation examples may be narrowly allowed via the allowlists below.
+
+[extend]
+# Use the default gitleaks ruleset.
+useDefault = true
+
+[allowlist]
+  description = "global allowlist — documentation examples only"
+  paths = [
+    '''docs/testing/FIXTURE_POLICY\.md''',
+  ]
+  regexes = [
+    # RFC 5737 / 3849 documentation ranges — allowed in docs
+    '''192\.0\.2\.\d+''',
+    '''198\.51\.100\.\d+''',
+    '''203\.0\.113\.\d+''',
+    '''2001:db8::''',
+    # Fictional example domains
+    '''example\.(com|org|net)''',
+    '''Org\.Example\.''',
+  ]
+  # No broad commit or file allowlists.
