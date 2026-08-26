@@ -1,0 +1,52 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local/private configuration
+config.local.*
+*.local.json
+secrets/
+private/
+.local/
+
+# SSH / credentials
+.ssh/
+credentials*
+*password*
+*token*
+
+# Node — M0 forbids these at repo root
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+dist/
+build/
+coverage/
+
+# Rust / Tauri — M0 forbids Cargo manifests/locks at repo root
+Cargo.toml
+Cargo.lock
+target/
+src-tauri/target/
+src-tauri/Cargo.toml
+src-tauri/Cargo.lock
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / temporary
+*.log
+tmp/
+temp/
+.cache/
+__pycache__/
+*.pyc
