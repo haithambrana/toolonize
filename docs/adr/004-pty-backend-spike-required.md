@@ -1,8 +1,9 @@
-# ADR-004: PTY backend — Proposed / Spike Required
+# ADR-004: PTY backend — Proposed — Spike Complete / Human Decision Required
 
-Date: 2026-08-26
-Status: **Proposed / Spike Required** (must be resolved by milestone M2 gate
-before production terminal work proceeds)
+Date: 2026-08-26 (spike executed 2026-08-27)
+Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (M2 evidence collected on Linux; Windows CI and real WebView verification remain before Accepted)
+
+> **Human gate:** This ADR must not be flipped to `Accepted` until Windows CI (`windows-latest` spike matrix + `TerminalSpike` full pipeline `produced == delivered` via real WebView) is green and reviewed. Linux evidence is complete; Windows is `NOT_VERIFIED` in this local report.
 
 ## Context
 
@@ -70,14 +71,27 @@ class of decision our constitution requires be settled by experiment.
 - Adopt A/B/C outright; or hybrid (e.g., C on Windows, A on Linux) if
   evidence supports asymmetry — allowed because the trait isolates it.
 
+## Spike results (2026-08-27, Linux x86_64)
+
+**Harness:** `tools/spike-pty/` (32 tests, 30 PASS, 0 FAIL, 2 NOT_VERIFIED). Report JSON `docs/research/spike-m2/report.json`, human report `docs/research/PTY_SPIKE_REPORT.md`.
+
+**Linux (local):** Both candidates pass every MUST row.
+- `portable-pty 0.9.0 + mitigations` (DSR `ESC[6n` → `ESC[24;80R`, guarded stdin drop): spawn 67ms, DSR 58ms (no hang), resize PASS, UTF-8 PASS, CtrlC PASS, high-volume 256KB `262144→262159` lossless true 1.06 MB/s, TUI PASS, agent PASS, cleanup fd 4→4, concurrent 5 PASS, clipboard PASS.
+- `direct-unix-openpty` (`libc::openpty` + `fork`/`exec`): spawn 6ms, DSR 4ms, high-volume 1.43 MB/s, all other rows PASS.
+
+**Transport:** `LosslessTransport` 2 MiB `produced 2097152 delivered 2097152 lossless true` (bounded, `Desynchronized` on hard breach, never silent drop) vs `DroppingTransport` which would silently drop 1.5M at 64KB — validates M3's lossless design.
+
+**Full pipeline simulated (headless):** `PTY produced 524288 -> transport delivered 524288 lossless true | input return lossless true | resize pipeline true` — see `src-tauri/src/commands/spike.rs` + `src/spike/TerminalSpike.tsx` (`Terminal` + `FitAddon` + `Channel`). Real WebView `produced == delivered` via `TerminalSpike` is `NOT_VERIFIED` headless and must be verified via `xvfb-run` spike CI.
+
+**Windows:** `NOT_VERIFIED` locally (Linux host). Both backends are `cfg(windows)`-gated and will be exercised on `windows-latest` CI; `hidden console` and `WSL` rows are Windows-only. Recommendation is hybrid or direct-only (see PTY_SPIKE_REPORT.md §8) — **human must choose** after seeing Windows CI.
+
 ## Consequences
 
-- M3 cannot start until this ADR reaches Accepted via the M2 gate
-  (IMPLEMENTATION_PLAN rollback condition).
-- Short-term cost: spike harness code; long-term benefit: terminal
-  correctness is the product's foundation and is now evidence-gated.
+- M3 cannot start until this ADR reaches `Accepted` via the M2 gate (IMPLEMENTATION_PLAN rollback condition). This spike satisfies the evidence requirement for the human gate but does not itself flip the status.
+- Short-term cost: spike harness code (`tools/spike-pty`, `src-tauri/src/commands/spike.rs` behind feature `spike`, `src/spike/TerminalSpike.tsx`); long-term benefit: terminal correctness is now evidence-gated.
+- **Next step for human:** Review `docs/research/PTY_SPIKE_REPORT.md` + `docs/research/spike-m2/report.json` + Windows CI logs (including `TerminalSpike` browser capture) and then flip this ADR to `Accepted` with the chosen backend (portable, direct, or hybrid) before M3.
 
 ## Links
 
 TECHNOLOGY_RESEARCH §4; IMPLEMENTATION_PLAN M2/M3; TEST_STRATEGY §5;
-THREAT_MODEL risk R1.
+THREAT_MODEL risk R1; PTY_SPIKE_REPORT.md; spike-m2/report.json

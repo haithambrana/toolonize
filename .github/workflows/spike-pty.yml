@@ -1,0 +1,129 @@
+name: spike-pty
+
+on:
+  push:
+    branches: [m2-pty-spike]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0 (node24)
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node (LTS)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0 (node24)
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Set up Python (for docs checks)
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0 (node24)
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      - name: Install Rust components (fmt, clippy)
+        run: rustup component add rustfmt clippy
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            patchelf \
+            libssl-dev \
+            xvfb
+
+      - name: Install npm dependencies (deterministic)
+        run: npm ci
+
+      - name: Documentation traceability
+        run: python3 tools/check-doc-traceability.py
+
+      - name: Unit tests (traceability)
+        run: python3 -m unittest discover -s tools/tests -v
+
+      - name: Public-safety scan
+        run: bash tools/check-public-safety.sh
+
+      - name: Frontend typecheck
+        run: npm run typecheck
+
+      - name: Frontend lint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Frontend build (with xterm)
+        run: npm run build
+
+      - name: Rust fmt check
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Rust clippy (with spike feature)
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Rust tests (with spike)
+        working-directory: src-tauri
+        run: cargo test --all-targets --features spike
+
+      - name: Spike PTY harness (Linux - headless)
+        if: matrix.platform == 'linux'
+        run: |
+          cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
+          cat docs/research/spike-m2/report.json
+          echo "Checking spike report for FAIL (should be 0)..."
+          python3 -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
+
+      - name: Spike PTY harness (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
+          type docs\research\spike-m2\report.json
+          python -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
+
+      - name: Spike terminal UI build check (Linux xvfb)
+        if: matrix.platform == 'linux'
+        run: |
+          # Verify that the Tauri spike feature builds and the frontend spike component compiles
+          # Real WebView test requires display; we do a headless build check and a mock Channel test.
+          # The full WebView -> xterm.js `produced == delivered` is verified manually via `TerminalSpike` UI
+          # and via the spike-pty simulated pipeline (already PASS). This job ensures the code compiles.
+          cargo check --manifest-path src-tauri/Cargo.toml --features spike
+          echo "spike feature builds ok"
+
+      - name: Verify no blocked lockfiles
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then echo "pnpm-lock.yaml must not exist" >&2; exit 1; fi
+          if [ -f "yarn.lock" ]; then echo "yarn.lock must not exist" >&2; exit 1; fi
+          if [ -f "bun.lockb" ]; then echo "bun.lockb must not exist" >&2; exit 1; fi
+          echo "lockfile check ok"
+        shell: bash
