@@ -4,7 +4,7 @@
 
 ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows** (V1). It discovers the launchers and tools you already have, lets you compose them into persistent workspaces, embeds your terminal sessions, and launches your GUI tools — with explicit review before anything executes.
 
-> **Status: repository-foundation / pre-implementation. No application code has been written yet.** Everything below describes *planned* V1 behavior, not shipped software. See [`docs/product/STATUS.md`](docs/product/STATUS.md).
+> **Status: M1 Cross-Platform Framework Shell — in progress.** Implementation has begun; only the M1 framework shell exists/in progress. User-facing ToolOnize functionality (terminal, workspace, launcher, PTY, layout, SSH/tmux, persistence) remains planned. See [`docs/product/STATUS.md`](docs/product/STATUS.md).
 
 Former discovery-phase codename was "Dev Command Center" — see [`docs/research/NAMING_RESEARCH.md`](docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal trademark clearance.
 
@@ -22,7 +22,7 @@ Former discovery-phase codename was "Dev Command Center" — see [`docs/research
 
 **Non-goals for V1:** IDE/editor, cloud sync, collaboration, plugin system, AI assistant, password manager, macOS support, PATH-wide discovery, auto-updater. See [`docs/product/PRD.md`](docs/product/PRD.md) §3 and §15.
 
-Implementation has **not started**. The existing Python/GTK prototype in the separate repository is disposable and not part of this codebase (per `AGENTS.md`).
+Implementation has **begun** with the M1 framework shell (Tauri 2 window + hardened IPC) on branch `m1-framework-shell`. User-facing ToolOnize functionality remains planned; only the M1 shell is in progress. The existing Python/GTK prototype in the separate repository is disposable and not part of this codebase (per `AGENTS.md`).
 
 ---
 
@@ -47,11 +47,14 @@ Implementation has **not started**. The existing Python/GTK prototype in the sep
 
 ## Project phase
 
-`M0 — Repository Foundation` is in progress. After human approval of M0, the first local commit may occur. Public GitHub repository creation remains a separate human-controlled step.
+`M1 — Cross-Platform Framework Shell` is in progress on branch `m1-framework-shell`. `M0 — Repository Foundation` is complete and human-approved.
 
 ```
-Implementation: NOT STARTED
-Public repository: NOT CREATED
+M0: COMPLETE / HUMAN APPROVED
+M1: IN PROGRESS — Cross-Platform Framework Shell
+Public repository: CREATED — haithambrana/toolonize
+Implementation: STARTED — M1 framework shell only
+Repository safety CI: GREEN at M1 start
 ```
 
 ## Platforms

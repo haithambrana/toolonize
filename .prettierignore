@@ -1,0 +1,14 @@
+dist
+target
+node_modules
+src-tauri/target
+src-tauri/gen
+docs
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+CODE_OF_CONDUCT.md
+AGENTS.md
+LICENSE-MIT
+LICENSE-APACHE
