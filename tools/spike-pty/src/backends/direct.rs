@@ -2,7 +2,7 @@ use super::{PtyBackend, PtyHandle};
 use anyhow::{anyhow, Result};
 
 #[cfg(unix)]
-use std::os::fd::{OwnedFd, FromRawFd, AsRawFd};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 #[cfg(unix)]
 mod unix_impl {
@@ -83,7 +83,12 @@ mod unix_impl {
         }
     }
 
-    pub fn spawn_direct(cmd: &str, args: &[&str], rows: u16, cols: u16) -> Result<Box<dyn PtyHandle>> {
+    pub fn spawn_direct(
+        cmd: &str,
+        args: &[&str],
+        rows: u16,
+        cols: u16,
+    ) -> Result<Box<dyn PtyHandle>> {
         let mut master_raw: libc::c_int = -1;
         let mut slave_raw: libc::c_int = -1;
         let mut ws = libc::winsize {
@@ -102,7 +107,10 @@ mod unix_impl {
             )
         };
         if ret != 0 {
-            return Err(anyhow!("openpty failed: {}", std::io::Error::last_os_error()));
+            return Err(anyhow!(
+                "openpty failed: {}",
+                std::io::Error::last_os_error()
+            ));
         }
         let master_fd = unsafe { OwnedFd::from_raw_fd(master_raw) };
         let slave_fd = unsafe { OwnedFd::from_raw_fd(slave_raw) };
@@ -110,7 +118,9 @@ mod unix_impl {
         match unsafe { fork()? } {
             ForkResult::Parent { child } => {
                 drop(slave_fd);
-                Ok(Box::new(DirectUnixHandle::new(master_fd, child, rows, cols)))
+                Ok(Box::new(DirectUnixHandle::new(
+                    master_fd, child, rows, cols,
+                )))
             }
             ForkResult::Child => {
                 let _ = setsid();
@@ -142,19 +152,19 @@ mod windows_impl {
     use std::mem;
     use std::os::windows::io::{FromRawHandle, OwnedHandle};
     use std::ptr;
+    use windows::core::PWSTR;
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::Security::SECURITY_ATTRIBUTES;
     use windows::Win32::System::Console::{
-        ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, HPCON, COORD,
+        ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
     };
     use windows::Win32::System::Pipes::CreatePipe;
     use windows::Win32::System::Threading::{
-        CreateProcessW, DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
-        UpdateProcThreadAttribute, TerminateProcess, GetExitCodeProcess, PROCESS_INFORMATION,
-        STARTUPINFOEXW, STARTUPINFOW, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
-        LPPROC_THREAD_ATTRIBUTE_LIST, STILL_ACTIVE,
+        CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
+        InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
+        CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+        PROCESS_INFORMATION, STARTUPINFOEXW, STARTUPINFOW,
     };
-    use windows::core::PWSTR;
 
     pub struct DirectWindowsHandle {
         pcon: HPCON,
@@ -213,8 +223,14 @@ mod windows_impl {
             // COORD is validated (rows/cols >0, < i16::MAX). The call is synchronous and does not
             // require additional synchronization beyond &mut self.
             unsafe {
-                ResizePseudoConsole(self.pcon, COORD { X: cols as i16, Y: rows as i16 })
-                    .map_err(|e| anyhow!("ResizePseudoConsole failed: {:?}", e))?;
+                ResizePseudoConsole(
+                    self.pcon,
+                    COORD {
+                        X: cols as i16,
+                        Y: rows as i16,
+                    },
+                )
+                .map_err(|e| anyhow!("ResizePseudoConsole failed: {:?}", e))?;
             }
             self.rows = rows;
             self.cols = cols;
@@ -236,7 +252,8 @@ mod windows_impl {
             unsafe {
                 let mut code: u32 = 0;
                 GetExitCodeProcess(self.child.hProcess, &mut code);
-                if code == STILL_ACTIVE.0 as u32 {
+                // STILL_ACTIVE = 259
+                if code == 259 {
                     Ok(None)
                 } else {
                     Ok(Some(code as i32))
@@ -261,7 +278,12 @@ mod windows_impl {
         }
     }
 
-    pub fn spawn_direct(cmd: &str, args: &[&str], rows: u16, cols: u16) -> Result<Box<dyn PtyHandle>> {
+    pub fn spawn_direct(
+        cmd: &str,
+        args: &[&str],
+        rows: u16,
+        cols: u16,
+    ) -> Result<Box<dyn PtyHandle>> {
         unsafe {
             let mut in_read = HANDLE::default();
             let mut in_write = HANDLE::default();
@@ -286,7 +308,12 @@ mod windows_impl {
             // Prepare attribute list — windows 0.58 API takes LPPROC_THREAD_ATTRIBUTE_LIST directly, not Option
             let mut attr_size: usize = 0;
             // First call to get required size: pass null (0 as *mut _)
-            InitializeProcThreadAttributeList(LPPROC_THREAD_ATTRIBUTE_LIST(0 as *mut _), 1, 0, &mut attr_size);
+            InitializeProcThreadAttributeList(
+                LPPROC_THREAD_ATTRIBUTE_LIST(0 as *mut _),
+                1,
+                0,
+                &mut attr_size,
+            );
             let mut attr_mem = vec![0u8; attr_size];
             let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_mem.as_mut_ptr() as *mut _);
             InitializeProcThreadAttributeList(attr_list, 1, 0, &mut attr_size);
@@ -306,12 +333,13 @@ mod windows_impl {
             si_ex.lpAttributeList = attr_list;
 
             let cmd_line = format!("{} {}", cmd, args.join(" "));
-            let mut cmd_wide: Vec<u16> = cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut cmd_wide: Vec<u16> =
+                cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
             let mut pi = PROCESS_INFORMATION::default();
             let created = CreateProcessW(
                 None,
-                Some(PWSTR(cmd_wide.as_mut_ptr())),
+                PWSTR(cmd_wide.as_mut_ptr()),
                 None,
                 None,
                 false,
@@ -373,7 +401,13 @@ impl PtyBackend for DirectBackend {
         }
     }
 
-    fn spawn(&mut self, cmd: &str, args: &[&str], rows: u16, cols: u16) -> Result<Box<dyn PtyHandle>> {
+    fn spawn(
+        &mut self,
+        cmd: &str,
+        args: &[&str],
+        rows: u16,
+        cols: u16,
+    ) -> Result<Box<dyn PtyHandle>> {
         if cmd.starts_with('/') || cmd.starts_with("./") {
             if !std::path::Path::new(cmd).exists() && cmd.contains("invalid_executable") {
                 return Err(anyhow!(
