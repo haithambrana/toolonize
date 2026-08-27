@@ -99,30 +99,40 @@ jobs:
       - name: Spike PTY harness (Linux - headless)
         if: matrix.platform == 'linux'
         run: |
-          cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
-          if [ $? -ne 0 ]; then echo "cargo run failed on Linux" >&2; exit 1; fi
+          timeout --signal=TERM --kill-after=10s 180s cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
           # Platform-specific CI output (not the committed docs file)
           cp target/spike-report.json target/spike-report-linux.json
           cat target/spike-report-linux.json
-          echo "Checking Linux spike report for FAIL and required backends..."
+          echo "Checking Linux spike report platform, status, and required backends..."
           python3 -c "
           import json, sys
-          data=json.load(open('target/spike-report-linux.json', encoding='utf-8'))
+          report=json.load(open('target/spike-report-linux.json', encoding='utf-8'))
+          platform=report.get('platform')
+          if platform != 'linux':
+              print(f'ERROR: expected platform linux, got {platform!r}', file=sys.stderr)
+              sys.exit(1)
+          data=report.get('results', [])
           fails=[r for r in data if r['status']=='FAIL']
           print(f'FAILs: {len(fails)}')
-          # Verify platform and backends
-          platforms=set(r.get('backend','') for r in data)
+          unexpected=[r for r in data if r.get('status') != 'PASS' and not (r.get('scenario') == 'T-PTY-012 hidden console' and r.get('status') == 'NOT_VERIFIED')]
+          if unexpected:
+              print(f'ERROR: unexpected non-PASS Linux records: {unexpected}', file=sys.stderr)
+              sys.exit(1)
           has_portable=any('portable-pty' in r.get('backend','') for r in data)
           has_direct=any('direct-unix-openpty' in r.get('backend','') for r in data)
-          print(f'platforms in report: {platforms}')
           print(f'has_portable: {has_portable}, has_direct: {has_direct}')
-          # Check that report is actually from linux (should contain direct-unix-openpty)
           if not has_direct:
               print('ERROR: direct-unix-openpty record absent on Linux', file=sys.stderr)
               sys.exit(1)
           if not has_portable:
               print('ERROR: portable-pty record absent', file=sys.stderr)
               sys.exit(1)
+          required=['T-PTY-001 spawn shells','T-PTY-002 resize','T-PTY-003 utf8','T-PTY-004 cursor DSR','T-PTY-005 ctrlc','T-PTY-006 high-volume lossless','T-PTY-013 cleanup','T-PTY-013 concurrent sessions']
+          for backend in ('portable-pty-0.9.0','direct-unix-openpty'):
+              for scenario in required:
+                  if not any(r.get('backend') == backend and r.get('scenario') == scenario and r.get('status') == 'PASS' for r in data):
+                      print(f'ERROR: missing PASS for {backend} {scenario}', file=sys.stderr)
+                      sys.exit(1)
           sys.exit(1 if fails else 0)
           "
 
@@ -130,21 +140,30 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
-          if ($LASTEXITCODE -ne 0) {
-              Write-Error "cargo run failed on Windows with exit $LASTEXITCODE"
-              exit $LASTEXITCODE
+          $cargo = Start-Process cargo -ArgumentList @("run", "--manifest-path", "tools/spike-pty/Cargo.toml", "--bin", "spike-pty") -NoNewWindow -PassThru
+          if (-not $cargo.WaitForExit(180000)) {
+              taskkill /PID $cargo.Id /T /F | Out-Host
+              Write-Error "Windows spike harness exceeded 180 seconds"
+              exit 124
+          }
+          if ($cargo.ExitCode -ne 0) {
+              Write-Error "cargo run failed on Windows with exit $($cargo.ExitCode)"
+              exit $cargo.ExitCode
           }
           # Platform-specific CI output
           Copy-Item target/spike-report.json target/spike-report-windows.json -Force
-          Get-Content target/spike-report-windows.json | Select-Object -First 100
+          Get-Content target/spike-report-windows.json
           Write-Host "Checking Windows spike report for FAIL and required backends..."
           python -c "
           import json, sys
-          data=json.load(open('target/spike-report-windows.json', encoding='utf-8'))
-          fails=[r for r in data if r['status']=='FAIL']
-          print(f'FAILs: {len(fails)}')
-          # Verify platform and backends - Windows must have portable-pty and direct-windows-ConPTY
+          report=json.load(open('target/spike-report-windows.json', encoding='utf-8'))
+          platform=report.get('platform')
+          if platform != 'windows':
+              print(f'ERROR: expected platform windows, got {platform!r}', file=sys.stderr)
+              sys.exit(1)
+          data=report.get('results', [])
+          non_pass=[r for r in data if r.get('status') != 'PASS']
+          print(f'non-PASS records: {len(non_pass)}')
           has_portable=any('portable-pty' in r.get('backend','') for r in data)
           has_direct=any('direct-windows-ConPTY' in r.get('backend','') for r in data)
           has_unix=any('direct-unix-openpty' in r.get('backend','') for r in data)
@@ -158,44 +177,55 @@ jobs:
           if not has_portable:
               print('ERROR: portable-pty record absent on Windows', file=sys.stderr)
               sys.exit(1)
-          # Check mandatory Windows rows exist (at least one PASS for each)
-          required = ['T-PTY-001', 'T-PTY-002', 'T-PTY-003', 'T-PTY-004', 'T-PTY-005', 'T-PTY-006', 'T-PTY-013']
-          for req in required:
-              if not any(req in r.get('scenario','') for r in data):
-                  print(f'ERROR: required scenario {req} absent', file=sys.stderr)
-                  sys.exit(1)
-          sys.exit(1 if fails else 0)
+          required=['T-PTY-001 spawn shells','T-PTY-001 shells variants','T-PTY-002 resize','T-PTY-003 utf8','T-PTY-004 cursor DSR','T-PTY-005 ctrlc','T-PTY-006 high-volume lossless','T-PTY-013 cleanup','T-PTY-013 concurrent sessions']
+          for backend in ('portable-pty-0.9.0','direct-windows-ConPTY'):
+              for scenario in required:
+                  matches=[r for r in data if r.get('backend') == backend and r.get('scenario') == scenario]
+                  if not matches or matches[0].get('status') != 'PASS':
+                      print(f'ERROR: missing PASS for {backend} {scenario}: {matches}', file=sys.stderr)
+                      sys.exit(1)
+          volume=[r for r in data if r.get('scenario') == 'T-PTY-006 high-volume lossless']
+          if not all('expected_sha256 ' in r.get('details','') and 'delivered_sha256 ' in r.get('details','') and 'exact_match true' in r.get('details','') for r in volume):
+              print('ERROR: high-volume records lack exact SHA-256 evidence', file=sys.stderr)
+              sys.exit(1)
+          if non_pass:
+              print(f'ERROR: Windows report contains non-PASS records: {non_pass}', file=sys.stderr)
+              sys.exit(1)
           "
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Real WebView/xterm pipeline (Linux xvfb, spike feature)
         if: matrix.platform == 'linux'
         run: |
-          # Real WebView test: launch actual Tauri app with spike feature under xvfb,
-          # auto-mount TerminalSpike via ?spikeAuto=1, stream PTY -> Rust -> Channel ->xterm.js,
-          # verify produced == delivered, input return, and resize, then auto-exit with 0/1.
-          # This is the M2 gate's real WebView/xterm verification (not just cargo check / build).
-          echo "Checking spike feature builds..."
-          cargo check --manifest-path src-tauri/Cargo.toml --features spike
-          echo "Building frontend with xterm..."
-          npm run build
-          echo "Starting Tauri spike app under xvfb (auto mode)..."
-          # The spike UI will auto-run when ?spikeAuto=1 is present and then invoke spike_exit
-          # We run the app with timeout 60s; it should exit 0 on PASS.
-          # Use xvfb-run to provide display for WebKitGTK.
-          timeout 60 xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" bash -c '
-            # Start Tauri dev server in background with spike feature
-            # For CI we use cargo run with --features spike; the app will open WebView and auto-run spike
-            # We need to set the URL to include ?spikeAuto=1 - the Tauri app loads index.html with that query via window.__TAURI__
-            # Instead we directly test the spike command via cargo test with mock WebView for now, and verify the Tauri app can launch and exit
-            # For this CI step, we verify the spike harness can be invoked via a headless Tauri test that uses the real Channel and xterm headless
-            cargo test --manifest-path src-tauri/Cargo.toml --features spike -- --nocapture 2>&1 | head -100
-            echo "cargo test spike done"
-          ' || echo "xvfb spike run finished (may have timed out as expected if no display)"
-          # As a deterministic fallback, run the spike-pty simulated pipeline which already proved lossless
-          echo "Real WebView pipeline: simulated lossless already PASS (see spike-pty harness); real WebView auto-exit will be verified manually via TerminalSpike UI when possible"
-          # Ensure the spike report still shows lossless true
-          python3 -c "import json; d=json.load(open('target/spike-report-linux.json', encoding='utf-8')); p=[r for r in d if 'PTY->Rust->Tauri' in r.get('scenario','')]; print(p[0] if p else 'no pipeline record'); assert p and p[0]['status']=='PASS', 'pipeline not PASS'"
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 120s xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+            npm run tauri -- dev --no-watch --features spike --config src-tauri/tauri.spike.conf.json \
+            2>&1 | tee target/real-webview.log
+          python3 -c "
+          import json, sys
+          marker='M2_REAL_WEBVIEW_REPORT='
+          lines=[line.split(marker,1)[1] for line in open('target/real-webview.log', encoding='utf-8') if marker in line]
+          if len(lines) != 1:
+              print(f'ERROR: expected one real WebView report, found {len(lines)}', file=sys.stderr)
+              sys.exit(1)
+          report=json.loads(lines[0])
+          print(json.dumps(report, sort_keys=True))
+          required_true=('exactByteIntegrity','xtermWriteCompleted','inputReturn','realResize')
+          if not all(report.get(field) is True for field in required_true):
+              print(f'ERROR: real WebView boolean gate failed: {report}', file=sys.stderr)
+              sys.exit(1)
+          if report.get('payloadBytes') != 262144 or report.get('deliveredPayloadBytes') != 262144:
+              print(f'ERROR: real WebView byte counts failed: {report}', file=sys.stderr)
+              sys.exit(1)
+          expected=report.get('expectedSha256','')
+          delivered=report.get('deliveredSha256','')
+          if len(expected) != 64 or expected != delivered:
+              print(f'ERROR: real WebView SHA-256 failed: {report}', file=sys.stderr)
+              sys.exit(1)
+          if report.get('processExitCode') != 0:
+              print(f'ERROR: PTY child exit failed: {report}', file=sys.stderr)
+              sys.exit(1)
+          "
 
       - name: Spike terminal UI build check (Linux xvfb)
         if: matrix.platform == 'linux'

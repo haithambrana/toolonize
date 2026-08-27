@@ -1,10 +1,8 @@
 //! Bounded LOSSLESS transport experiment.
 //! This validates the design for M3: bounded batching with backpressure and no silent drop.
 
-use crossbeam_channel::{bounded, Receiver, Sender};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Condvar, Mutex};
 
 /// Lossless bounded transport with high/low water marks.
 /// Mimics PTY -> Rust reader -> Tauri Channel -> WebView pipeline stages.
@@ -212,7 +210,6 @@ impl DroppingTransport {
 
 /// Experiment: run both transports under high load and compare.
 pub fn run_experiment(high_volume_bytes: usize) -> (TransportStats, TransportStats) {
-    // Real bounded experiment: 64 KiB cap, 48 KiB high, 16 KiB low, batch 4 KiB, slow consumer
     let config = TransportConfig {
         capacity: 64 * 1024,
         high_water: 48 * 1024,
@@ -220,49 +217,128 @@ pub fn run_experiment(high_volume_bytes: usize) -> (TransportStats, TransportSta
         batch_size: 4096,
     };
 
-    let mut lossless = LosslessTransport::new(config.clone());
     let mut dropping = DroppingTransport::new(config.clone());
 
-    // Producer is fast, consumer is deliberately slow (drains every 20*batch)
-    let pattern = b"TOOLONIZE_LOSSLESS_TEST_PATTERN_0123456789_ABCDEFGHIJ_";
-    let mut produced = 0;
-    while produced < high_volume_bytes {
-        let chunk = &pattern[..std::cmp::min(pattern.len(), high_volume_bytes - produced)];
-        // Lossless: handle WouldBlock by draining and retrying (simulating blocking)
-        let mut res = lossless.write(chunk);
-        if let Err(TransportError::WouldBlock) = res {
-            // Backpressure: drain to low_water then retry
-            let mut out = Vec::new();
-            lossless.read(&mut out);
-            res = lossless.write(chunk);
+    #[derive(Default)]
+    struct ExperimentState {
+        queue: VecDeque<u8>,
+        produced: usize,
+        delivered: usize,
+        max_depth: usize,
+        backpressure_events: usize,
+        hard_limit_breaches: usize,
+        done: bool,
+    }
+
+    let shared = Arc::new((Mutex::new(ExperimentState::default()), Condvar::new()));
+    let producer_shared = Arc::clone(&shared);
+    let producer_config = config.clone();
+    let producer = std::thread::spawn(move || {
+        let chunk = vec![b'A'; producer_config.batch_size];
+        let mut offset = 0;
+        while offset < high_volume_bytes {
+            let count = chunk.len().min(high_volume_bytes - offset);
+            let (lock, ready) = &*producer_shared;
+            let mut state = lock.lock().expect("experiment mutex poisoned");
+            if state.queue.len() + count > producer_config.high_water {
+                state.backpressure_events += 1;
+                while state.queue.len() > producer_config.low_water {
+                    state = ready.wait(state).expect("experiment mutex poisoned");
+                }
+            }
+            if state.queue.len() + count > producer_config.capacity {
+                state.hard_limit_breaches += 1;
+                break;
+            }
+            state.queue.extend(&chunk[..count]);
+            state.produced += count;
+            state.max_depth = state.max_depth.max(state.queue.len());
+            offset += count;
+            ready.notify_all();
         }
-        if res.is_err() {
-            // Hard breach - drain and retry once more
-            let mut out = Vec::new();
-            lossless.read(&mut out);
-            let _ = lossless.write(chunk);
-        }
-        dropping.write(chunk);
-        produced += chunk.len();
-        // Very slow consumer: only drain every 20 batches
-        if produced % (config.batch_size * 20) == 0 {
-            let mut out = Vec::new();
-            lossless.read(&mut out);
-            let mut out2 = Vec::new();
-            dropping.read(&mut out2);
-            // Simulate WebView being slower than PTY
+        let (lock, ready) = &*producer_shared;
+        lock.lock().expect("experiment mutex poisoned").done = true;
+        ready.notify_all();
+    });
+
+    let consumer_shared = Arc::clone(&shared);
+    let consumer_config = config.clone();
+    let consumer = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        loop {
+            let (lock, ready) = &*consumer_shared;
+            let mut state = lock.lock().expect("experiment mutex poisoned");
+            while state.queue.is_empty() && !state.done {
+                state = ready.wait(state).expect("experiment mutex poisoned");
+            }
+            if state.queue.is_empty() && state.done {
+                break;
+            }
+            let count = state.queue.len().min(consumer_config.batch_size);
+            state.queue.drain(..count);
+            state.delivered += count;
+            ready.notify_all();
+            drop(state);
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
-    }
-    // Final drain
-    let mut out = Vec::new();
-    while lossless.queue.lock().unwrap().len() > 0 {
-        lossless.read(&mut out);
+    });
+
+    producer.join().expect("producer thread panicked");
+    consumer.join().expect("consumer thread panicked");
+    let state = shared.0.lock().expect("experiment mutex poisoned");
+    let lossless_stats = TransportStats {
+        produced_bytes: state.produced,
+        delivered_bytes: state.delivered,
+        dropped_bytes: 0,
+        max_queue_depth: state.max_depth,
+        backpressure_events: state.backpressure_events,
+        hard_limit_breaches: state.hard_limit_breaches,
+        lossless: state.produced == high_volume_bytes
+            && state.produced == state.delivered
+            && state.hard_limit_breaches == 0,
+    };
+    drop(state);
+
+    let chunk = vec![b'A'; config.batch_size];
+    let mut offset = 0;
+    while offset < high_volume_bytes {
+        let count = chunk.len().min(high_volume_bytes - offset);
+        dropping.write(&chunk[..count]);
+        offset += count;
     }
     let mut out2 = Vec::new();
-    while dropping.queue.len() > 0 {
+    while !dropping.queue.is_empty() {
         dropping.read(&mut out2);
     }
 
-    (lossless.stats(), dropping.stats())
+    (lossless_stats, dropping.stats())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slow_consumer_applies_backpressure_without_loss() {
+        let (lossless, dropping) = run_experiment(512 * 1024);
+        assert!(lossless.lossless);
+        assert_eq!(lossless.produced_bytes, lossless.delivered_bytes);
+        assert_eq!(lossless.dropped_bytes, 0);
+        assert!(lossless.backpressure_events > 0);
+        assert_eq!(lossless.hard_limit_breaches, 0);
+        assert!(lossless.max_queue_depth <= 64 * 1024);
+        assert!(dropping.dropped_bytes > 0);
+    }
+
+    #[test]
+    fn hard_limit_breach_is_explicit() {
+        let mut transport = LosslessTransport::new(TransportConfig::default());
+        let oversized = vec![0u8; 64 * 1024 + 1];
+        assert!(matches!(
+            transport.write(&oversized),
+            Err(TransportError::HardLimitBreach { .. })
+        ));
+        assert!(transport.is_desync());
+        assert_eq!(transport.stats().hard_limit_breaches, 1);
+    }
 }

@@ -67,14 +67,11 @@ m1-framework-shell. Only the M1 framework shell (Tauri window + hardened IPC)
 is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
 persistence, or production feature exists yet.
 
-2026-08-27: M2 PTY Backend Technical Spike — Linux matrix complete on branch
-m2-pty-spike. Harness `tools/spike-pty` (32 tests, 30 PASS, 2 NOT_VERIFIED on Linux;
-portable-pty 0.9.0 + mitigations and direct-unix-openpty both PASS every MUST row;
-bounded lossless transport 2 MiB lossless true). Full pipeline simulated
-`PTY produced 524288 -> transport delivered 524288 lossless true` (headless);
-real WebView `produced == delivered` via `src/spike/TerminalSpike.tsx` remains
-NOT_VERIFIED headless and will be verified via `xvfb-run` spike CI on Linux + native
-on Windows. ADR-004 remains `PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED`
-until Windows CI (`windows-latest` spike matrix + `TerminalSpike` browser capture) is
-green. No PTY product code has been locked; harness is throwaway behind
-`tools/spike-pty` and feature `spike`.
+2026-08-28: M2 PTY Backend Technical Spike repair round 2 is in progress on
+`m2-pty-spike`. Linux has 29 PASS, 0 FAIL, and 2 Windows-only NOT_VERIFIED
+records. Exact 256 KiB SHA-256 checks pass on both Linux backends; the bounded
+slow-consumer experiment produced and delivered 2 MiB with real producer
+waiting and no breach. A real local Tauri/WebKitGTK/xterm.js run passed exact
+bytes, awaited xterm writes, input return, child-observed resize, and process
+exit. Fresh fail-closed xvfb and Windows CI evidence remains required.
+`HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 is proposed and PR #2 is blocked.

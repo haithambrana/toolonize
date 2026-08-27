@@ -77,95 +77,74 @@ export default function TerminalSpike() {
   }, []);
 
   const run = async () => {
-    if (!termRef.current) {
-      // In headless test, term may be null; still run the pipeline via spike.ts helpers without xterm
-      // This path is used for CI auto mode where xterm is not fully initialized in jsdom
-      try {
-        setState({ status: "running", step: "PTY -> Rust -> Tauri Channel (headless)" });
-        const res1 = await runPtyPipelineSpike(
-          () => {},
-          (n) => setBytes((prev) => prev + n),
-          256 * 1024
-        );
-        if (!res1.lossless) throw new Error(`lossless failed: ${res1.details}`);
-        const resizeRes = await testResize(40, 120);
-        await testResize(24, 80);
-        const echoRes = await testInputEcho("hello from WebView");
-        setState({
-          status: "success",
-          report: `produced ${res1.produced} delivered ${res1.delivered} lossless ${res1.lossless} | ${resizeRes} | ${echoRes}`,
-        });
-        // Auto-exit for CI
-        if (new URLSearchParams(window.location.search).has("spikeAuto")) {
-          try {
-            const { invoke } = await import("@tauri-apps/api/core");
-            await invoke("spike_exit", { code: 0 });
-          } catch {
-            void 0;
-          }
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setState({ status: "error", message: msg });
-        if (new URLSearchParams(window.location.search).has("spikeAuto")) {
-          try {
-            const { invoke } = await import("@tauri-apps/api/core");
-            await invoke("spike_exit", { code: 1 });
-          } catch {
-            void 0;
-          }
-        }
-      }
-      return;
-    }
-    const term = termRef.current;
-    term.clear();
-    setBytes(0);
-    setState({ status: "running", step: "PTY -> Rust -> Tauri Channel -> WebView -> xterm.js" });
+    const auto = new URLSearchParams(window.location.search).has("spikeAuto");
     try {
-      // Test 1: full pipeline lossless
-      const res1 = await runPtyPipelineSpike(
-        (data) => term.write(data),
+      const term = termRef.current;
+      if (!term) throw new Error("xterm.js failed to initialize in the real WebView");
+      term.clear();
+      setBytes(0);
+      setState({
+        status: "running",
+        step: "PTY -> Rust -> Tauri Channel -> WebView -> xterm.js",
+      });
+      const pipeline = await runPtyPipelineSpike(
+        (data) => new Promise<void>((resolve) => term.write(data, resolve)),
         (n) => setBytes((prev) => prev + n),
         256 * 1024
       );
-      term.writeln(`\r\n[Spike] ${res1.details}`);
-      if (!res1.lossless) throw new Error(`lossless failed: ${res1.details}`);
+      term.writeln(`\r\n[Spike] ${pipeline.details}`);
+      if (!pipeline.exactByteIntegrity || !pipeline.xtermWriteCompleted) {
+        throw new Error(`exact pipeline validation failed: ${pipeline.details}`);
+      }
 
-      // Test 2: resize through pipeline
       setState({ status: "running", step: "resize pipeline 24x80 -> 40x120" });
-      const resizeRes = await testResize(40, 120);
-      term.writeln(`[Spike] resize: ${resizeRes}`);
-      // Resize back
+      const resize = await testResize(40, 120);
+      const resizeOk =
+        resize.requestedRows === 40 &&
+        resize.requestedCols === 120 &&
+        resize.observedRows === 40 &&
+        resize.observedCols === 120 &&
+        resize.processExitCode === 0;
+      if (!resizeOk) throw new Error(`child-observed resize failed: ${JSON.stringify(resize)}`);
+      term.writeln(`[Spike] resize: ${JSON.stringify(resize)}`);
       await testResize(24, 80);
 
-      // Test 3: input return path
       setState({ status: "running", step: "input return path WebView -> Rust -> PTY" });
-      const echoRes = await testInputEcho("hello from WebView");
-      term.writeln(`[Spike] input echo: ${echoRes}`);
+      const input = "hello from WebView";
+      const echo = await testInputEcho(input);
+      const inputOk = echo.echoed === input && echo.processExitCode === 0;
+      if (!inputOk) throw new Error(`input return failed: ${JSON.stringify(echo)}`);
+      term.writeln(`[Spike] input echo: ${JSON.stringify(echo)}`);
 
+      const report = {
+        payloadBytes: pipeline.payloadBytes,
+        deliveredPayloadBytes: pipeline.deliveredPayloadBytes,
+        expectedSha256: pipeline.expectedSha256,
+        deliveredSha256: pipeline.deliveredSha256,
+        exactByteIntegrity: pipeline.exactByteIntegrity,
+        xtermWriteCompleted: pipeline.xtermWriteCompleted,
+        inputReturn: inputOk,
+        realResize: resizeOk,
+        processExitCode: pipeline.processExitCode,
+      };
       setState({
         status: "success",
-        report: `produced ${res1.produced} delivered ${res1.delivered} lossless ${res1.lossless} | ${resizeRes} | ${echoRes}`,
+        report: JSON.stringify(report),
       });
-      if (new URLSearchParams(window.location.search).has("spikeAuto")) {
-        try {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("spike_exit", { code: 0 });
-        } catch {
-          void 0;
-        }
+      if (auto) {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("spike_complete", { report });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      term.writeln(`\r\n[Spike] ERROR: ${msg}`);
+      termRef.current?.writeln(`\r\n[Spike] ERROR: ${msg}`);
       setState({ status: "error", message: msg });
-      if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+      if (auto) {
         try {
           const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("spike_exit", { code: 1 });
-        } catch {
-          void 0;
+          await invoke("spike_fail", { message: msg });
+        } catch (invokeError) {
+          console.error("M2_REAL_WEBVIEW_FAILURE", msg, invokeError);
         }
       }
     }

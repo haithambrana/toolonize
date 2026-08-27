@@ -1,8 +1,6 @@
 //! Deterministic synthetic child fixtures (no network, no secrets, no personal data).
 //! All fixtures are reproducible and produce known byte patterns for lossless verification.
 
-use anyhow::Result;
-
 /// Generate deterministic pattern of given length: repeating 0..255 or ASCII.
 /// Returns Vec<u8> and its checksum (simple sum).
 pub fn generate_pattern(len: usize, seed: u8) -> (Vec<u8>, u64) {

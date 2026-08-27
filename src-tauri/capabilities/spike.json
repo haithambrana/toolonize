@@ -8,6 +8,6 @@
     "allow-spike-pty-stream",
     "allow-spike-resize",
     "allow-spike-input-echo",
-    "allow-spike-exit"
+    "allow-spike-completion"
   ]
 }
