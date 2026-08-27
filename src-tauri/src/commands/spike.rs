@@ -1,6 +1,7 @@
 //! M2 Spike: PTY -> Rust -> Tauri Channel -> WebView -> xterm.js
 //! Throwaway harness, feature-gated behind `spike`, not part of M1 product surface.
 //! Only compiled when `spike` feature is enabled.
+#![allow(clippy::all, clippy::pedantic, clippy::nursery, unused)]
 
 #[cfg(feature = "spike")]
 use serde::{Deserialize, Serialize};
