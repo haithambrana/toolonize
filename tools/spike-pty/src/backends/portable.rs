@@ -1,6 +1,6 @@
 use super::{PtyBackend, PtyHandle};
 use anyhow::{anyhow, Result};
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, Child};
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -33,7 +33,13 @@ impl PtyBackend for PortableBackend {
         "portable-pty-0.9.0"
     }
 
-    fn spawn(&mut self, cmd: &str, args: &[&str], rows: u16, cols: u16) -> Result<Box<dyn PtyHandle>> {
+    fn spawn(
+        &mut self,
+        cmd: &str,
+        args: &[&str],
+        rows: u16,
+        cols: u16,
+    ) -> Result<Box<dyn PtyHandle>> {
         let pair = self.pty_system.openpty(PtySize {
             rows,
             cols,
@@ -133,7 +139,11 @@ impl PtyHandle for PortableHandle {
 }
 
 // Helper for timeout read
-pub fn read_with_timeout(handle: &mut dyn PtyHandle, buf: &mut [u8], timeout: Duration) -> Result<Option<usize>> {
+pub fn read_with_timeout(
+    handle: &mut dyn PtyHandle,
+    buf: &mut [u8],
+    timeout: Duration,
+) -> Result<Option<usize>> {
     let (tx, rx) = mpsc::channel();
     let mut tmp = vec![0u8; buf.len()];
     // Spawn a thread to do blocking read

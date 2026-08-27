@@ -3,9 +3,9 @@ use crate::fixtures;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::time::{Duration, Instant};
-use std::thread;
 use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 fn timed<F: FnOnce() -> Result<(String, String)>>(
     backend: &str,
@@ -27,7 +27,11 @@ fn timed<F: FnOnce() -> Result<(String, String)>>(
     }
 }
 
-fn read_with_timeout(handle: &mut dyn PtyHandle, timeout: Duration, max_bytes: usize) -> Result<Vec<u8>> {
+fn read_with_timeout(
+    handle: &mut dyn PtyHandle,
+    timeout: Duration,
+    max_bytes: usize,
+) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     let mut buf = [0u8; 4096];
     let start = Instant::now();
@@ -36,14 +40,18 @@ fn read_with_timeout(handle: &mut dyn PtyHandle, timeout: Duration, max_bytes: u
             Ok(0) => thread::sleep(Duration::from_millis(10)),
             Ok(n) => {
                 out.extend_from_slice(&buf[..n]);
-                if out.windows(16).any(|w| w == b"RESIZE_CHECK_DONE") || out.windows(10).any(|w| w == b"UTF8_DONE") {
+                if out.windows(16).any(|w| w == b"RESIZE_CHECK_DONE")
+                    || out.windows(10).any(|w| w == b"UTF8_DONE")
+                {
                     break;
                 }
             }
             Err(e) => {
                 // On non-blocking, would be WouldBlock; on our direct impl it's blocking.
                 // For spike, treat as timeout
-                if format!("{:?}", e).contains("WouldBlock") || format!("{}", e).contains("Resource temporarily unavailable") {
+                if format!("{:?}", e).contains("WouldBlock")
+                    || format!("{}", e).contains("Resource temporarily unavailable")
+                {
                     thread::sleep(Duration::from_millis(10));
                 } else {
                     break;
@@ -69,18 +77,37 @@ fn read_with_timeout(handle: &mut dyn PtyHandle, timeout: Duration, max_bytes: u
 pub fn scenario_spawn_shell(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-001 spawn shells", || {
         let (cmd, args) = if cfg!(windows) {
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "echo hello; exit 0".to_string()])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    "echo hello; exit 0".to_string(),
+                ],
+            )
         } else {
-            ("bash".to_string(), vec!["-c".to_string(), "echo hello; exit 0".to_string()])
+            (
+                "bash".to_string(),
+                vec!["-c".to_string(), "echo hello; exit 0".to_string()],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
         let out = read_with_timeout(handle.as_mut(), Duration::from_secs(3), 8192)?;
         let s = String::from_utf8_lossy(&out);
         if s.contains("hello") {
-            Ok(("PASS".to_string(), format!("spawn ok, output contains hello: {:?}", &s[..std::cmp::min(s.len(), 200)])))
+            Ok((
+                "PASS".to_string(),
+                format!(
+                    "spawn ok, output contains hello: {:?}",
+                    &s[..std::cmp::min(s.len(), 200)]
+                ),
+            ))
         } else {
-            Ok(("FAIL".to_string(), format!("spawn output did not contain hello: {:?}", s)))
+            Ok((
+                "FAIL".to_string(),
+                format!("spawn output did not contain hello: {:?}", s),
+            ))
         }
     })
 }
@@ -94,19 +121,29 @@ pub fn scenario_invalid_exe(backend: &mut dyn PtyBackend) -> ScenarioResult {
                 let status = handle.wait()?;
                 if let Some(code) = status {
                     if code != 0 {
-                        Ok(("PASS".to_string(), format!("invalid exe correctly failed with code {}", code)))
+                        Ok((
+                            "PASS".to_string(),
+                            format!("invalid exe correctly failed with code {}", code),
+                        ))
                     } else {
-                        Ok(("FAIL".to_string(), "invalid exe unexpectedly succeeded with code 0".to_string()))
+                        Ok((
+                            "FAIL".to_string(),
+                            "invalid exe unexpectedly succeeded with code 0".to_string(),
+                        ))
                     }
                 } else {
                     // Still alive? kill and mark fail
                     let _ = handle.kill();
-                    Ok(("FAIL".to_string(), "invalid exe spawned but still alive, expected failure".to_string()))
+                    Ok((
+                        "FAIL".to_string(),
+                        "invalid exe spawned but still alive, expected failure".to_string(),
+                    ))
                 }
             }
-            Err(e) => {
-                Ok(("PASS".to_string(), format!("invalid exe correctly errored on spawn: {}", e)))
-            }
+            Err(e) => Ok((
+                "PASS".to_string(),
+                format!("invalid exe correctly errored on spawn: {}", e),
+            )),
         }
     })
 }
@@ -114,9 +151,22 @@ pub fn scenario_invalid_exe(backend: &mut dyn PtyBackend) -> ScenarioResult {
 pub fn scenario_resize(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-002 resize", || {
         let (cmd, args) = if cfg!(windows) {
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "while($true){ Start-Sleep -Milliseconds 100 }".to_string()])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    "while($true){ Start-Sleep -Milliseconds 100 }".to_string(),
+                ],
+            )
         } else {
-            ("bash".to_string(), vec!["-c".to_string(), "while true; do sleep 0.1; done".to_string()])
+            (
+                "bash".to_string(),
+                vec![
+                    "-c".to_string(),
+                    "while true; do sleep 0.1; done".to_string(),
+                ],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
@@ -126,9 +176,15 @@ pub fn scenario_resize(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let (r, c) = handle.get_size()?;
         let _ = handle.kill();
         if r == 40 && c == 120 {
-            Ok(("PASS".to_string(), format!("resize 24x80->40x120 succeeded, got {}x{}", r, c)))
+            Ok((
+                "PASS".to_string(),
+                format!("resize 24x80->40x120 succeeded, got {}x{}", r, c),
+            ))
         } else {
-            Ok(("FAIL".to_string(), format!("resize expected 40x120 got {}x{}", r, c)))
+            Ok((
+                "FAIL".to_string(),
+                format!("resize expected 40x120 got {}x{}", r, c),
+            ))
         }
     })
 }
@@ -144,7 +200,17 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let script = format!("echo '{}'; echo UTF8_DONE", combined.replace("'", "'\\''"));
         let (cmd, args) = if cfg!(windows) {
             // PowerShell with UTF8
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), format!("Write-Output '{}'; Write-Output 'UTF8_DONE'", combined.replace("'", "''"))])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    format!(
+                        "Write-Output '{}'; Write-Output 'UTF8_DONE'",
+                        combined.replace("'", "''")
+                    ),
+                ],
+            )
         } else {
             ("bash".to_string(), vec!["-c".to_string(), script])
         };
@@ -165,13 +231,33 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
         }
         let _ = handle.kill();
         if ok {
-            Ok(("PASS".to_string(), format!("utf8 round-trip ok: {:?}", &s[..std::cmp::min(s.len(), 500)])))
+            Ok((
+                "PASS".to_string(),
+                format!(
+                    "utf8 round-trip ok: {:?}",
+                    &s[..std::cmp::min(s.len(), 500)]
+                ),
+            ))
         } else {
             // On Linux, UTF8 should pass; on Windows, we may warn.
             if cfg!(windows) {
-                Ok(("PASS".to_string(), format!("utf8 partial (Windows codepage limits) missing {:?}, output: {:?}", missing, &s[..std::cmp::min(s.len(), 500)])))
+                Ok((
+                    "PASS".to_string(),
+                    format!(
+                        "utf8 partial (Windows codepage limits) missing {:?}, output: {:?}",
+                        missing,
+                        &s[..std::cmp::min(s.len(), 500)]
+                    ),
+                ))
             } else {
-                Ok(("FAIL".to_string(), format!("utf8 missing {:?}, output: {:?}", missing, &s[..std::cmp::min(s.len(), 500)])))
+                Ok((
+                    "FAIL".to_string(),
+                    format!(
+                        "utf8 missing {:?}, output: {:?}",
+                        missing,
+                        &s[..std::cmp::min(s.len(), 500)]
+                    ),
+                ))
             }
         }
     })
@@ -181,9 +267,19 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-005 ctrlc", || {
         // Spawn a cat that will echo, then send Ctrl+C (0x03)
         let (cmd, args) = if cfg!(windows) {
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "while($true){ Start-Sleep -Milliseconds 100 }".to_string()])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    "while($true){ Start-Sleep -Milliseconds 100 }".to_string(),
+                ],
+            )
         } else {
-            ("bash".to_string(), vec!["-c".to_string(), "cat; echo CAT_DONE".to_string()])
+            (
+                "bash".to_string(),
+                vec!["-c".to_string(), "cat; echo CAT_DONE".to_string()],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
@@ -198,7 +294,15 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let s = String::from_utf8_lossy(&out);
         let _ = handle.kill();
         // We consider PASS if we were able to send 0x03 without PTY hang
-        Ok(("PASS".to_string(), format!("ctrlc sent, alive after: {}, output len {}, sample: {:?}", alive, out.len(), &s[..std::cmp::min(s.len(), 200)])))
+        Ok((
+            "PASS".to_string(),
+            format!(
+                "ctrlc sent, alive after: {}, output len {}, sample: {:?}",
+                alive,
+                out.len(),
+                &s[..std::cmp::min(s.len(), 200)]
+            ),
+        ))
     })
 }
 
@@ -223,20 +327,35 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
             ("bash".to_string(), vec!["-c".to_string(), py])
         } else {
             let ps = format!("$d=[byte[]]::new(4096); for($i=0;$i -lt 4096;$i++){{$d[$i]=65}}; $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(4096, $total-$written); $out.Write($d,0,$chunk); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush()", bytes);
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), ps])
+            (
+                "powershell.exe".to_string(),
+                vec!["-NoProfile".to_string(), "-Command".to_string(), ps],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
         let start = Instant::now();
-        let out = read_until_marker(handle.as_mut(), Duration::from_secs(10), bytes + 8192, "DONE_MARKER")?;
+        let out = read_until_marker(
+            handle.as_mut(),
+            Duration::from_secs(10),
+            bytes + 8192,
+            "DONE_MARKER",
+        )?;
         let elapsed = start.elapsed();
         let _ = handle.kill();
         let _ = handle.wait();
         // Strip marker and any trailing \r\n for exact payload comparison
-        let marker_pos = out.windows(11).position(|w| w == b"DONE_MARKER").unwrap_or(out.len());
+        let marker_pos = out
+            .windows(11)
+            .position(|w| w == b"DONE_MARKER")
+            .unwrap_or(out.len());
         let payload_delivered = &out[..marker_pos];
         // Remove any \r that PTY may have inserted (onlcr)
-        let payload_stripped: Vec<u8> = payload_delivered.iter().filter(|&&b| b != b'\r').cloned().collect();
+        let payload_stripped: Vec<u8> = payload_delivered
+            .iter()
+            .filter(|&&b| b != b'\r')
+            .cloned()
+            .collect();
         let delivered_sha = {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -246,13 +365,23 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         };
         let exact_match = payload_stripped.len() == bytes && delivered_sha == expected_sha;
         let has_marker = out.windows(11).any(|w| w == b"DONE_MARKER");
-        let throughput_mbs = (payload_stripped.len() as f64 / (1024.0*1024.0)) / elapsed.as_secs_f64().max(0.001);
-        let status = if exact_match && has_marker { "PASS" } else { "FAIL" };
+        let throughput_mbs =
+            (payload_stripped.len() as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64().max(0.001);
+        let status = if exact_match && has_marker {
+            "PASS"
+        } else {
+            "FAIL"
+        };
         Ok((status.to_string(), format!("high-volume payload {} expected_sha {} delivered {} delivered_sha {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_stripped.len(), delivered_sha, has_marker, throughput_mbs, exact_match, elapsed)))
     })
 }
 
-fn read_until_marker(handle: &mut dyn PtyHandle, timeout: Duration, max_bytes: usize, marker: &str) -> Result<Vec<u8>> {
+fn read_until_marker(
+    handle: &mut dyn PtyHandle,
+    timeout: Duration,
+    max_bytes: usize,
+    marker: &str,
+) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     let mut buf = [0u8; 8192];
     let start = Instant::now();
@@ -281,7 +410,9 @@ fn read_until_marker(handle: &mut dyn PtyHandle, timeout: Duration, max_bytes: u
                 }
             }
             Err(e) => {
-                if format!("{:?}", e).contains("WouldBlock") || format!("{}", e).contains("Resource temporarily unavailable") {
+                if format!("{:?}", e).contains("WouldBlock")
+                    || format!("{}", e).contains("Resource temporarily unavailable")
+                {
                     thread::sleep(Duration::from_millis(5));
                 } else {
                     break;
@@ -324,9 +455,25 @@ pub fn scenario_concurrent(backend_name: &str) -> ScenarioResult {
                 Box::new(crate::backends::direct::DirectBackend::new())
             };
             let (cmd, args) = if cfg!(windows) {
-                ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), format!("echo session{}; Start-Sleep -Milliseconds 200; echo done{}", i, i)])
+                (
+                    "powershell.exe".to_string(),
+                    vec![
+                        "-NoProfile".to_string(),
+                        "-Command".to_string(),
+                        format!(
+                            "echo session{}; Start-Sleep -Milliseconds 200; echo done{}",
+                            i, i
+                        ),
+                    ],
+                )
             } else {
-                ("bash".to_string(), vec!["-c".to_string(), format!("echo session{}; sleep 0.2; echo done{}", i, i)])
+                (
+                    "bash".to_string(),
+                    vec![
+                        "-c".to_string(),
+                        format!("echo session{}; sleep 0.2; echo done{}", i, i),
+                    ],
+                )
             };
             let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
             let h = b.spawn(&cmd, &args_ref, 24, 80)?;
@@ -343,9 +490,15 @@ pub fn scenario_concurrent(backend_name: &str) -> ScenarioResult {
             let _ = h.kill();
         }
         if all_ok {
-            Ok(("PASS".to_string(), "concurrent 5 sessions isolated and completed".to_string()))
+            Ok((
+                "PASS".to_string(),
+                "concurrent 5 sessions isolated and completed".to_string(),
+            ))
         } else {
-            Ok(("FAIL".to_string(), "concurrent sessions output mismatch".to_string()))
+            Ok((
+                "FAIL".to_string(),
+                "concurrent sessions output mismatch".to_string(),
+            ))
         }
     })
 }
@@ -356,17 +509,31 @@ pub fn scenario_cleanup(backend: &mut dyn PtyBackend) -> ScenarioResult {
         // On Linux, we can check /proc/self/fd count before/after
         #[cfg(unix)]
         fn fd_count() -> usize {
-            std::fs::read_dir("/proc/self/fd").map(|e| e.count()).unwrap_or(0)
+            std::fs::read_dir("/proc/self/fd")
+                .map(|e| e.count())
+                .unwrap_or(0)
         }
         #[cfg(windows)]
-        fn fd_count() -> usize { 0 }
+        fn fd_count() -> usize {
+            0
+        }
 
         let before = fd_count();
         for _ in 0..20 {
             let (cmd, args) = if cfg!(windows) {
-                ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "echo hi".to_string()])
+                (
+                    "powershell.exe".to_string(),
+                    vec![
+                        "-NoProfile".to_string(),
+                        "-Command".to_string(),
+                        "echo hi".to_string(),
+                    ],
+                )
             } else {
-                ("bash".to_string(), vec!["-c".to_string(), "echo hi".to_string()])
+                (
+                    "bash".to_string(),
+                    vec!["-c".to_string(), "echo hi".to_string()],
+                )
             };
             let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
             let mut h = backend.spawn(&cmd, &args_ref, 24, 80)?;
@@ -379,9 +546,18 @@ pub fn scenario_cleanup(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let after = fd_count();
         let leaked = if after > before + 5 { true } else { false };
         if leaked {
-            Ok(("FAIL".to_string(), format!("fd leak suspected: before {} after {}", before, after)))
+            Ok((
+                "FAIL".to_string(),
+                format!("fd leak suspected: before {} after {}", before, after),
+            ))
         } else {
-            Ok(("PASS".to_string(), format!("cleanup 20 cycles fd before {} after {} stable", before, after)))
+            Ok((
+                "PASS".to_string(),
+                format!(
+                    "cleanup 20 cycles fd before {} after {} stable",
+                    before, after
+                ),
+            ))
         }
     })
 }
@@ -391,9 +567,19 @@ pub fn scenario_cursor_dsr(backend: &mut dyn PtyBackend) -> ScenarioResult {
         // Test that ConPTY DSR handshake doesn't hang.
         // Spawn a shell and wait for prompt with timeout.
         let (cmd, args) = if cfg!(windows) {
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "echo DSR_TEST; exit 0".to_string()])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    "echo DSR_TEST; exit 0".to_string(),
+                ],
+            )
         } else {
-            ("bash".to_string(), vec!["-c".to_string(), "echo DSR_TEST; exit 0".to_string()])
+            (
+                "bash".to_string(),
+                vec!["-c".to_string(), "echo DSR_TEST; exit 0".to_string()],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let start = Instant::now();
@@ -403,11 +589,30 @@ pub fn scenario_cursor_dsr(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let s = String::from_utf8_lossy(&out);
         let _ = handle.wait();
         if s.contains("DSR_TEST") && elapsed < Duration::from_secs(4) {
-            Ok(("PASS".to_string(), format!("DSR handshake no hang, elapsed {:?}, output contains DSR_TEST", elapsed)))
+            Ok((
+                "PASS".to_string(),
+                format!(
+                    "DSR handshake no hang, elapsed {:?}, output contains DSR_TEST",
+                    elapsed
+                ),
+            ))
         } else if elapsed >= Duration::from_secs(4) {
-            Ok(("FAIL".to_string(), format!("DSR hang suspected, elapsed {:?}, output {:?}", elapsed, &s[..std::cmp::min(s.len(), 200)])))
+            Ok((
+                "FAIL".to_string(),
+                format!(
+                    "DSR hang suspected, elapsed {:?}, output {:?}",
+                    elapsed,
+                    &s[..std::cmp::min(s.len(), 200)]
+                ),
+            ))
         } else {
-            Ok(("FAIL".to_string(), format!("DSR_TEST not found, output {:?}", &s[..std::cmp::min(s.len(), 200)])))
+            Ok((
+                "FAIL".to_string(),
+                format!(
+                    "DSR_TEST not found, output {:?}",
+                    &s[..std::cmp::min(s.len(), 200)]
+                ),
+            ))
         }
     })
 }
@@ -429,9 +634,18 @@ pub fn scenario_tui(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let s = String::from_utf8_lossy(&out);
         let _ = handle.wait();
         if s.contains("TUI_DONE") {
-            Ok(("PASS".to_string(), "TUI alt-screen enter/exit simulated cleanly".to_string()))
+            Ok((
+                "PASS".to_string(),
+                "TUI alt-screen enter/exit simulated cleanly".to_string(),
+            ))
         } else {
-            Ok(("FAIL".to_string(), format!("TUI_DONE not found: {:?}", &s[..std::cmp::min(s.len(), 300)])))
+            Ok((
+                "FAIL".to_string(),
+                format!(
+                    "TUI_DONE not found: {:?}",
+                    &s[..std::cmp::min(s.len(), 300)]
+                ),
+            ))
         }
     })
 }
@@ -451,9 +665,18 @@ pub fn scenario_agent_cli(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let s = String::from_utf8_lossy(&out);
         let _ = handle.wait();
         if s.contains("AGENT_DONE") {
-            Ok(("PASS".to_string(), "agent CLI full-screen refresh cycles completed".to_string()))
+            Ok((
+                "PASS".to_string(),
+                "agent CLI full-screen refresh cycles completed".to_string(),
+            ))
         } else {
-            Ok(("FAIL".to_string(), format!("AGENT_DONE missing: {:?}", &s[..std::cmp::min(s.len(), 300)])))
+            Ok((
+                "FAIL".to_string(),
+                format!(
+                    "AGENT_DONE missing: {:?}",
+                    &s[..std::cmp::min(s.len(), 300)]
+                ),
+            ))
         }
     })
 }
@@ -488,7 +711,10 @@ pub fn scenario_shell_variants(backend: &mut dyn PtyBackend) -> ScenarioResult {
         #[cfg(windows)]
         {
             for (shell, args) in &[
-                ("powershell.exe", vec!["-NoProfile", "-Command", "echo SHELL_OK"]),
+                (
+                    "powershell.exe",
+                    vec!["-NoProfile", "-Command", "echo SHELL_OK"],
+                ),
                 ("cmd.exe", vec!["/c", "echo SHELL_OK"]),
             ] {
                 let args_ref: Vec<&str> = args.clone();
@@ -539,7 +765,10 @@ pub fn scenario_hidden_console(backend: &mut dyn PtyBackend) -> ScenarioResult {
         }
         #[cfg(unix)]
         {
-            Ok(("NOT_VERIFIED".to_string(), "hidden console is Windows-only, not applicable on Linux".to_string()))
+            Ok((
+                "NOT_VERIFIED".to_string(),
+                "hidden console is Windows-only, not applicable on Linux".to_string(),
+            ))
         }
     })
 }
@@ -551,9 +780,19 @@ pub fn scenario_clipboard(backend: &mut dyn PtyBackend) -> ScenarioResult {
         // Send a bracketed paste start + content + end and verify no hang.
         // Use a simple echo shell instead of cat to avoid hanging on stdin.
         let (cmd, args) = if cfg!(unix) {
-            ("bash".to_string(), vec!["-c".to_string(), "sleep 0.5; echo CLIP_DONE".to_string()])
+            (
+                "bash".to_string(),
+                vec!["-c".to_string(), "sleep 0.5; echo CLIP_DONE".to_string()],
+            )
         } else {
-            ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "Start-Sleep -Milliseconds 500; Write-Output 'CLIP_DONE'".to_string()])
+            (
+                "powershell.exe".to_string(),
+                vec![
+                    "-NoProfile".to_string(),
+                    "-Command".to_string(),
+                    "Start-Sleep -Milliseconds 500; Write-Output 'CLIP_DONE'".to_string(),
+                ],
+            )
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
@@ -566,7 +805,13 @@ pub fn scenario_clipboard(backend: &mut dyn PtyBackend) -> ScenarioResult {
         // If we didn't hang and output contains our marker, it's PASS
         let s = String::from_utf8_lossy(&out);
         if s.contains("CLIP_DONE") {
-            Ok(("PASS".to_string(), format!("clipboard bracketed paste sent, output len {}, contains CLIP_DONE, no hang", out.len())))
+            Ok((
+                "PASS".to_string(),
+                format!(
+                    "clipboard bracketed paste sent, output len {}, contains CLIP_DONE, no hang",
+                    out.len()
+                ),
+            ))
         } else {
             Ok(("PASS".to_string(), format!("clipboard bracketed paste sent, output len {}, no hang (CLIP_DONE not in output but no hang)", out.len())))
         }

@@ -1,7 +1,7 @@
 //! Bounded LOSSLESS transport experiment.
 //! This validates the design for M3: bounded batching with backpressure and no silent drop.
 
-use crossbeam_channel::{bounded, Sender, Receiver};
+use crossbeam_channel::{bounded, Receiver, Sender};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -10,10 +10,10 @@ use std::time::{Duration, Instant};
 /// Mimics PTY -> Rust reader -> Tauri Channel -> WebView pipeline stages.
 #[derive(Debug, Clone)]
 pub struct TransportConfig {
-    pub capacity: usize,        // max bytes queued
-    pub high_water: usize,      // when to apply backpressure
-    pub low_water: usize,       // when to resume
-    pub batch_size: usize,      // coalesce small writes
+    pub capacity: usize,   // max bytes queued
+    pub high_water: usize, // when to apply backpressure
+    pub low_water: usize,  // when to resume
+    pub batch_size: usize, // coalesce small writes
 }
 
 impl Default for TransportConfig {
@@ -77,13 +77,19 @@ impl LosslessTransport {
     /// Producer writes bytes; blocks if would exceed high water (backpressure).
     pub fn write(&mut self, data: &[u8]) -> Result<(), TransportError> {
         if self.desync {
-            return Err(TransportError::HardLimitBreach { queued: self.queue.lock().unwrap().len(), limit: self.config.capacity });
+            return Err(TransportError::HardLimitBreach {
+                queued: self.queue.lock().unwrap().len(),
+                limit: self.config.capacity,
+            });
         }
         let q_len = self.queue.lock().unwrap().len();
         if q_len + data.len() > self.config.capacity {
             self.hard_breach += 1;
             self.desync = true;
-            return Err(TransportError::HardLimitBreach { queued: q_len, limit: self.config.capacity });
+            return Err(TransportError::HardLimitBreach {
+                queued: q_len,
+                limit: self.config.capacity,
+            });
         }
         if q_len > self.config.high_water {
             self.backpressure_count += 1;
@@ -94,7 +100,10 @@ impl LosslessTransport {
         if q.len() + data.len() > self.config.capacity {
             self.hard_breach += 1;
             self.desync = true;
-            return Err(TransportError::HardLimitBreach { queued: q.len(), limit: self.config.capacity });
+            return Err(TransportError::HardLimitBreach {
+                queued: q.len(),
+                limit: self.config.capacity,
+            });
         }
         if q.len() > self.config.high_water {
             self.backpressure_count += 1;
@@ -133,7 +142,9 @@ impl LosslessTransport {
         }
     }
 
-    pub fn is_desync(&self) -> bool { self.desync }
+    pub fn is_desync(&self) -> bool {
+        self.desync
+    }
 
     /// Drain all remaining.
     pub fn drain(&mut self) -> Vec<u8> {
@@ -158,7 +169,13 @@ pub struct DroppingTransport {
 
 impl DroppingTransport {
     pub fn new(config: TransportConfig) -> Self {
-        Self { config, queue: VecDeque::new(), produced: 0, delivered: 0, dropped: 0 }
+        Self {
+            config,
+            queue: VecDeque::new(),
+            produced: 0,
+            delivered: 0,
+            dropped: 0,
+        }
     }
     pub fn write(&mut self, data: &[u8]) {
         self.produced += data.len();

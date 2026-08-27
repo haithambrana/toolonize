@@ -39,7 +39,10 @@ pub fn shell_for_platform() -> (&'static str, Vec<String>) {
     #[cfg(windows)]
     {
         // Try PowerShell first, fallback to cmd
-        ("powershell.exe", vec!["-NoProfile".to_string(), "-Command".to_string()])
+        (
+            "powershell.exe",
+            vec!["-NoProfile".to_string(), "-Command".to_string()],
+        )
     }
     #[cfg(unix)]
     {
@@ -67,7 +70,10 @@ pub fn high_volume_cmd(bytes: usize) -> (String, Vec<String>) {
     {
         let cmd = "powershell.exe".to_string();
         let ps = format!("$s='TOOLONIZE_PATTERN_0123456789_abcdefghijklmnopqrstuvwxyz_'*1024; $b=[System.Text.Encoding]::ASCII.GetBytes($s); $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $toWrite=[Math]::Min($b.Length, $total-$written); $out.Write($b,0,$toWrite); $written+=$toWrite }}", bytes);
-        (cmd, vec!["-NoProfile".to_string(), "-Command".to_string(), ps])
+        (
+            cmd,
+            vec!["-NoProfile".to_string(), "-Command".to_string(), ps],
+        )
     }
 }
 
@@ -80,10 +86,24 @@ pub fn invalid_exe() -> (&'static str, Vec<&'static str>) {
 pub fn resize_check_cmd() -> (String, Vec<String>) {
     #[cfg(unix)]
     {
-        ("bash".to_string(), vec!["-c".to_string(), "stty size; echo RESIZE_CHECK_DONE".to_string()])
+        (
+            "bash".to_string(),
+            vec![
+                "-c".to_string(),
+                "stty size; echo RESIZE_CHECK_DONE".to_string(),
+            ],
+        )
     }
     #[cfg(windows)]
     {
-        ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), "mode con | Select-String -Pattern 'Columns|Lines'; echo RESIZE_CHECK_DONE".to_string()])
+        (
+            "powershell.exe".to_string(),
+            vec![
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "mode con | Select-String -Pattern 'Columns|Lines'; echo RESIZE_CHECK_DONE"
+                    .to_string(),
+            ],
+        )
     }
 }

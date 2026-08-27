@@ -7,8 +7,14 @@ use std::time::Instant;
 fn main() -> anyhow::Result<()> {
     env_logger::init();
     println!("=== M2 PTY Backend Technical Spike ===");
-    println!("Platform: {} {}", std::env::consts::OS, std::env::consts::ARCH);
-    println!("Candidates: (a) portable-pty 0.9.0 + mitigations, (b) direct native (openpty/ConPTY)");
+    println!(
+        "Platform: {} {}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+    println!(
+        "Candidates: (a) portable-pty 0.9.0 + mitigations, (b) direct native (openpty/ConPTY)"
+    );
     println!();
 
     let mut all_results: Vec<ScenarioResult> = Vec::new();
@@ -36,13 +42,19 @@ fn main() -> anyhow::Result<()> {
         ];
 
         for r in &scenarios {
-            println!("[{}] {}: {} - {} ({}ms)", r.backend, r.scenario, r.status, r.details, r.duration_ms);
+            println!(
+                "[{}] {}: {} - {} ({}ms)",
+                r.backend, r.scenario, r.status, r.details, r.duration_ms
+            );
             all_results.push(r.clone());
         }
 
         // Concurrent is separate because it needs fresh backend per session
         let conc = harness::scenario_concurrent(name.as_str());
-        println!("[{}] {}: {} - {} ({}ms)", conc.backend, conc.scenario, conc.status, conc.details, conc.duration_ms);
+        println!(
+            "[{}] {}: {} - {} ({}ms)",
+            conc.backend, conc.scenario, conc.status, conc.details, conc.duration_ms
+        );
         all_results.push(conc);
 
         println!();
@@ -54,22 +66,50 @@ fn main() -> anyhow::Result<()> {
     println!("Lossless: produced {} delivered {} dropped {} max_depth {} backpressure {} breaches {} lossless {}",
         lossless_stats.produced_bytes, lossless_stats.delivered_bytes, lossless_stats.dropped_bytes,
         lossless_stats.max_queue_depth, lossless_stats.backpressure_events, lossless_stats.hard_limit_breaches, lossless_stats.lossless);
-    println!("Dropping: produced {} delivered {} dropped {} lossless {}",
-        dropping_stats.produced_bytes, dropping_stats.delivered_bytes, dropping_stats.dropped_bytes, dropping_stats.lossless);
-    let transport_status = if lossless_stats.lossless && lossless_stats.hard_limit_breaches == 0 { "PASS" } else { "FAIL" };
-    println!("Transport lossless {} - dropping demonstrates why not to use silent drop", transport_status);
+    println!(
+        "Dropping: produced {} delivered {} dropped {} lossless {}",
+        dropping_stats.produced_bytes,
+        dropping_stats.delivered_bytes,
+        dropping_stats.dropped_bytes,
+        dropping_stats.lossless
+    );
+    let transport_status = if lossless_stats.lossless && lossless_stats.hard_limit_breaches == 0 {
+        "PASS"
+    } else {
+        "FAIL"
+    };
+    println!(
+        "Transport lossless {} - dropping demonstrates why not to use silent drop",
+        transport_status
+    );
     all_results.push(ScenarioResult {
         backend: "transport".to_string(),
         scenario: "T-PTY-007 backpressure/desync".to_string(),
         status: transport_status.to_string(),
-        details: format!("lossless produced==delivered {}, dropping dropped {}", lossless_stats.produced_bytes == lossless_stats.delivered_bytes, dropping_stats.dropped_bytes),
+        details: format!(
+            "lossless produced==delivered {}, dropping dropped {}",
+            lossless_stats.produced_bytes == lossless_stats.delivered_bytes,
+            dropping_stats.dropped_bytes
+        ),
         duration_ms: 0,
         extra: {
             let mut m = HashMap::new();
-            m.insert("lossless_produced".to_string(), lossless_stats.produced_bytes.to_string());
-            m.insert("lossless_delivered".to_string(), lossless_stats.delivered_bytes.to_string());
-            m.insert("lossless_dropped".to_string(), lossless_stats.dropped_bytes.to_string());
-            m.insert("dropping_dropped".to_string(), dropping_stats.dropped_bytes.to_string());
+            m.insert(
+                "lossless_produced".to_string(),
+                lossless_stats.produced_bytes.to_string(),
+            );
+            m.insert(
+                "lossless_delivered".to_string(),
+                lossless_stats.delivered_bytes.to_string(),
+            );
+            m.insert(
+                "lossless_dropped".to_string(),
+                lossless_stats.dropped_bytes.to_string(),
+            );
+            m.insert(
+                "dropping_dropped".to_string(),
+                dropping_stats.dropped_bytes.to_string(),
+            );
             m
         },
     });
@@ -82,7 +122,13 @@ fn main() -> anyhow::Result<()> {
         // Use high_volume scenario but with 10MB if we want; for now reuse 1MB and extrapolate
         let result = harness::scenario_high_volume(backend.as_mut());
         let elapsed = perf_start.elapsed();
-        println!("[{}] perf high-volume 1MB: {} in {:?} ({:.2} MB/s)", name, result.status, elapsed, 1.0 / elapsed.as_secs_f64());
+        println!(
+            "[{}] perf high-volume 1MB: {} in {:?} ({:.2} MB/s)",
+            name,
+            result.status,
+            elapsed,
+            1.0 / elapsed.as_secs_f64()
+        );
         // We treat this as performance data, not just PASS/FAIL
         all_results.push(ScenarioResult {
             backend: name.clone(),
@@ -96,9 +142,18 @@ fn main() -> anyhow::Result<()> {
 
     // Full pipeline spike (simulated)
     println!("\n--- Full Pipeline Spike (PTY -> Rust -> Tauri Channel -> WebView -> xterm.js) ---");
-    println!("Note: Real WebView requires display; spike simulates via Tauri Channel + xterm-headless.");
+    println!(
+        "Note: Real WebView requires display; spike simulates via Tauri Channel + xterm-headless."
+    );
     let pipeline_result = run_full_pipeline_simulated();
-    println!("[pipeline] {}: {} - {} - {} ({}ms)", pipeline_result.backend, pipeline_result.scenario, pipeline_result.status, pipeline_result.details, pipeline_result.duration_ms);
+    println!(
+        "[pipeline] {}: {} - {} - {} ({}ms)",
+        pipeline_result.backend,
+        pipeline_result.scenario,
+        pipeline_result.status,
+        pipeline_result.details,
+        pipeline_result.duration_ms
+    );
     all_results.push(pipeline_result);
 
     // Summary
@@ -106,8 +161,18 @@ fn main() -> anyhow::Result<()> {
     let pass = all_results.iter().filter(|r| r.status == "PASS").count();
     let fail = all_results.iter().filter(|r| r.status == "FAIL").count();
     let blocked = all_results.iter().filter(|r| r.status == "BLOCKED").count();
-    let not_verified = all_results.iter().filter(|r| r.status == "NOT_VERIFIED").count();
-    println!("Total: {}, PASS: {}, FAIL: {}, BLOCKED: {}, NOT_VERIFIED: {}", all_results.len(), pass, fail, blocked, not_verified);
+    let not_verified = all_results
+        .iter()
+        .filter(|r| r.status == "NOT_VERIFIED")
+        .count();
+    println!(
+        "Total: {}, PASS: {}, FAIL: {}, BLOCKED: {}, NOT_VERIFIED: {}",
+        all_results.len(),
+        pass,
+        fail,
+        blocked,
+        not_verified
+    );
     println!("Total duration: {:?}", start_all.elapsed());
 
     // Write JSON report for CI
@@ -126,7 +191,9 @@ fn main() -> anyhow::Result<()> {
     }
 
     if fail > 0 {
-        println!("SPIKE: Some scenarios FAILED - see details above. Decision requires human review.");
+        println!(
+            "SPIKE: Some scenarios FAILED - see details above. Decision requires human review."
+        );
         std::process::exit(1);
     } else {
         println!("SPIKE: All runnable scenarios PASS on this platform.");
@@ -140,7 +207,12 @@ fn run_full_pipeline_simulated() -> ScenarioResult {
     // We use the lossless transport to simulate the pipeline.
     use spike_pty::transport::{LosslessTransport, TransportConfig};
 
-    let config = TransportConfig { capacity: 256*1024, high_water: 192*1024, low_water: 64*1024, batch_size: 8192 };
+    let config = TransportConfig {
+        capacity: 256 * 1024,
+        high_water: 192 * 1024,
+        low_water: 64 * 1024,
+        batch_size: 8192,
+    };
     let mut transport = LosslessTransport::new(config);
 
     // Simulate PTY producing deterministic bytes
@@ -201,7 +273,11 @@ fn run_full_pipeline_simulated() -> ScenarioResult {
     let resize_ok = true; // In real pipeline, resize propagates via Tauri command to PTY; we tested resize via direct backend
 
     let details = format!("PTY produced {} -> transport delivered {} lossless {} | input return lossless {} | resize pipeline {}", produced, delivered, lossless, input_lossless, resize_ok);
-    let status = if lossless && input_lossless && resize_ok { "PASS" } else { "FAIL" };
+    let status = if lossless && input_lossless && resize_ok {
+        "PASS"
+    } else {
+        "FAIL"
+    };
 
     ScenarioResult {
         backend: "pipeline".to_string(),
