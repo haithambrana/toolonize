@@ -1,9 +1,8 @@
 # Project Status
 
-Phase: M0 — Repository Foundation (in progress)
+Phase: M1 — Cross-Platform Framework Shell (in progress)
 
 Architecture: HUMAN APPROVED for progression into M0.
-
 Naming: ToolOnize — HUMAN APPROVED. ToolOnize is the approved
 working/public product identity (former discovery-phase codename was
 "Dev Command Center" — historical naming research preserved in
@@ -11,9 +10,11 @@ docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal
 trademark clearance; formal legal/trademark review remains a later release
 gate if required.
 
-Implementation: NOT STARTED
-
-Public repository: NOT CREATED
+M0: COMPLETE / HUMAN APPROVED
+M1: IN PROGRESS — Cross-Platform Framework Shell
+Public repository: CREATED — haithambrana/toolonize
+Implementation: STARTED — M1 framework shell only
+Repository safety CI: GREEN at M1 start
 
 Tauri identifier direction: com.toolonize.desktop
 CLI / binary: toolonize
@@ -56,5 +57,12 @@ ToolOnize (display ToolOnize, repo toolonize, binary toolonize, config dir
 toolonize, Tauri identifier direction com.toolonize.desktop). All naming
 rounds preserved as historical research.
 
-Nothing in this repository is implemented. All capability statements are
-researched / decided / proposed / planned — none are implemented.
+2026-08-26: HUMAN_M0_GATE=APPROVED. M0 repository foundation complete and
+repository-safety CI green. Public repository created as
+haithambrana/toolonize (default branch main) at base commit
+86844ba420d8cde38adb0790f276e36f2709b95d.
+
+2026-08-27: M1 Cross-Platform Framework Shell authorized and started on branch
+m1-framework-shell. Only the M1 framework shell (Tauri window + hardened IPC)
+is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
+persistence, or production feature exists yet.
