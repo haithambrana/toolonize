@@ -100,7 +100,9 @@ export default function TerminalSpike() {
           try {
             const { invoke } = await import("@tauri-apps/api/core");
             await invoke("spike_exit", { code: 0 });
-          } catch {}
+          } catch {
+            void 0;
+          }
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -109,7 +111,9 @@ export default function TerminalSpike() {
           try {
             const { invoke } = await import("@tauri-apps/api/core");
             await invoke("spike_exit", { code: 1 });
-          } catch {}
+          } catch {
+            void 0;
+          }
         }
       }
       return;
@@ -148,7 +152,9 @@ export default function TerminalSpike() {
         try {
           const { invoke } = await import("@tauri-apps/api/core");
           await invoke("spike_exit", { code: 0 });
-        } catch {}
+        } catch {
+          void 0;
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -158,7 +164,9 @@ export default function TerminalSpike() {
         try {
           const { invoke } = await import("@tauri-apps/api/core");
           await invoke("spike_exit", { code: 1 });
-        } catch {}
+        } catch {
+          void 0;
+        }
       }
     }
   };
