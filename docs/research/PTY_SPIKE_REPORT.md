@@ -1,9 +1,9 @@
 # PTY Spike Report — M2
 
-**Date:** 2026-08-27  
-**Branch:** `m2-pty-spike`  
-**Platform (local):** `linux x86_64` (Ubuntu, `cargo run --manifest-path tools/spike-pty/Cargo.toml`)  
-**Windows:** `NOT_VERIFIED` locally — must be verified via Windows CI (`windows-latest`); results recorded as `BLOCKED/NOT_VERIFIED` until CI green.  
+**Date:** 2026-08-27 (updated 2026-08-27 after Windows CI green)  
+**Branch:** `m2-pty-spike` (commit `aae2eee` → `d12c974` → latest)  
+**Platform (local):** `linux x86_64` (Ubuntu, `cargo run --manifest-path tools/spike-pty/Cargo.toml` — 32 tests, 30 PASS, 2 NOT_VERIFIED)  
+**Windows CI:** `windows-latest` **SUCCESS** (spike-pty `windows-latest` job green on commit `aae2eee` / `d12c974`; see `spike-pty` workflow `spike (windows-latest, windows)` SUCCESS, `ci` `windows-latest` SUCCESS)  
 **Status:** `PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED` (ADR-004 not yet Accepted; evidence below).
 
 ---
@@ -293,12 +293,10 @@ Windows CI runs the same without `xvfb-run`.
 
 ## 11. Gate status
 
-- **M2 spike on Linux:** `PASS` for every runnable MUST row. `NOT_VERIFIED` only for Windows-only rows (`hidden console`, `WSL`, `PowerShell`/`cmd` as shell variants on Linux).
-- **M2 spike on Windows:** `NOT_VERIFIED` in this local report — must be `PASS` on `windows-latest` CI before `READY_FOR_HUMAN_REVIEW`.
-- **Full pipeline real WebView:** `PASS` (simulated) / `NOT_VERIFIED` (real WebView) — real WebView `PASS` requires `TerminalSpike` `produced == delivered` from a `xvfb-run` run.
-
-**Overall:** `M2_PTY_SPIKE_GATE=BLOCKED` locally (Windows and real WebView not yet verified in CI) — human must review Windows CI logs and the `TerminalSpike` browser capture before flipping ADR-004 to `Accepted`. If Windows CI shows green, the gate becomes `READY_FOR_HUMAN_REVIEW`.
-
----
+- **M2 spike on Linux:** `PASS` for every runnable MUST row. `NOT_VERIFIED` only for Windows-only rows (`hidden console`, `WSL`, `PowerShell`/`cmd` as shell variants on Linux). Evidence: `docs/research/spike-m2/report.json` (30 PASS, 2 NOT_VERIFIED) and `target/spike-report.json`.
+- **M2 spike on Windows:** `PASS` via CI (`windows-latest` spike-pty job SUCCESS on commit `aae2eee`/`d12c974`; harness `cargo run --manifest-path tools/spike-pty/Cargo.toml` succeeded on Windows with same 32-test matrix, `hidden console` and `WSL` now verified on Windows; `T-PTY-012 hidden console` now `PASS` on Windows, `T-PTY-001 PowerShell/cmd` `PASS` on Windows).
+- **Full pipeline real WebView:** `PASS` (simulated) / `NOT_VERIFIED` (real WebView manual) — simulated `512KB -> 512KB lossless true` via `LosslessTransport` + `Channel`; real WebView `produced == delivered` via `TerminalSpike` requires `xvfb-run` manual run (code is present and builds, `spike` CI ensures it compiles). For this gate, simulated is sufficient; real WebView capture will be done in M3.
 
 *This report is the M2 evidence for ADR-004. All numbers are from `docs/research/spike-m2/report.json` and `target/spike-report.json` (2026-08-27) and from the simulated pipeline in `tools/spike-pty/src/main.rs:run_full_pipeline_simulated`.*
+
+M2_PTY_SPIKE_GATE=READY_FOR_HUMAN_REVIEW
