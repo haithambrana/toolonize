@@ -105,8 +105,8 @@ export default function App() {
           </ul>
         </section>
 
-        {/* M2 Spike harness - throwaway, not product. Visible in dev for evidence, not in tests. */}
-        {import.meta.env.DEV && import.meta.env.MODE !== "test" && (
+        {/* Throwaway M2 harness, included only in the dedicated spike build. */}
+        {import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test" && (
           <Suspense fallback={<div className="muted small">Loading spike harness…</div>}>
             <TerminalSpike />
           </Suspense>

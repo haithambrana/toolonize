@@ -1,11 +1,20 @@
 use crate::backends::{PtyBackend, PtyHandle, ScenarioResult};
 use crate::fixtures;
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+fn is_would_block(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<std::io::Error>()
+        .is_some_and(|error| error.kind() == std::io::ErrorKind::WouldBlock)
+        || error.to_string().contains("EAGAIN")
+        || error
+            .to_string()
+            .contains("Resource temporarily unavailable")
+}
 
 fn timed<F: FnOnce() -> Result<(String, String)>>(
     backend: &str,
@@ -47,25 +56,23 @@ fn read_with_timeout(
                 }
             }
             Err(e) => {
-                // On non-blocking, would be WouldBlock; on our direct impl it's blocking.
-                // For spike, treat as timeout
-                if format!("{:?}", e).contains("WouldBlock")
-                    || format!("{}", e).contains("Resource temporarily unavailable")
-                {
+                if is_would_block(&e) {
                     thread::sleep(Duration::from_millis(10));
                 } else {
                     break;
                 }
             }
         }
-        // Check if child exited
         if !handle.is_alive() {
-            // Try to drain remaining
-            thread::sleep(Duration::from_millis(50));
-            // Try one more read
-            if let Ok(n) = handle.read(&mut buf) {
-                if n > 0 {
-                    out.extend_from_slice(&buf[..n]);
+            let drain_deadline = Instant::now() + Duration::from_millis(500);
+            while Instant::now() < drain_deadline && out.len() < max_bytes {
+                match handle.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => out.extend_from_slice(&buf[..n]),
+                    Err(error) if is_would_block(&error) => {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(_) => break,
                 }
             }
             break;
@@ -156,7 +163,7 @@ pub fn scenario_resize(backend: &mut dyn PtyBackend) -> ScenarioResult {
                 vec![
                     "-NoProfile".to_string(),
                     "-Command".to_string(),
-                    "while($true){ Start-Sleep -Milliseconds 100 }".to_string(),
+                    "$null=Read-Host; $size='{0}x{1}' -f [Console]::WindowHeight,[Console]::WindowWidth; Write-Output \"SIZE=$size\"; Write-Output 'RESIZE_CHECK_DONE'".to_string(),
                 ],
             )
         } else {
@@ -164,7 +171,7 @@ pub fn scenario_resize(backend: &mut dyn PtyBackend) -> ScenarioResult {
                 "bash".to_string(),
                 vec![
                     "-c".to_string(),
-                    "while true; do sleep 0.1; done".to_string(),
+                    "read ignored; size=$(stty size); echo \"SIZE=${size/ /x}\"; echo RESIZE_CHECK_DONE".to_string(),
                 ],
             )
         };
@@ -172,18 +179,28 @@ pub fn scenario_resize(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
         thread::sleep(Duration::from_millis(200));
         handle.resize(40, 120)?;
-        thread::sleep(Duration::from_millis(200));
+        handle.write(b"\r")?;
+        let output = read_with_timeout(handle.as_mut(), Duration::from_secs(3), 8192)?;
+        let text = String::from_utf8_lossy(&output);
         let (r, c) = handle.get_size()?;
         let _ = handle.kill();
-        if r == 40 && c == 120 {
+        if r == 40 && c == 120 && text.contains("SIZE=40x120") {
             Ok((
                 "PASS".to_string(),
-                format!("resize 24x80->40x120 succeeded, got {}x{}", r, c),
+                format!(
+                    "resize 24x80->40x120; backend {}x{}, child observed SIZE=40x120",
+                    r, c
+                ),
             ))
         } else {
             Ok((
                 "FAIL".to_string(),
-                format!("resize expected 40x120 got {}x{}", r, c),
+                format!(
+                    "resize expected child SIZE=40x120, backend {}x{}, output {:?}",
+                    r,
+                    c,
+                    &text[..text.len().min(500)]
+                ),
             ))
         }
     })
@@ -206,7 +223,7 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
                     "-NoProfile".to_string(),
                     "-Command".to_string(),
                     format!(
-                        "Write-Output '{}'; Write-Output 'UTF8_DONE'",
+                        "[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); Write-Output '{}'; Write-Output 'UTF8_DONE'",
                         combined.replace("'", "''")
                     ),
                 ],
@@ -222,9 +239,6 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let mut missing = Vec::new();
         for (name, fixture) in fixtures {
             if !s.contains(fixture) {
-                // Check if fixture bytes are present as lossy? On Windows, codepage may not support.
-                // For spike, we check that at least ASCII parts survive.
-                // If not found, mark missing but don't necessarily fail entire test on Windows.
                 missing.push(name);
                 ok = false;
             }
@@ -239,26 +253,14 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
                 ),
             ))
         } else {
-            // On Linux, UTF8 should pass; on Windows, we may warn.
-            if cfg!(windows) {
-                Ok((
-                    "PASS".to_string(),
-                    format!(
-                        "utf8 partial (Windows codepage limits) missing {:?}, output: {:?}",
-                        missing,
-                        &s[..std::cmp::min(s.len(), 500)]
-                    ),
-                ))
-            } else {
-                Ok((
-                    "FAIL".to_string(),
-                    format!(
-                        "utf8 missing {:?}, output: {:?}",
-                        missing,
-                        &s[..std::cmp::min(s.len(), 500)]
-                    ),
-                ))
-            }
+            Ok((
+                "FAIL".to_string(),
+                format!(
+                    "utf8 missing {:?}, output: {:?}",
+                    missing,
+                    &s[..std::cmp::min(s.len(), 500)]
+                ),
+            ))
         }
     })
 }
@@ -286,40 +288,34 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
         thread::sleep(Duration::from_millis(300));
         // Send Ctrl+C
         handle.write(&[0x03])?;
-        thread::sleep(Duration::from_millis(500));
-        // Try to see if process handled it: for cat, it should terminate or we kill.
-        // For PowerShell loop, Ctrl+C should interrupt but not necessarily exit; we check is_alive
-        let alive = handle.is_alive();
-        let out = read_with_timeout(handle.as_mut(), Duration::from_secs(1), 4096)?;
-        let s = String::from_utf8_lossy(&out);
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while handle.is_alive() && Instant::now() < deadline {
+            let mut output = [0u8; 256];
+            let _ = handle.read(&mut output);
+            thread::sleep(Duration::from_millis(25));
+        }
+        let exit_code = handle.wait()?;
         let _ = handle.kill();
-        // We consider PASS if we were able to send 0x03 without PTY hang
-        Ok((
-            "PASS".to_string(),
-            format!(
-                "ctrlc sent, alive after: {}, output len {}, sample: {:?}",
-                alive,
-                out.len(),
-                &s[..std::cmp::min(s.len(), 200)]
-            ),
-        ))
+        if let Some(code) = exit_code {
+            Ok((
+                "PASS".to_string(),
+                format!("Ctrl+C terminated child, exit code {code}"),
+            ))
+        } else {
+            Ok((
+                "FAIL".to_string(),
+                "Ctrl+C did not terminate child within 3 seconds".to_string(),
+            ))
+        }
     })
 }
 
 pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-006 high-volume lossless", || {
-        // Exact lossless: generate deterministic payload, no PTY translation, verify SHA
-        // Use raw payload of 'A'*bytes, then a separate marker that we strip before comparison
+        // Exact lossless: deterministic bytes followed immediately by a marker.
         let bytes = 256 * 1024;
-        // Compute expected SHA256 of payload 'A'*bytes
         let expected_payload = vec![b'A'; bytes];
-        let expected_sha = {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut h = DefaultHasher::new();
-            expected_payload.hash(&mut h);
-            format!("{:016x}", h.finish())
-        };
+        let expected_sha = format!("{:x}", Sha256::digest(&expected_payload));
         let (cmd, args) = if cfg!(unix) {
             // Use python to write raw payload without newline translation, then marker
             // Disable PTY onlcr via stty raw, but for spike we just write raw 'A's and then marker without newline
@@ -344,35 +340,25 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let elapsed = start.elapsed();
         let _ = handle.kill();
         let _ = handle.wait();
-        // Strip marker and any trailing \r\n for exact payload comparison
         let marker_pos = out
             .windows(11)
             .position(|w| w == b"DONE_MARKER")
             .unwrap_or(out.len());
         let payload_delivered = &out[..marker_pos];
-        // Remove any \r that PTY may have inserted (onlcr)
-        let payload_stripped: Vec<u8> = payload_delivered
-            .iter()
-            .filter(|&&b| b != b'\r')
-            .cloned()
-            .collect();
-        let delivered_sha = {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut h = DefaultHasher::new();
-            payload_stripped.hash(&mut h);
-            format!("{:016x}", h.finish())
-        };
-        let exact_match = payload_stripped.len() == bytes && delivered_sha == expected_sha;
+        let delivered_sha = format!("{:x}", Sha256::digest(payload_delivered));
         let has_marker = out.windows(11).any(|w| w == b"DONE_MARKER");
+        let exact_match = marker_pos == bytes
+            && out.len() == bytes + b"DONE_MARKER".len()
+            && payload_delivered == expected_payload
+            && delivered_sha == expected_sha;
         let throughput_mbs =
-            (payload_stripped.len() as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64().max(0.001);
+            (payload_delivered.len() as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64().max(0.001);
         let status = if exact_match && has_marker {
             "PASS"
         } else {
             "FAIL"
         };
-        Ok((status.to_string(), format!("high-volume payload {} expected_sha {} delivered {} delivered_sha {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_stripped.len(), delivered_sha, has_marker, throughput_mbs, exact_match, elapsed)))
+        Ok((status.to_string(), format!("high-volume payload {} expected_sha256 {} delivered {} delivered_sha256 {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_delivered.len(), delivered_sha, has_marker, throughput_mbs, exact_match, elapsed)))
     })
 }
 
@@ -410,9 +396,7 @@ fn read_until_marker(
                 }
             }
             Err(e) => {
-                if format!("{:?}", e).contains("WouldBlock")
-                    || format!("{}", e).contains("Resource temporarily unavailable")
-                {
+                if is_would_block(&e) {
                     thread::sleep(Duration::from_millis(5));
                 } else {
                     break;
@@ -430,6 +414,9 @@ fn read_until_marker(
                         if String::from_utf8_lossy(&out).contains(marker) {
                             break;
                         }
+                    }
+                    Err(error) if is_would_block(&error) => {
+                        thread::sleep(Duration::from_millis(10));
                     }
                     Err(_) => break,
                 }
@@ -515,7 +502,11 @@ pub fn scenario_cleanup(backend: &mut dyn PtyBackend) -> ScenarioResult {
         }
         #[cfg(windows)]
         fn fd_count() -> usize {
-            0
+            use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+            let mut count = 0;
+            unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut count) }
+                .map(|()| count as usize)
+                .unwrap_or(usize::MAX)
         }
 
         let before = fd_count();
@@ -544,7 +535,7 @@ pub fn scenario_cleanup(backend: &mut dyn PtyBackend) -> ScenarioResult {
         }
         thread::sleep(Duration::from_millis(200));
         let after = fd_count();
-        let leaked = if after > before + 5 { true } else { false };
+        let leaked = after > before + 5;
         if leaked {
             Ok((
                 "FAIL".to_string(),
@@ -716,6 +707,7 @@ pub fn scenario_shell_variants(backend: &mut dyn PtyBackend) -> ScenarioResult {
                     vec!["-NoProfile", "-Command", "echo SHELL_OK"],
                 ),
                 ("cmd.exe", vec!["/c", "echo SHELL_OK"]),
+                ("pwsh.exe", vec!["-NoProfile", "-Command", "echo SHELL_OK"]),
             ] {
                 let args_ref: Vec<&str> = args.clone();
                 match backend.spawn(shell, &args_ref, 24, 80) {
@@ -729,15 +721,14 @@ pub fn scenario_shell_variants(backend: &mut dyn PtyBackend) -> ScenarioResult {
                         }
                         let _ = h.kill();
                     }
-                    Err(e) => results.push(format!("{}:ERR {}", shell, e)),
+                    Err(e) => results.push(format!("{}:FAIL {}", shell, e)),
                 }
             }
             // WSL check on Windows
             let wsl_check = std::process::Command::new("wsl").arg("--list").output();
             match wsl_check {
-                Ok(o) if o.status.success() => results.push("wsl:PASS".to_string()),
-                Ok(_) => results.push("wsl:FAIL".to_string()),
-                Err(_) => results.push("wsl:NOT_VERIFIED (not installed)".to_string()),
+                Ok(o) if o.status.success() => results.push("WSL=PASS".to_string()),
+                Ok(_) | Err(_) => results.push("WSL=NOT_AVAILABLE_IN_CI".to_string()),
             }
         }
         let has_fail = results.iter().any(|r| r.contains(":FAIL"));
@@ -753,14 +744,12 @@ pub fn scenario_hidden_console(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-012 hidden console", || {
         #[cfg(windows)]
         {
-            // On Windows, verify no new top-level console window appears.
-            // For spike, we just verify that spawn with ConPTY doesn't create visible console.
-            // We spawn a simple cmd and check that no new console window is enumerated as visible.
-            // Simplified: just verify spawn succeeds without flashing - we check that our PtyHandle says ConPTY.
-            if backend.name().contains("ConPTY") || backend.name().contains("portable") {
-                Ok(("PASS".to_string(), "Windows ConPTY: no new console window (ConPTY uses pseudo-console, not visible window)".to_string()))
-            } else {
-                Ok(("FAIL".to_string(), "not ConPTY backend".to_string()))
+            match backend.hidden_console_evidence() {
+                Some(evidence) => Ok(("PASS".to_string(), evidence.to_string())),
+                None => Ok((
+                    "FAIL".to_string(),
+                    "backend exposes no structural hidden-console evidence".to_string(),
+                )),
             }
         }
         #[cfg(unix)]

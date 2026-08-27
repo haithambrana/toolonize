@@ -1,9 +1,7 @@
-use super::{PtyBackend, PtyHandle};
-use anyhow::{anyhow, Result};
+use super::{PtyBackend, PtyHandle, ReadPump};
+use anyhow::Result;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
-use std::io::{Read, Write};
-use std::sync::mpsc;
-use std::time::Duration;
+use std::io::Write;
 
 /// Portable-pty 0.9.0 backend with mitigations per ADR-004 / turborepo#11816:
 /// - Respond to DSR (ESC[6n) to avoid ConPTY hang (WIN)
@@ -14,7 +12,7 @@ pub struct PortableBackend {
 
 pub struct PortableHandle {
     master: Box<dyn MasterPty + Send>,
-    reader: Box<dyn Read + Send>,
+    reader: ReadPump,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send>,
     backend_name: &'static str,
@@ -28,9 +26,26 @@ impl PortableBackend {
     }
 }
 
+impl Default for PortableBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PtyBackend for PortableBackend {
     fn name(&self) -> &'static str {
         "portable-pty-0.9.0"
+    }
+
+    fn hidden_console_evidence(&self) -> Option<&'static str> {
+        #[cfg(windows)]
+        {
+            Some("portable-pty native_pty_system selects its Windows ConPTY pseudoconsole path; the harness requests no console-window creation API")
+        }
+        #[cfg(not(windows))]
+        {
+            None
+        }
     }
 
     fn spawn(
@@ -65,7 +80,7 @@ impl PtyBackend for PortableBackend {
         // (portable-pty already handles this, but we document it)
 
         let master = pair.master;
-        let reader = master.try_clone_reader()?;
+        let reader = ReadPump::spawn(master.try_clone_reader()?);
         let writer = master.take_writer()?;
 
         Ok(Box::new(PortableHandle {
@@ -80,23 +95,12 @@ impl PtyBackend for PortableBackend {
 
 impl PtyHandle for PortableHandle {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        // Use non-blocking with timeout via try_clone_reader's blocking behavior.
-        // Set a short timeout by using try_read with poll? Portable-pty reader is blocking.
-        // For spike we implement a timeout via spawning a thread and using mpsc with timeout.
-        // Simpler: attempt read with timeout of 100ms via channel.
-        let mut tmp = vec![0u8; buf.len()];
-        // We do a blocking read in a way that can be interrupted by timeout in caller.
-        // Here we just do blocking read; caller should handle timeout via harness.
-        let n = self.reader.read(&mut tmp)?;
-        // DSR mitigation: if we see ESC[6n from ConPTY, respond with CPR.
-        // ESC[6n is 1b 5b 36 6e . We respond with ESC[24;80R (generic 24x80)
-        // This prevents hang on Windows. On Linux it won't appear.
-        if tmp[..n].windows(4).any(|w| w == [0x1b, b'[', b'6', b'n']) {
+        let n = self.reader.read(buf)?;
+        if buf[..n].windows(4).any(|w| w == [0x1b, b'[', b'6', b'n']) {
             // Respond to DSR
             let _ = self.writer.write_all(b"\x1b[24;80R");
             let _ = self.writer.flush();
         }
-        buf[..n].copy_from_slice(&tmp[..n]);
         Ok(n)
     }
 
@@ -135,27 +139,5 @@ impl PtyHandle for PortableHandle {
 
     fn backend_name(&self) -> &'static str {
         self.backend_name
-    }
-}
-
-// Helper for timeout read
-pub fn read_with_timeout(
-    handle: &mut dyn PtyHandle,
-    buf: &mut [u8],
-    timeout: Duration,
-) -> Result<Option<usize>> {
-    let (tx, rx) = mpsc::channel();
-    let mut tmp = vec![0u8; buf.len()];
-    // Spawn a thread to do blocking read
-    std::thread::spawn(move || {
-        // This is a bit hacky: we can't move handle, so we use a channel to signal.
-        // Instead, caller should use this via handle passed in thread.
-        // For now, just return.
-        let _ = tx.send(0);
-    });
-    // Placeholder: actual timeout logic is in harness via polling.
-    match rx.recv_timeout(timeout) {
-        Ok(n) => Ok(Some(n)),
-        Err(_) => Ok(None),
     }
 }

@@ -12,7 +12,8 @@ pub fn run() {
                 crate::commands::spike::spike_pty_stream,
                 crate::commands::spike::spike_resize,
                 crate::commands::spike::spike_input_echo,
-                crate::commands::spike::spike_exit
+                crate::commands::spike::spike_complete,
+                crate::commands::spike::spike_fail
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

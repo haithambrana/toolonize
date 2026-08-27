@@ -1,4 +1,4 @@
-use spike_pty::backends::{all_backends, ScenarioResult};
+use spike_pty::backends::{all_backends, ScenarioResult, SpikeReport};
 use spike_pty::harness;
 use spike_pty::transport;
 use std::collections::HashMap;
@@ -87,8 +87,13 @@ fn main() -> anyhow::Result<()> {
         scenario: "T-PTY-007 backpressure/desync".to_string(),
         status: transport_status.to_string(),
         details: format!(
-            "lossless produced==delivered {}, dropping dropped {}",
-            lossless_stats.produced_bytes == lossless_stats.delivered_bytes,
+            "capacity 65536 high_water 49152 low_water 16384; produced {} delivered {} dropped {} backpressure {} max_depth {} hard_breaches {}; dropping dropped {}",
+            lossless_stats.produced_bytes,
+            lossless_stats.delivered_bytes,
+            lossless_stats.dropped_bytes,
+            lossless_stats.backpressure_events,
+            lossless_stats.max_queue_depth,
+            lossless_stats.hard_limit_breaches,
             dropping_stats.dropped_bytes
         ),
         duration_ms: 0,
@@ -110,51 +115,44 @@ fn main() -> anyhow::Result<()> {
                 "dropping_dropped".to_string(),
                 dropping_stats.dropped_bytes.to_string(),
             );
+            m.insert(
+                "backpressure_events".to_string(),
+                lossless_stats.backpressure_events.to_string(),
+            );
+            m.insert(
+                "max_queue_depth".to_string(),
+                lossless_stats.max_queue_depth.to_string(),
+            );
+            m.insert(
+                "hard_limit_breaches".to_string(),
+                lossless_stats.hard_limit_breaches.to_string(),
+            );
             m
         },
     });
 
-    // Performance measurement (high-volume 10MB)
-    println!("\n--- Performance Measurement (10 MB high-volume) ---");
+    println!("\n--- Performance Measurement (256 KiB payload) ---");
     for mut backend in all_backends() {
         let name = backend.name().to_string();
         let perf_start = Instant::now();
-        // Use high_volume scenario but with 10MB if we want; for now reuse 1MB and extrapolate
         let result = harness::scenario_high_volume(backend.as_mut());
         let elapsed = perf_start.elapsed();
         println!(
-            "[{}] perf high-volume 1MB: {} in {:?} ({:.2} MB/s)",
+            "[{}] perf high-volume 256KiB: {} in {:?} ({:.2} MB/s)",
             name,
             result.status,
             elapsed,
-            1.0 / elapsed.as_secs_f64()
+            0.25 / elapsed.as_secs_f64()
         );
-        // We treat this as performance data, not just PASS/FAIL
         all_results.push(ScenarioResult {
             backend: name.clone(),
-            scenario: "PERF high-volume 1MB".to_string(),
+            scenario: "PERF high-volume 256KiB".to_string(),
             status: result.status.clone(),
             details: result.details.clone(),
             duration_ms: elapsed.as_millis(),
             extra: HashMap::new(),
         });
     }
-
-    // Full pipeline spike (simulated)
-    println!("\n--- Full Pipeline Spike (PTY -> Rust -> Tauri Channel -> WebView -> xterm.js) ---");
-    println!(
-        "Note: Real WebView requires display; spike simulates via Tauri Channel + xterm-headless."
-    );
-    let pipeline_result = run_full_pipeline_simulated();
-    println!(
-        "[pipeline] {}: {} - {} - {} ({}ms)",
-        pipeline_result.backend,
-        pipeline_result.scenario,
-        pipeline_result.status,
-        pipeline_result.details,
-        pipeline_result.duration_ms
-    );
-    all_results.push(pipeline_result);
 
     // Summary
     println!("\n=== SUMMARY ===");
@@ -178,7 +176,12 @@ fn main() -> anyhow::Result<()> {
     // Write JSON report for CI
     let report_path = "target/spike-report.json";
     std::fs::create_dir_all("target")?;
-    let json = serde_json::to_string_pretty(&all_results)?;
+    let report = SpikeReport {
+        platform: std::env::consts::OS,
+        architecture: std::env::consts::ARCH,
+        results: all_results,
+    };
+    let json = serde_json::to_string_pretty(&report)?;
     std::fs::write(report_path, &json)?;
     println!("Report written to {}", report_path);
 
@@ -198,99 +201,5 @@ fn main() -> anyhow::Result<()> {
     } else {
         println!("SPIKE: All runnable scenarios PASS on this platform.");
         Ok(())
-    }
-}
-
-fn run_full_pipeline_simulated() -> ScenarioResult {
-    let start = Instant::now();
-    // Simulate PTY -> Rust reader -> Tauri Channel (bounded) -> WebView -> xterm.js
-    // We use the lossless transport to simulate the pipeline.
-    use spike_pty::transport::{LosslessTransport, TransportConfig};
-
-    let config = TransportConfig {
-        capacity: 256 * 1024,
-        high_water: 192 * 1024,
-        low_water: 64 * 1024,
-        batch_size: 8192,
-    };
-    let mut transport = LosslessTransport::new(config);
-
-    // Simulate PTY producing deterministic bytes
-    let bytes = 512 * 1024; // 512KB
-    let (pattern, _) = spike_pty::fixtures::generate_pattern(bytes, 0x99);
-    let produced = pattern.len();
-
-    // PTY -> Rust reader (write to transport) - handle backpressure by draining and retrying
-    let mut offset = 0;
-    while offset < pattern.len() {
-        let end = std::cmp::min(offset + 4096, pattern.len());
-        let mut res = transport.write(&pattern[offset..end]);
-        if let Err(spike_pty::transport::TransportError::WouldBlock) = res {
-            // Backpressure: drain and retry (simulating blocking)
-            let mut out = Vec::new();
-            transport.read(&mut out);
-            res = transport.write(&pattern[offset..end]);
-        }
-        if res.is_err() {
-            return ScenarioResult {
-                backend: "pipeline".to_string(),
-                scenario: "PTY->Rust->Tauri->WebView->xterm.js".to_string(),
-                status: "FAIL".to_string(),
-                details: "transport hard limit breach (desync)".to_string(),
-                duration_ms: start.elapsed().as_millis(),
-                extra: HashMap::new(),
-            };
-        }
-        offset = end;
-        // Simulate Rust -> Tauri Channel -> WebView draining
-        let mut out = Vec::new();
-        transport.read(&mut out);
-        // Simulate xterm.js write (just count bytes, no drop)
-        // In real xterm.js, write is lossless if we use correct API.
-    }
-    // Final drain
-    let mut final_out = Vec::new();
-    let mut tmp = Vec::new();
-    transport.read(&mut tmp);
-    final_out.extend(tmp);
-    // Drain remaining
-    final_out.extend(transport.drain());
-
-    let delivered = transport.stats().delivered_bytes;
-    let lossless = produced == delivered && !transport.is_desync();
-
-    // Simulate return input path: WebView -> Rust -> PTY
-    // For spike, we just verify that write path is also lossless via same transport reverse
-    let input_bytes = b"test input from WebView -> PTY";
-    let mut reverse_transport = LosslessTransport::new(TransportConfig::default());
-    let _ = reverse_transport.write(input_bytes);
-    let mut reverse_out = Vec::new();
-    reverse_transport.read(&mut reverse_out);
-    reverse_out.extend(reverse_transport.drain());
-    let input_lossless = reverse_out == input_bytes;
-
-    // Simulate resize through pipeline
-    let resize_ok = true; // In real pipeline, resize propagates via Tauri command to PTY; we tested resize via direct backend
-
-    let details = format!("PTY produced {} -> transport delivered {} lossless {} | input return lossless {} | resize pipeline {}", produced, delivered, lossless, input_lossless, resize_ok);
-    let status = if lossless && input_lossless && resize_ok {
-        "PASS"
-    } else {
-        "FAIL"
-    };
-
-    ScenarioResult {
-        backend: "pipeline".to_string(),
-        scenario: "PTY->Rust->Tauri->WebView->xterm.js".to_string(),
-        status: status.to_string(),
-        details,
-        duration_ms: start.elapsed().as_millis(),
-        extra: {
-            let mut m = HashMap::new();
-            m.insert("produced".to_string(), produced.to_string());
-            m.insert("delivered".to_string(), delivered.to_string());
-            m.insert("lossless".to_string(), lossless.to_string());
-            m
-        },
     }
 }

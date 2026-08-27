@@ -3,10 +3,17 @@ pub mod portable;
 
 use anyhow::Result;
 use std::collections::HashMap;
+use std::collections::VecDeque;
+use std::io::{Error, ErrorKind, Read};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::time::Duration;
 
 /// Trait isolating PTY backend choice (ADR-004).
 pub trait PtyBackend: Send {
     fn name(&self) -> &'static str;
+    fn hidden_console_evidence(&self) -> Option<&'static str> {
+        None
+    }
     /// Spawn a child in a PTY. Returns handle.
     fn spawn(
         &mut self,
@@ -22,7 +29,7 @@ pub trait PtyBackend: Send {
     }
 }
 
-pub trait PtyHandle: Send {
+pub trait PtyHandle {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
     fn write(&mut self, data: &[u8]) -> Result<usize>;
     fn resize(&mut self, rows: u16, cols: u16) -> Result<()>;
@@ -33,12 +40,88 @@ pub trait PtyHandle: Send {
     fn backend_name(&self) -> &'static str;
 }
 
+enum ReadEvent {
+    Data(Vec<u8>),
+    Eof,
+    Error(String),
+}
+
+/// Converts a blocking PTY reader into short, interruptible reads. The harness
+/// can then enforce deadlines without leaking one thread per timed-out read.
+pub(crate) struct ReadPump {
+    receiver: Receiver<ReadEvent>,
+    pending: VecDeque<u8>,
+    closed: bool,
+}
+
+impl ReadPump {
+    pub(crate) fn spawn(mut reader: Box<dyn Read + Send>) -> Self {
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut buffer = vec![0u8; 8192];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => {
+                        let _ = sender.send(ReadEvent::Eof);
+                        break;
+                    }
+                    Ok(count) => {
+                        if sender
+                            .send(ReadEvent::Data(buffer[..count].to_vec()))
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        let _ = sender.send(ReadEvent::Error(error.to_string()));
+                        break;
+                    }
+                }
+            }
+        });
+
+        Self {
+            receiver,
+            pending: VecDeque::new(),
+            closed: false,
+        }
+    }
+
+    pub(crate) fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+        if output.is_empty() {
+            return Ok(0);
+        }
+
+        if self.pending.is_empty() && !self.closed {
+            match self.receiver.recv_timeout(Duration::from_millis(25)) {
+                Ok(ReadEvent::Data(data)) => self.pending.extend(data),
+                Ok(ReadEvent::Eof) => self.closed = true,
+                Ok(ReadEvent::Error(message)) => {
+                    self.closed = true;
+                    return Err(Error::other(message));
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    return Err(Error::new(ErrorKind::WouldBlock, "PTY read timed out"));
+                }
+                Err(RecvTimeoutError::Disconnected) => self.closed = true,
+            }
+        }
+
+        let count = output.len().min(self.pending.len());
+        for slot in &mut output[..count] {
+            *slot = self.pending.pop_front().expect("pending length checked");
+        }
+        Ok(count)
+    }
+}
+
 /// Simple registry for comparative testing.
 pub fn all_backends() -> Vec<Box<dyn PtyBackend>> {
-    let mut v: Vec<Box<dyn PtyBackend>> = Vec::new();
-    v.push(Box::new(portable::PortableBackend::new()));
-    v.push(Box::new(direct::DirectBackend::new()));
-    v
+    vec![
+        Box::new(portable::PortableBackend::new()),
+        Box::new(direct::DirectBackend::new()),
+    ]
 }
 
 /// Result for a single backend + scenario.
@@ -50,4 +133,11 @@ pub struct ScenarioResult {
     pub details: String,
     pub duration_ms: u128,
     pub extra: HashMap<String, String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SpikeReport {
+    pub platform: &'static str,
+    pub architecture: &'static str,
+    pub results: Vec<ScenarioResult>,
 }

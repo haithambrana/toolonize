@@ -1,7 +1,7 @@
 # ADR-004: PTY backend — Proposed — Spike Complete / Human Decision Required
 
 Date: 2026-08-26 (spike executed 2026-08-27)
-Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (M2 evidence collected on Linux; Windows CI and real WebView verification remain before Accepted)
+Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (round-2 repair evidence is incomplete until fresh Windows and xvfb CI pass)
 
 > **Human gate:** This ADR must not be flipped to `Accepted` until Windows CI (`windows-latest` spike matrix + `TerminalSpike` full pipeline `produced == delivered` via real WebView) is green and reviewed. Linux evidence is complete; Windows is `NOT_VERIFIED` in this local report.
 
@@ -73,17 +73,17 @@ class of decision our constitution requires be settled by experiment.
 
 ## Spike results (2026-08-27, Linux x86_64)
 
-**Harness:** `tools/spike-pty/` (32 tests, 30 PASS, 0 FAIL, 2 NOT_VERIFIED). Report JSON `docs/research/spike-m2/report.json`, human report `docs/research/PTY_SPIKE_REPORT.md`.
+**Harness:** `tools/spike-pty/` (31 records, 29 PASS, 0 FAIL, 2 Windows-only NOT_VERIFIED on Linux). Report JSON `docs/research/spike-m2/report.json`, human report `docs/research/PTY_SPIKE_REPORT.md`.
 
 **Linux (local):** Both candidates pass every MUST row.
-- `portable-pty 0.9.0 + mitigations` (DSR `ESC[6n` → `ESC[24;80R`, guarded stdin drop): spawn 67ms, DSR 58ms (no hang), resize PASS, UTF-8 PASS, CtrlC PASS, high-volume 256KB `262144→262159` lossless true 1.06 MB/s, TUI PASS, agent PASS, cleanup fd 4→4, concurrent 5 PASS, clipboard PASS.
-- `direct-unix-openpty` (`libc::openpty` + `fork`/`exec`): spawn 6ms, DSR 4ms, high-volume 1.43 MB/s, all other rows PASS.
+- `portable-pty 0.9.0 + mitigations`: resize is child-observed, UTF-8 and Ctrl+C pass, and high-volume output is exactly 262144 bytes with SHA-256 `97a2fc...00c9`.
+- `direct-unix-openpty` (`libc::openpty` + `fork`/`exec`): the same required rows and exact SHA-256 check pass.
 
-**Transport:** `LosslessTransport` 2 MiB `produced 2097152 delivered 2097152 lossless true` (bounded, `Desynchronized` on hard breach, never silent drop) vs `DroppingTransport` which would silently drop 1.5M at 64KB — validates M3's lossless design.
+**Transport:** Independent producer/slow-consumer threads produce and deliver 2097152 bytes with 63 producer waits, max queue depth 49152 under a 65536-byte capacity, and zero hard breaches. The contrast transport drops 2031616 bytes.
 
-**Full pipeline simulated (headless):** `PTY produced 524288 -> transport delivered 524288 lossless true | input return lossless true | resize pipeline true` — see `src-tauri/src/commands/spike.rs` + `src/spike/TerminalSpike.tsx` (`Terminal` + `FitAddon` + `Channel`). Real WebView `produced == delivered` via `TerminalSpike` is `NOT_VERIFIED` headless and must be verified via `xvfb-run` spike CI.
+**Real local WebView:** A Tauri/WebKitGTK window executed PTY -> Rust -> Tauri Channel -> WebView -> xterm.js with 262144 exact payload bytes, matching SHA-256, awaited xterm writes, input return, child-observed resize, and child exit code 0. Fresh fail-closed `xvfb-run` CI must reproduce it.
 
-**Windows:** `NOT_VERIFIED` locally (Linux host). Both backends are `cfg(windows)`-gated and will be exercised on `windows-latest` CI; `hidden console` and `WSL` rows are Windows-only. Recommendation is hybrid or direct-only (see PTY_SPIKE_REPORT.md §8) — **human must choose** after seeing Windows CI.
+**Windows:** Cross-compilation passes, but runtime remains `NOT_VERIFIED` after the prior jobs timed out in the old blocking harness. Fresh `windows-latest` runtime evidence is mandatory. Recommendation remains undecided until human review of that evidence.
 
 ## Consequences
 

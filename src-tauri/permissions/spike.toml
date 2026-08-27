@@ -17,6 +17,6 @@ description = "Enables spike_input_echo for M2 spike"
 commands.allow = ["spike_input_echo"]
 
 [[permission]]
-identifier = "allow-spike-exit"
-description = "Enables spike_exit for M2 auto-exit"
-commands.allow = ["spike_exit"]
+identifier = "allow-spike-completion"
+description = "Enables fail-closed M2 browser report and auto-exit commands"
+commands.allow = ["spike_complete", "spike_fail"]
