@@ -1,0 +1,7 @@
+# Enforce LF line endings for cross-platform consistency (prevents prettier failures on Windows)
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
