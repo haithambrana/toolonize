@@ -356,11 +356,14 @@ mod windows_impl {
             let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_mem.as_mut_ptr() as *mut _);
             InitializeProcThreadAttributeList(attr_list, 1, 0, &mut attr_size)?;
             // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016
+            let pcon_value = (owned_pcon.0).0 as *const core::ffi::c_void;
             let update_result = UpdateProcThreadAttribute(
                 attr_list,
                 0,
                 0x00020016,
-                Some((&owned_pcon.0 as *const HPCON).cast()),
+                // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE is unusual: lpValue is
+                // the HPCON value, not a pointer to an HPCON variable.
+                Some(pcon_value),
                 mem::size_of::<HPCON>(),
                 None,
                 None,
