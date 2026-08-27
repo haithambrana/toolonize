@@ -204,31 +204,51 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
 
 pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
     timed(backend.name(), "T-PTY-006 high-volume lossless", || {
-        // Use Python fast generator for reliable deterministic output
+        // Exact lossless: generate deterministic payload, no PTY translation, verify SHA
+        // Use raw payload of 'A'*bytes, then a separate marker that we strip before comparison
         let bytes = 256 * 1024;
+        // Compute expected SHA256 of payload 'A'*bytes
+        let expected_payload = vec![b'A'; bytes];
+        let expected_sha = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut h = DefaultHasher::new();
+            expected_payload.hash(&mut h);
+            format!("{:016x}", h.finish())
+        };
         let (cmd, args) = if cfg!(unix) {
-            // Python is faster and more reliable than dd+tr for PTY
-            let py = format!("python3 -c \"import sys; sys.stdout.buffer.write(b'A'*{}); sys.stdout.buffer.write(b'\\nDONE_MARKER\\n'); sys.stdout.buffer.flush()\"", bytes);
+            // Use python to write raw payload without newline translation, then marker
+            // Disable PTY onlcr via stty raw, but for spike we just write raw 'A's and then marker without newline
+            let py = format!("python3 -c \"import sys; sys.stdout.buffer.write(b'A'*{}); sys.stdout.buffer.write(b'DONE_MARKER'); sys.stdout.buffer.flush()\"", bytes);
             ("bash".to_string(), vec!["-c".to_string(), py])
         } else {
-            let ps = format!("$d=[byte[]]::new(4096); for($i=0;$i -lt 4096;$i++){{$d[$i]=65}}; $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(4096, $total-$written); $out.Write($d,0,$chunk); $written+=$chunk }}; $out.Write([byte[]][char[]]\"`nDONE_MARKER`n\",0,13); $out.Flush()", bytes);
+            let ps = format!("$d=[byte[]]::new(4096); for($i=0;$i -lt 4096;$i++){{$d[$i]=65}}; $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(4096, $total-$written); $out.Write($d,0,$chunk); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush()", bytes);
             ("powershell.exe".to_string(), vec!["-NoProfile".to_string(), "-Command".to_string(), ps])
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
         let start = Instant::now();
-        // Use longer timeout and ensure we drain fully after child exit
         let out = read_until_marker(handle.as_mut(), Duration::from_secs(10), bytes + 8192, "DONE_MARKER")?;
         let elapsed = start.elapsed();
         let _ = handle.kill();
         let _ = handle.wait();
-        let s = String::from_utf8_lossy(&out);
-        let has_marker = s.contains("DONE_MARKER");
-        let throughput_mbs = (out.len() as f64 / (1024.0*1024.0)) / elapsed.as_secs_f64().max(0.001);
-        // Check lossless: delivered at least 95% of expected and marker present
-        let lossless = has_marker && out.len() >= bytes * 95 / 100;
-        let status = if lossless { "PASS" } else { "FAIL" };
-        Ok((status.to_string(), format!("high-volume produced {} delivered {} has_marker {} throughput {:.2} MB/s in {:?} lossless {}", bytes, out.len(), has_marker, throughput_mbs, elapsed, lossless)))
+        // Strip marker and any trailing \r\n for exact payload comparison
+        let marker_pos = out.windows(11).position(|w| w == b"DONE_MARKER").unwrap_or(out.len());
+        let payload_delivered = &out[..marker_pos];
+        // Remove any \r that PTY may have inserted (onlcr)
+        let payload_stripped: Vec<u8> = payload_delivered.iter().filter(|&&b| b != b'\r').cloned().collect();
+        let delivered_sha = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut h = DefaultHasher::new();
+            payload_stripped.hash(&mut h);
+            format!("{:016x}", h.finish())
+        };
+        let exact_match = payload_stripped.len() == bytes && delivered_sha == expected_sha;
+        let has_marker = out.windows(11).any(|w| w == b"DONE_MARKER");
+        let throughput_mbs = (payload_stripped.len() as f64 / (1024.0*1024.0)) / elapsed.as_secs_f64().max(0.001);
+        let status = if exact_match && has_marker { "PASS" } else { "FAIL" };
+        Ok((status.to_string(), format!("high-volume payload {} expected_sha {} delivered {} delivered_sha {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_stripped.len(), delivered_sha, has_marker, throughput_mbs, exact_match, elapsed)))
     })
 }
 

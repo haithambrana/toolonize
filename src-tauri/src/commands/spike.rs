@@ -336,3 +336,16 @@ pub fn spike_input_echo(input: String) -> Result<String, String> {
         ))
     }
 }
+
+#[cfg(feature = "spike")]
+#[tauri::command]
+pub fn spike_exit(app: tauri::AppHandle, code: i32) -> Result<(), String> {
+    // Spike-only auto-exit for CI; not part of product. Exits the Tauri app with given code.
+    // SAFETY: This is only compiled with `spike` feature and only invoked via TerminalSpike auto mode.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        app.exit(code);
+        std::process::exit(code);
+    });
+    Ok(())
+}

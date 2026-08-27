@@ -15,3 +15,8 @@ commands.allow = ["spike_resize"]
 identifier = "allow-spike-input-echo"
 description = "Enables spike_input_echo for M2 spike"
 commands.allow = ["spike_input_echo"]
+
+[[permission]]
+identifier = "allow-spike-exit"
+description = "Enables spike_exit for M2 auto-exit"
+commands.allow = ["spike_exit"]

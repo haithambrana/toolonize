@@ -77,7 +77,43 @@ export default function TerminalSpike() {
   }, []);
 
   const run = async () => {
-    if (!termRef.current || !fitRef.current) return;
+    if (!termRef.current) {
+      // In headless test, term may be null; still run the pipeline via spike.ts helpers without xterm
+      // This path is used for CI auto mode where xterm is not fully initialized in jsdom
+      try {
+        setState({ status: "running", step: "PTY -> Rust -> Tauri Channel (headless)" });
+        const res1 = await runPtyPipelineSpike(
+          () => {},
+          (n) => setBytes((prev) => prev + n),
+          256 * 1024
+        );
+        if (!res1.lossless) throw new Error(`lossless failed: ${res1.details}`);
+        const resizeRes = await testResize(40, 120);
+        await testResize(24, 80);
+        const echoRes = await testInputEcho("hello from WebView");
+        setState({
+          status: "success",
+          report: `produced ${res1.produced} delivered ${res1.delivered} lossless ${res1.lossless} | ${resizeRes} | ${echoRes}`,
+        });
+        // Auto-exit for CI
+        if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("spike_exit", { code: 0 });
+          } catch {}
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setState({ status: "error", message: msg });
+        if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+          try {
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("spike_exit", { code: 1 });
+          } catch {}
+        }
+      }
+      return;
+    }
     const term = termRef.current;
     term.clear();
     setBytes(0);
@@ -108,12 +144,32 @@ export default function TerminalSpike() {
         status: "success",
         report: `produced ${res1.produced} delivered ${res1.delivered} lossless ${res1.lossless} | ${resizeRes} | ${echoRes}`,
       });
+      if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("spike_exit", { code: 0 });
+        } catch {}
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       term.writeln(`\r\n[Spike] ERROR: ${msg}`);
       setState({ status: "error", message: msg });
+      if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("spike_exit", { code: 1 });
+        } catch {}
+      }
     }
   };
+
+  // Auto-run for CI when ?spikeAuto=1 is present (real WebView pipeline)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("spikeAuto")) {
+      const t = setTimeout(() => run(), 500);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   return (
     <section className="card" aria-labelledby="spike-heading">
