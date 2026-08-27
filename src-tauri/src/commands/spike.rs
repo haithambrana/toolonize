@@ -3,9 +3,9 @@
 //! Only compiled when `spike` feature is enabled.
 
 #[cfg(feature = "spike")]
-use tauri::ipc::Channel;
-#[cfg(feature = "spike")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "spike")]
+use tauri::ipc::Channel;
 
 #[cfg(feature = "spike")]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -95,7 +95,11 @@ pub async fn spike_pty_stream(
     loop {
         if start.elapsed() > timeout {
             let _ = child.kill();
-            return Err(format!("timeout after {:?}, delivered {}", start.elapsed(), total_delivered));
+            return Err(format!(
+                "timeout after {:?}, delivered {}",
+                start.elapsed(),
+                total_delivered
+            ));
         }
 
         // Non-blocking read via try_clone_reader is blocking; we set a short read timeout by using
@@ -119,7 +123,9 @@ pub async fn spike_pty_stream(
                 produced += n;
                 let chunk = buf[..n].to_vec();
                 // Send via Tauri Channel (lossless, bounded by Tauri's internal queue)
-                channel.send(chunk.clone()).map_err(|e| format!("channel send failed: {}", e))?;
+                channel
+                    .send(chunk.clone())
+                    .map_err(|e| format!("channel send failed: {}", e))?;
                 total_delivered += n;
                 // Check for DONE_MARKER to know we're done
                 if chunk.windows(11).any(|w| w == b"DONE_MARKER") {
@@ -132,7 +138,9 @@ pub async fn spike_pty_stream(
                             Ok(0) => break,
                             Ok(m) => {
                                 let c = extra[..m].to_vec();
-                                channel.send(c.clone()).map_err(|e| format!("channel send failed: {}", e))?;
+                                channel
+                                    .send(c.clone())
+                                    .map_err(|e| format!("channel send failed: {}", e))?;
                                 total_delivered += m;
                             }
                             Err(_) => break,
@@ -174,7 +182,12 @@ pub async fn spike_pty_stream(
     let _ = child.kill();
     let _ = child.wait();
 
-    Ok(format!("produced {} delivered {} lossless {}", bytes, total_delivered, bytes <= total_delivered))
+    Ok(format!(
+        "produced {} delivered {} lossless {}",
+        bytes,
+        total_delivered,
+        bytes <= total_delivered
+    ))
 }
 
 #[cfg(feature = "spike")]
@@ -234,7 +247,10 @@ pub fn spike_resize(rows: u16, cols: u16) -> Result<String, String> {
     if size.rows == rows && size.cols == cols {
         Ok(format!("resize {}x{} ok", rows, cols))
     } else {
-        Err(format!("resize expected {}x{} got {}x{}", rows, cols, size.rows, size.cols))
+        Err(format!(
+            "resize expected {}x{} got {}x{}",
+            rows, cols, size.rows, size.cols
+        ))
     }
 }
 
@@ -313,6 +329,9 @@ pub fn spike_input_echo(input: String) -> Result<String, String> {
     if s.contains(&input) {
         Ok(format!("input echo ok: {}", input))
     } else {
-        Err(format!("input echo failed, got: {:?}", &s[..std::cmp::min(s.len(), 200)]))
+        Err(format!(
+            "input echo failed, got: {:?}",
+            &s[..std::cmp::min(s.len(), 200)]
+        ))
     }
 }
