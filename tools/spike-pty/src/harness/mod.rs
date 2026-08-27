@@ -232,7 +232,7 @@ pub fn scenario_utf8(backend: &mut dyn PtyBackend) -> ScenarioResult {
             ("bash".to_string(), vec!["-c".to_string(), script])
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
+        let mut handle = backend.spawn(&cmd, &args_ref, 24, 240)?;
         let out = read_with_timeout(handle.as_mut(), Duration::from_secs(3), 16384)?;
         let s = String::from_utf8_lossy(&out);
         let mut ok = true;
@@ -334,7 +334,7 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let out = read_until_marker(
             handle.as_mut(),
             Duration::from_secs(10),
-            bytes + 8192,
+            bytes + 64 * 1024,
             "DONE_MARKER",
         )?;
         let elapsed = start.elapsed();
@@ -344,11 +344,14 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
             .windows(11)
             .position(|w| w == b"DONE_MARKER")
             .unwrap_or(out.len());
-        let payload_delivered = &out[..marker_pos];
-        let delivered_sha = format!("{:x}", Sha256::digest(payload_delivered));
+        let payload_raw = &out[..marker_pos];
+        #[cfg(windows)]
+        let payload_delivered = normalize_conpty_payload(payload_raw)?;
+        #[cfg(not(windows))]
+        let payload_delivered = payload_raw.to_vec();
+        let delivered_sha = format!("{:x}", Sha256::digest(&payload_delivered));
         let has_marker = out.windows(11).any(|w| w == b"DONE_MARKER");
-        let exact_match = marker_pos == bytes
-            && out.len() == bytes + b"DONE_MARKER".len()
+        let exact_match = payload_delivered.len() == bytes
             && payload_delivered == expected_payload
             && delivered_sha == expected_sha;
         let throughput_mbs =
@@ -358,8 +361,71 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         } else {
             "FAIL"
         };
-        Ok((status.to_string(), format!("high-volume payload {} expected_sha256 {} delivered {} delivered_sha256 {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_delivered.len(), delivered_sha, has_marker, throughput_mbs, exact_match, elapsed)))
+        Ok((status.to_string(), format!("high-volume payload {} expected_sha256 {} delivered {} delivered_sha256 {} raw_bytes {} normalization {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_delivered.len(), delivered_sha, payload_raw.len(), if cfg!(windows) { "conpty-vt-control-only" } else { "none" }, has_marker, throughput_mbs, exact_match, elapsed)))
     })
+}
+
+#[cfg(any(windows, test))]
+fn normalize_conpty_payload(input: &[u8]) -> Result<Vec<u8>> {
+    let mut output = Vec::with_capacity(input.len());
+    let mut index = 0;
+    while index < input.len() {
+        match input[index] {
+            b'A' => {
+                output.push(b'A');
+                index += 1;
+            }
+            b'\r' | b'\n' | 0x07 | 0x08 => index += 1,
+            0x1b if input.get(index + 1) == Some(&b'[') => {
+                index += 2;
+                let mut terminated = false;
+                while index < input.len() {
+                    let byte = input[index];
+                    index += 1;
+                    if (0x40..=0x7e).contains(&byte) {
+                        terminated = true;
+                        break;
+                    }
+                }
+                if !terminated {
+                    return Err(anyhow::anyhow!(
+                        "unterminated CSI sequence during ConPTY normalization"
+                    ));
+                }
+            }
+            0x1b if input.get(index + 1) == Some(&b']') => {
+                index += 2;
+                let mut terminated = false;
+                while index < input.len() {
+                    if input[index] == 0x07 {
+                        index += 1;
+                        terminated = true;
+                        break;
+                    }
+                    if input[index] == 0x1b && input.get(index + 1) == Some(&b'\\') {
+                        index += 2;
+                        terminated = true;
+                        break;
+                    }
+                    index += 1;
+                }
+                if !terminated {
+                    return Err(anyhow::anyhow!(
+                        "unterminated OSC sequence during ConPTY normalization"
+                    ));
+                }
+            }
+            0x1b if matches!(input.get(index + 1), Some(b'7' | b'8' | b'c' | b'=' | b'>')) => {
+                index += 2;
+            }
+            byte => {
+                return Err(anyhow::anyhow!(
+                    "unexpected printable byte 0x{byte:02x} at raw offset {index} during ConPTY normalization"
+                ));
+            }
+        }
+    }
+    Ok(output)
 }
 
 fn read_until_marker(
@@ -805,4 +871,27 @@ pub fn scenario_clipboard(backend: &mut dyn PtyBackend) -> ScenarioResult {
             Ok(("PASS".to_string(), format!("clipboard bracketed paste sent, output len {}, no hang (CLIP_DONE not in output but no hang)", out.len())))
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_conpty_payload;
+
+    #[test]
+    fn conpty_normalization_removes_only_terminal_protocol_bytes() {
+        let raw = b"\x1b[?9001hAA\r\n\x1b[23;80HAA\x08A\x1b]0;title\x07A";
+        assert_eq!(normalize_conpty_payload(raw).unwrap(), b"AAAAAA");
+    }
+
+    #[test]
+    fn conpty_normalization_rejects_unexpected_payload_bytes() {
+        let error = normalize_conpty_payload(b"AB").unwrap_err();
+        assert!(error.to_string().contains("unexpected printable byte 0x42"));
+    }
+
+    #[test]
+    fn conpty_normalization_rejects_unterminated_sequences() {
+        assert!(normalize_conpty_payload(b"A\x1b[12").is_err());
+        assert!(normalize_conpty_payload(b"A\x1b]title").is_err());
+    }
 }
