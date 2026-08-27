@@ -101,14 +101,14 @@ jobs:
           cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
           cat docs/research/spike-m2/report.json
           echo "Checking spike report for FAIL (should be 0)..."
-          python3 -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
+          python3 -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json', encoding='utf-8')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
 
       - name: Spike PTY harness (Windows)
         if: matrix.platform == 'windows'
         run: |
           cargo run --manifest-path tools/spike-pty/Cargo.toml --bin spike-pty
           type docs\research\spike-m2\report.json
-          python -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
+          python -c "import json, sys; data=json.load(open('docs/research/spike-m2/report.json', encoding='utf-8')); fails=[r for r in data if r['status']=='FAIL']; print(f'FAILs: {len(fails)}'); sys.exit(1 if fails else 0)"
 
       - name: Spike terminal UI build check (Linux xvfb)
         if: matrix.platform == 'linux'
