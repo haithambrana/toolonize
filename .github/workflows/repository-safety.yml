@@ -33,18 +33,21 @@ jobs:
       - name: Public-safety scan
         run: bash tools/check-public-safety.sh
 
-      - name: M0 application-artifact guard
+      - name: M1 application-artifact guard (M0 prohibition lifted)
         run: |
           set -euo pipefail
+          echo "M1 artifact guard: legitimate sources src/, src-tauri/, package.json, Cargo manifests allowed"
+          # Only blocked lockfiles must be absent
           forbidden=0
-          for p in src src-tauri node_modules target; do
-            if [ -e "$p" ]; then echo "forbidden path exists: $p" >&2; forbidden=1; fi
+          for f in pnpm-lock.yaml yarn.lock bun.lockb; do
+            if [ -e "$f" ]; then echo "blocked lockfile present: $f" >&2; forbidden=1; fi
           done
-          for f in package.json Cargo.toml package-lock.json pnpm-lock.yaml yarn.lock Cargo.lock; do
-            if [ -e "$f" ]; then echo "forbidden file exists: $f" >&2; forbidden=1; fi
-          done
+          # Ensure build artifacts are not tracked
+          if git ls-files --error-unmatch target 2>/dev/null | grep -q .; then echo "target/ should not be tracked" >&2; forbidden=1; fi
+          if git ls-files --error-unmatch node_modules 2>/dev/null | grep -q .; then echo "node_modules/ should not be tracked" >&2; forbidden=1; fi
+          if git ls-files --error-unmatch dist 2>/dev/null | grep -q .; then echo "dist/ should not be tracked" >&2; forbidden=1; fi
           if [ "$forbidden" -ne 0 ]; then exit 1; fi
-          echo "M0 artifact guard: clean"
+          echo "M1 artifact guard: clean"
 
       - name: Repository structure
         run: |
