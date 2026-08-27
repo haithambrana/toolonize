@@ -148,11 +148,18 @@ fn run_full_pipeline_simulated() -> ScenarioResult {
     let (pattern, _) = spike_pty::fixtures::generate_pattern(bytes, 0x99);
     let produced = pattern.len();
 
-    // PTY -> Rust reader (write to transport)
+    // PTY -> Rust reader (write to transport) - handle backpressure by draining and retrying
     let mut offset = 0;
     while offset < pattern.len() {
         let end = std::cmp::min(offset + 4096, pattern.len());
-        if transport.write(&pattern[offset..end]).is_err() {
+        let mut res = transport.write(&pattern[offset..end]);
+        if let Err(spike_pty::transport::TransportError::WouldBlock) = res {
+            // Backpressure: drain and retry (simulating blocking)
+            let mut out = Vec::new();
+            transport.read(&mut out);
+            res = transport.write(&pattern[offset..end]);
+        }
+        if res.is_err() {
             return ScenarioResult {
                 backend: "pipeline".to_string(),
                 scenario: "PTY->Rust->Tauri->WebView->xterm.js".to_string(),

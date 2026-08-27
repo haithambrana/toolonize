@@ -79,7 +79,18 @@ impl LosslessTransport {
         if self.desync {
             return Err(TransportError::HardLimitBreach { queued: self.queue.lock().unwrap().len(), limit: self.config.capacity });
         }
+        let q_len = self.queue.lock().unwrap().len();
+        if q_len + data.len() > self.config.capacity {
+            self.hard_breach += 1;
+            self.desync = true;
+            return Err(TransportError::HardLimitBreach { queued: q_len, limit: self.config.capacity });
+        }
+        if q_len > self.config.high_water {
+            self.backpressure_count += 1;
+            return Err(TransportError::WouldBlock);
+        }
         let mut q = self.queue.lock().unwrap();
+        // Re-check after acquiring lock
         if q.len() + data.len() > self.config.capacity {
             self.hard_breach += 1;
             self.desync = true;
@@ -87,8 +98,7 @@ impl LosslessTransport {
         }
         if q.len() > self.config.high_water {
             self.backpressure_count += 1;
-            // In real impl, producer would block; here we just count event and still enqueue
-            // to keep lossless, but record backpressure.
+            return Err(TransportError::WouldBlock);
         }
         q.extend(data.iter());
         self.produced += data.len();
@@ -185,39 +195,46 @@ impl DroppingTransport {
 
 /// Experiment: run both transports under high load and compare.
 pub fn run_experiment(high_volume_bytes: usize) -> (TransportStats, TransportStats) {
-    // Use capacity larger than high_volume_bytes to demonstrate lossless without hard breach
-    // Real M3 design will use bounded 64KB with backpressure; here we show lossless when consumer keeps up.
-    let cap = std::cmp::max(high_volume_bytes + 1024, 4 * 1024 * 1024);
+    // Real bounded experiment: 64 KiB cap, 48 KiB high, 16 KiB low, batch 4 KiB, slow consumer
     let config = TransportConfig {
-        capacity: cap,
-        high_water: cap * 3 / 4,
-        low_water: cap / 4,
-        batch_size: 8192,
+        capacity: 64 * 1024,
+        high_water: 48 * 1024,
+        low_water: 16 * 1024,
+        batch_size: 4096,
     };
 
     let mut lossless = LosslessTransport::new(config.clone());
     let mut dropping = DroppingTransport::new(config.clone());
 
-    // Simulate high-volume pattern - drain aggressively to avoid hard breach for lossless
+    // Producer is fast, consumer is deliberately slow (drains every 20*batch)
     let pattern = b"TOOLONIZE_LOSSLESS_TEST_PATTERN_0123456789_ABCDEFGHIJ_";
     let mut produced = 0;
     while produced < high_volume_bytes {
         let chunk = &pattern[..std::cmp::min(pattern.len(), high_volume_bytes - produced)];
-        let res = lossless.write(chunk);
+        // Lossless: handle WouldBlock by draining and retrying (simulating blocking)
+        let mut res = lossless.write(chunk);
+        if let Err(TransportError::WouldBlock) = res {
+            // Backpressure: drain to low_water then retry
+            let mut out = Vec::new();
+            lossless.read(&mut out);
+            res = lossless.write(chunk);
+        }
         if res.is_err() {
-            // Simulate backpressure: drain before retry
+            // Hard breach - drain and retry once more
             let mut out = Vec::new();
             lossless.read(&mut out);
             let _ = lossless.write(chunk);
         }
         dropping.write(chunk);
         produced += chunk.len();
-        // Aggressive draining every 2 batches to keep queue under high_water
-        if produced % (config.batch_size * 2) == 0 {
+        // Very slow consumer: only drain every 20 batches
+        if produced % (config.batch_size * 20) == 0 {
             let mut out = Vec::new();
             lossless.read(&mut out);
             let mut out2 = Vec::new();
             dropping.read(&mut out2);
+            // Simulate WebView being slower than PTY
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
     }
     // Final drain
