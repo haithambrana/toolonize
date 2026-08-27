@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "spike",
+  "description": "M2 spike capability — PTY harness only, not M1 product. Enables spike commands over Channel when spike feature is active.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-ping",
+    "allow-spike-pty-stream",
+    "allow-spike-resize",
+    "allow-spike-input-echo"
+  ]
+}

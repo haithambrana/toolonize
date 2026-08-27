@@ -66,3 +66,15 @@ haithambrana/toolonize (default branch main) at base commit
 m1-framework-shell. Only the M1 framework shell (Tauri window + hardened IPC)
 is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
 persistence, or production feature exists yet.
+
+2026-08-27: M2 PTY Backend Technical Spike — Linux matrix complete on branch
+m2-pty-spike. Harness `tools/spike-pty` (32 tests, 30 PASS, 2 NOT_VERIFIED on Linux;
+portable-pty 0.9.0 + mitigations and direct-unix-openpty both PASS every MUST row;
+bounded lossless transport 2 MiB lossless true). Full pipeline simulated
+`PTY produced 524288 -> transport delivered 524288 lossless true` (headless);
+real WebView `produced == delivered` via `src/spike/TerminalSpike.tsx` remains
+NOT_VERIFIED headless and will be verified via `xvfb-run` spike CI on Linux + native
+on Windows. ADR-004 remains `PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED`
+until Windows CI (`windows-latest` spike matrix + `TerminalSpike` browser capture) is
+green. No PTY product code has been locked; harness is throwaway behind
+`tools/spike-pty` and feature `spike`.

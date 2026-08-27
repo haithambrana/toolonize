@@ -1,0 +1,30 @@
+[package]
+name = "spike-pty"
+version = "0.1.0"
+edition = "2021"
+description = "M2 PTY Backend Technical Spike - throwaway harness (not product code)"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+portable-pty = "0.9.0"
+nix = { version = "0.28", features = ["signal", "process", "fs", "poll"] }
+libc = "0.2"
+filedescriptor = "0.8.3"
+crossbeam-channel = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# Windows direct ConPTY - only on windows
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_Console", "Win32_System_Threading", "Win32_System_Pipes"] }
+winapi = { version = "0.3", features = ["consoleapi", "handleapi", "processthreadsapi", "wincon", "winbase", "namedpipeapi", "fileapi"] }
+
+[dev-dependencies]
+
+[[bin]]
+name = "spike-pty"
+path = "src/main.rs"

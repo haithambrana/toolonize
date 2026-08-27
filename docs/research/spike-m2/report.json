@@ -1,0 +1,267 @@
+[
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-001 spawn shells",
+    "status": "PASS",
+    "details": "spawn ok, output contains hello: \"hello\\r\\n\"",
+    "duration_ms": 57,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-010-ish invalid exe",
+    "status": "PASS",
+    "details": "invalid exe correctly errored on spawn: Unable to spawn /nonexistent/invalid_executable_xyz_12345 because it doesn't exist on the filesystem (ENOENT: No such file or directory)",
+    "duration_ms": 0,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-002 resize",
+    "status": "PASS",
+    "details": "resize 24x80->40x120 succeeded, got 40x120",
+    "duration_ms": 452,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-003 utf8",
+    "status": "PASS",
+    "details": "utf8 round-trip ok: \"Hello 🌍 🌟 🚀 👩\\u{200d}💻 — test 🎉 こんにちは世界 你好世界 안녕하세요 café naïve résumé façade coöperate e\\u{301} a\\u{308} o\\u{302} Mix: ASCII 123, emoji 🦀, CJK 中文, accented café \\r\\nUTF8_DONE\\r\\n\"",
+    "duration_ms": 68,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-005 ctrlc",
+    "status": "PASS",
+    "details": "ctrlc sent, alive after: false, output len 2, sample: \"^C\"",
+    "duration_ms": 853,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-004 cursor DSR",
+    "status": "PASS",
+    "details": "DSR handshake no hang, elapsed 57.782738ms, output contains DSR_TEST",
+    "duration_ms": 57,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-006 high-volume lossless",
+    "status": "PASS",
+    "details": "high-volume produced 262144 delivered 262159 has_marker true throughput 0.83 MB/s in 302.297901ms lossless true",
+    "duration_ms": 310,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-013 cleanup",
+    "status": "PASS",
+    "details": "cleanup 20 cycles fd before 4 after 4 stable",
+    "duration_ms": 1874,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-008 TUI",
+    "status": "PASS",
+    "details": "TUI alt-screen enter/exit simulated cleanly",
+    "duration_ms": 265,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-009 agent CLI",
+    "status": "PASS",
+    "details": "agent CLI full-screen refresh cycles completed",
+    "duration_ms": 386,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-001 shells variants",
+    "status": "PASS",
+    "details": "bash:PASS, sh:PASS, wsl:NOT_VERIFIED (Linux host, requires Windows)",
+    "duration_ms": 129,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-012 hidden console",
+    "status": "NOT_VERIFIED",
+    "details": "hidden console is Windows-only, not applicable on Linux",
+    "duration_ms": 0,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY clipboard",
+    "status": "PASS",
+    "details": "clipboard bracketed paste sent, output len 40, contains CLIP_DONE, no hang",
+    "duration_ms": 575,
+    "extra": {}
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "T-PTY-013 concurrent sessions",
+    "status": "PASS",
+    "details": "concurrent 5 sessions isolated and completed",
+    "duration_ms": 478,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-001 spawn shells",
+    "status": "PASS",
+    "details": "spawn ok, output contains hello: \"hello\\r\\n\"",
+    "duration_ms": 56,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-010-ish invalid exe",
+    "status": "PASS",
+    "details": "invalid exe correctly errored on spawn: Unable to spawn /nonexistent/invalid_executable_xyz_12345 because it doesn't exist on the filesystem (ENOENT)",
+    "duration_ms": 0,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-002 resize",
+    "status": "PASS",
+    "details": "resize 24x80->40x120 succeeded, got 40x120",
+    "duration_ms": 401,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-003 utf8",
+    "status": "PASS",
+    "details": "utf8 round-trip ok: \"Hello 🌍 🌟 🚀 👩\\u{200d}💻 — test 🎉 こんにちは世界 你好世界 안녕하세요 café naïve résumé façade coöperate e\\u{301} a\\u{308} o\\u{302} Mix: ASCII 123, emoji 🦀, CJK 中文, accented café \\r\\nUTF8_DONE\\r\\n\"",
+    "duration_ms": 7,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-005 ctrlc",
+    "status": "PASS",
+    "details": "ctrlc sent, alive after: false, output len 2, sample: \"^C\"",
+    "duration_ms": 851,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-004 cursor DSR",
+    "status": "PASS",
+    "details": "DSR handshake no hang, elapsed 5.584299ms, output contains DSR_TEST",
+    "duration_ms": 5,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-006 high-volume lossless",
+    "status": "PASS",
+    "details": "high-volume produced 262144 delivered 262159 has_marker true throughput 1.27 MB/s in 196.425373ms lossless true",
+    "duration_ms": 201,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-013 cleanup",
+    "status": "PASS",
+    "details": "cleanup 20 cycles fd before 4 after 4 stable",
+    "duration_ms": 1079,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-008 TUI",
+    "status": "PASS",
+    "details": "TUI alt-screen enter/exit simulated cleanly",
+    "duration_ms": 216,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-009 agent CLI",
+    "status": "PASS",
+    "details": "agent CLI full-screen refresh cycles completed",
+    "duration_ms": 331,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-001 shells variants",
+    "status": "PASS",
+    "details": "bash:PASS, sh:PASS, wsl:NOT_VERIFIED (Linux host, requires Windows)",
+    "duration_ms": 57,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-012 hidden console",
+    "status": "NOT_VERIFIED",
+    "details": "hidden console is Windows-only, not applicable on Linux",
+    "duration_ms": 0,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY clipboard",
+    "status": "PASS",
+    "details": "clipboard bracketed paste sent, output len 40, contains CLIP_DONE, no hang",
+    "duration_ms": 511,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "T-PTY-013 concurrent sessions",
+    "status": "PASS",
+    "details": "concurrent 5 sessions isolated and completed",
+    "duration_ms": 430,
+    "extra": {}
+  },
+  {
+    "backend": "transport",
+    "scenario": "T-PTY-007 backpressure/desync",
+    "status": "PASS",
+    "details": "lossless produced==delivered true, dropping dropped 0",
+    "duration_ms": 0,
+    "extra": {
+      "lossless_produced": "2097152",
+      "lossless_dropped": "0",
+      "lossless_delivered": "2097152",
+      "dropping_dropped": "0"
+    }
+  },
+  {
+    "backend": "portable-pty-0.9.0",
+    "scenario": "PERF high-volume 1MB",
+    "status": "PASS",
+    "details": "high-volume produced 262144 delivered 262159 has_marker true throughput 1.16 MB/s in 215.465442ms lossless true",
+    "duration_ms": 221,
+    "extra": {}
+  },
+  {
+    "backend": "direct-unix-openpty",
+    "scenario": "PERF high-volume 1MB",
+    "status": "PASS",
+    "details": "high-volume produced 262144 delivered 262159 has_marker true throughput 1.28 MB/s in 194.933851ms lossless true",
+    "duration_ms": 200,
+    "extra": {}
+  },
+  {
+    "backend": "pipeline",
+    "scenario": "PTY->Rust->Tauri->WebView->xterm.js",
+    "status": "PASS",
+    "details": "PTY produced 524288 -> transport delivered 524288 lossless true | input return lossless true | resize pipeline true",
+    "duration_ms": 65,
+    "extra": {
+      "lossless": "true",
+      "produced": "524288",
+      "delivered": "524288"
+    }
+  }
+]
