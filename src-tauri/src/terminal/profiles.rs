@@ -124,7 +124,7 @@ fn is_command_available(cmd: &str) -> bool {
                 let candidates = if cmd.ends_with(".exe") {
                     vec![dir.join(cmd)]
                 } else {
-                    let mut exts = vec![".exe", ".cmd", ".bat"];
+                    let exts = [".exe", ".cmd", ".bat"];
                     // PATHEXT handling simplified: try exe variants
                     exts.iter()
                         .map(|ext| dir.join(format!("{cmd}{ext}")))
@@ -211,9 +211,9 @@ pub fn resolve_profile(id: &str) -> Result<ResolvedCommand, super::error::Termin
             }
             #[cfg(windows)]
             {
-                return Err(TerminalError::not_found(
+                Err(TerminalError::not_found(
                     "default-shell not available on Windows",
-                ));
+                ))
             }
         }
         "bash" => Ok(ResolvedCommand {
