@@ -322,7 +322,9 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
             let py = format!("python3 -c \"import sys; sys.stdout.buffer.write(b'A'*{}); sys.stdout.buffer.write(b'DONE_MARKER'); sys.stdout.buffer.flush()\"", bytes);
             ("bash".to_string(), vec!["-c".to_string(), py])
         } else {
-            let ps = format!("$d=[byte[]]::new(4096); for($i=0;$i -lt 4096;$i++){{$d[$i]=65}}; $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(4096, $total-$written); $out.Write($d,0,$chunk); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush()", bytes);
+            // Keep rows below the 80-column viewport width. ConPTY's VT
+            // renderer redraws the boundary cell on automatic line wraps.
+            let ps = format!("$d=[byte[]]::new(64); for($i=0;$i -lt 64;$i++){{$d[$i]=65}}; $nl=[byte[]](13,10); $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(64, $total-$written); $out.Write($d,0,$chunk); $out.Write($nl,0,2); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush()", bytes);
             (
                 "powershell.exe".to_string(),
                 vec!["-NoProfile".to_string(), "-Command".to_string(), ps],
