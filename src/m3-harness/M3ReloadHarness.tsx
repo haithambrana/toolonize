@@ -135,18 +135,22 @@ export default function M3ReloadHarness() {
       const replay = await terminalReplay(idBefore);
       const replayOk = replay.bytes.length > 0;
 
-      // Live sequence resumed: poll for next output
+      // Live sequence resumed: prove NEW output flows through the resumed
+      // transport after reattach (not just replay) by writing a fresh marker.
       let liveOk = false;
-      for (let i = 0; i < 10; i++) {
+      const liveEnc = new TextEncoder();
+      await terminalWrite(idBefore, liveEnc.encode("echo LIVECHECK\n"));
+      for (let i = 0; i < 20 && !liveOk; i++) {
         const { chunks } = await terminalPoll(idBefore, 16);
+        let txt = "";
         for (const ch of chunks) {
-          const txt = new TextDecoder().decode(new Uint8Array(ch.bytes));
-          if (txt.includes("BEFORE_RELOAD") || txt.length > 0) liveOk = true;
+          txt += new TextDecoder().decode(new Uint8Array(ch.bytes));
+          if (txt.includes("LIVECHECK")) liveOk = true;
           await terminalAck(idBefore, ch.sequence);
         }
-        if (liveOk) break;
         await new Promise((r) => setTimeout(r, 100));
       }
+      if (!liveOk) throw new Error("live sequence did not resume after reload");
       // After reload output: write and check
       const enc = new TextEncoder();
       await terminalWrite(idBefore, enc.encode("echo AFTER_RELOAD\n"));
