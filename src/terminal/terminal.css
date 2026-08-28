@@ -1,0 +1,113 @@
+.terminal-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0e0e10;
+  color: #e6e6e6;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.terminal-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 6px 8px;
+  background: #1a1a1e;
+  border-bottom: 1px solid #2a2a2e;
+  flex-wrap: wrap;
+}
+
+.terminal-toolbar .spacer {
+  flex: 1;
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 300px;
+  padding: 4px;
+}
+
+.terminal-search {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 6px 8px;
+  background: #1e1e22;
+  border-bottom: 1px solid #2a2a2e;
+}
+
+.terminal-search input {
+  flex: 1;
+  max-width: 320px;
+}
+
+.terminal-banner {
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #2a2a2e;
+}
+
+.terminal-banner--exit {
+  background: #2b1a1a;
+  color: #ffb4a8;
+}
+
+.terminal-banner--truncated {
+  background: #2a2610;
+  color: #ffdf5d;
+}
+
+.terminal-view .xterm {
+  height: 100%;
+}
+
+.terminal-core {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.terminal-core__header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  padding: 8px;
+  background: #141416;
+}
+
+.session-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #1e1e22;
+}
+
+.session-row--active {
+  outline: 1px solid #5b8def;
+}
+
+.session-row__id {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  color: #9aa;
+}
+
+.muted-small {
+  font-size: 0.8rem;
+  color: #9aa;
+}

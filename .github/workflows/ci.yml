@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, m1-framework-shell]
+    branches: [main, m1-framework-shell, m3-terminal-session-manager]
   pull_request:
     branches: [main]
 
