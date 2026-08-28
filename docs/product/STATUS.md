@@ -67,11 +67,10 @@ m1-framework-shell. Only the M1 framework shell (Tauri window + hardened IPC)
 is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
 persistence, or production feature exists yet.
 
-2026-08-28: M2 PTY Backend Technical Spike repair round 2 is in progress on
-`m2-pty-spike`. Linux has 29 PASS, 0 FAIL, and 2 Windows-only NOT_VERIFIED
-records. Exact 256 KiB SHA-256 checks pass on both Linux backends; the bounded
-slow-consumer experiment produced and delivered 2 MiB with real producer
-waiting and no breach. A real local Tauri/WebKitGTK/xterm.js run passed exact
-bytes, awaited xterm writes, input return, child-observed resize, and process
-exit. Fresh fail-closed xvfb and Windows CI evidence remains required.
-`HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 is proposed and PR #2 is blocked.
+2026-08-28: M2 PTY Backend Technical Spike repair evidence is complete on
+`m2-pty-spike` at `f2d518f`. PR run `33129730084` passes the Linux harness and
+real Tauri/WebKitGTK/xterm.js pipeline under xvfb, and records 31/31 PASS on
+Windows for both portable-pty + mitigation and direct ConPTY. App CI run
+`33129730089` and repository-safety run `33129730118` pass. The technical gate
+is ready for human review. `HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 remains
+proposed and PR #2 remains draft/blocked until explicit human selection.
