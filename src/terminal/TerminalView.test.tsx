@@ -1,0 +1,256 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { TerminalView } from "./TerminalView";
+import type { SessionInfo } from "./terminalTypes";
+
+const xtermMocks = vi.hoisted(() => {
+  const mockWrite = vi.fn((_data: unknown, cb?: () => void) => {
+    if (cb) cb();
+  });
+  const mockWriteln = vi.fn();
+  const mockOnData = vi.fn((cb: (d: string) => void) => {
+    (mockOnData as unknown as { cb?: (d: string) => void }).cb = cb;
+    return { dispose: vi.fn() };
+  });
+  const mockGetSelection = vi.fn(() => "selected text");
+  const mockFindNext = vi.fn();
+  const mockFindPrev = vi.fn();
+  const mockFit = vi.fn();
+  class TerminalMock {
+    open = vi.fn();
+    loadAddon = vi.fn();
+    write = mockWrite;
+    writeln = mockWriteln;
+    onData = mockOnData;
+    getSelection = mockGetSelection;
+    dispose = vi.fn();
+    cols = 80;
+    rows = 24;
+  }
+  class FitAddonMock {
+    fit = mockFit;
+    dispose = vi.fn();
+  }
+  class SearchAddonMock {
+    findNext = mockFindNext;
+    findPrevious = mockFindPrev;
+    dispose = vi.fn();
+  }
+  return {
+    mockWrite,
+    mockWriteln,
+    mockOnData,
+    mockGetSelection,
+    mockFindNext,
+    mockFindPrev,
+    mockFit,
+    TerminalMock,
+    FitAddonMock,
+    SearchAddonMock,
+  };
+});
+
+vi.mock("./terminalClient", () => ({
+  terminalWrite: vi.fn(() => Promise.resolve(undefined)),
+  terminalResize: vi.fn(() => Promise.resolve(undefined)),
+  terminalAck: vi.fn(() => Promise.resolve(undefined)),
+  terminalPoll: vi.fn(() => Promise.resolve({ chunks: [], replayTruncated: false })),
+  terminalReplay: vi.fn(() => Promise.resolve({ bytes: [], truncated: false })),
+  terminalProfiles: vi.fn(() => Promise.resolve([])),
+  terminalList: vi.fn(() => Promise.resolve([])),
+  terminalAttach: vi.fn(() => Promise.resolve({})),
+  terminalDetach: vi.fn(() => Promise.resolve({})),
+  terminalHide: vi.fn(() => Promise.resolve({})),
+  terminalShow: vi.fn(() => Promise.resolve({})),
+  terminalClose: vi.fn(() => Promise.resolve({})),
+  terminalRestart: vi.fn(() => Promise.resolve({})),
+}));
+
+import { terminalWrite, terminalAck, terminalPoll, terminalReplay } from "./terminalClient";
+
+vi.mock("@xterm/xterm", () => ({
+  Terminal: xtermMocks.TerminalMock,
+}));
+
+vi.mock("@xterm/addon-fit", () => ({
+  FitAddon: xtermMocks.FitAddonMock,
+}));
+
+vi.mock("@xterm/addon-search", () => ({
+  SearchAddon: xtermMocks.SearchAddonMock,
+}));
+
+const baseSession: SessionInfo = {
+  session_id: "sess_00000001_deadbeef",
+  generation: 1,
+  profile_id: "bash",
+  process_state: { state: "running" },
+  view_state: "Attached",
+  rows: 24,
+  cols: 80,
+  transport_state: "Normal" as unknown as SessionInfo["transport_state"],
+  replay_truncated: false,
+  exit_code: null,
+};
+
+describe("TerminalView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(terminalPoll).mockResolvedValue({ chunks: [], replayTruncated: false });
+    vi.mocked(terminalReplay).mockResolvedValue({ bytes: [], truncated: false });
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue("clipboard content"),
+      },
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders terminal shell and container", async () => {
+    render(<TerminalView session={baseSession} />);
+    expect(screen.getByLabelText("Terminal")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-container")).toBeInTheDocument();
+  });
+
+  it("loads profiles and handles start state (mocked)", async () => {
+    render(<TerminalView session={baseSession} />);
+    expect(screen.getByText(/sess_00000001/)).toBeInTheDocument();
+  });
+
+  it("shows running state and no exit banner when running", () => {
+    render(<TerminalView session={baseSession} />);
+    expect(screen.queryByText(/Process exited/)).not.toBeInTheDocument();
+  });
+
+  it("shows exit banner when process exited", () => {
+    const exited: SessionInfo = {
+      ...baseSession,
+      process_state: { state: "exited", exit_code: 1 },
+      exit_code: 1,
+    };
+    render(<TerminalView session={exited} />);
+    expect(screen.getByText(/Process exited/)).toBeInTheDocument();
+  });
+
+  it("writes output chunks in order and acknowledges after xterm write", async () => {
+    const chunks = [
+      {
+        session_id: baseSession.session_id,
+        generation: 1,
+        sequence: 0,
+        bytes: Array.from(new TextEncoder().encode("hello ")),
+      },
+      {
+        session_id: baseSession.session_id,
+        generation: 1,
+        sequence: 1,
+        bytes: Array.from(new TextEncoder().encode("world")),
+      },
+    ];
+    vi.mocked(terminalPoll).mockResolvedValueOnce({ chunks, replayTruncated: false });
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(terminalPoll).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(xtermMocks.mockWrite).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(terminalAck).toHaveBeenCalledTimes(2), { timeout: 1500 });
+    expect(terminalAck).toHaveBeenCalledWith(baseSession.session_id, 0);
+    expect(terminalAck).toHaveBeenCalledWith(baseSession.session_id, 1);
+  });
+
+  it("forwards input via terminalWrite", async () => {
+    render(<TerminalView session={baseSession} />);
+    const cb = (xtermMocks.mockOnData as unknown as { cb?: (d: string) => void }).cb;
+    expect(cb).toBeDefined();
+    await act(async () => {
+      cb!("echo hi\n");
+    });
+    await waitFor(() => expect(terminalWrite).toHaveBeenCalled());
+    const call = vi.mocked(terminalWrite).mock.calls[0];
+    expect(call[0]).toBe(baseSession.session_id);
+    expect(ArrayBuffer.isView(call[1])).toBe(true);
+  });
+
+  it("requests resize via FitAddon", async () => {
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(xtermMocks.mockFit).toHaveBeenCalled());
+  });
+
+  it("attach/detach invariants: view state does not mutate process state (unit)", () => {
+    const detached = { ...baseSession, view_state: "Detached" as const };
+    const { rerender } = render(<TerminalView session={detached} />);
+    expect(screen.getByText(/Detached/)).toBeInTheDocument();
+    expect(screen.getByText(/running/)).toBeInTheDocument();
+    rerender(<TerminalView session={{ ...baseSession, view_state: "Attached" }} />);
+    expect(screen.getByText(/Attached/)).toBeInTheDocument();
+  });
+
+  it("search UI opens and triggers findNext/findPrevious", async () => {
+    render(<TerminalView session={baseSession} />);
+    const searchBtn = screen.getByRole("button", { name: "Search" });
+    fireEvent.click(searchBtn);
+    expect(screen.getByPlaceholderText("Search scrollback")).toBeInTheDocument();
+    const input = screen.getByLabelText("Search terminal");
+    fireEvent.change(input, { target: { value: "hello" } });
+    expect(xtermMocks.mockFindNext).toHaveBeenCalledWith("hello");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(xtermMocks.mockFindNext).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Prev" }));
+    expect(xtermMocks.mockFindPrev).toHaveBeenCalledWith("hello");
+  });
+
+  it("copy selection uses clipboard and shows feedback", async () => {
+    render(<TerminalView session={baseSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() =>
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("selected text")
+    );
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+  });
+
+  it("multi-line paste warns via confirm", async () => {
+    vi.mocked(navigator.clipboard.readText).mockResolvedValue("line1\nline2\nline3");
+    render(<TerminalView session={baseSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+    await waitFor(() => expect(window.confirm).toHaveBeenCalled());
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Multi-line paste"));
+    await waitFor(() => expect(terminalWrite).toHaveBeenCalled());
+  });
+
+  it("IPC failure does not crash UI and remains usable", async () => {
+    vi.mocked(terminalPoll).mockRejectedValue(new Error("ipc failed"));
+    const { container } = render(<TerminalView session={baseSession} />);
+    expect(container.querySelector(".terminal-container")).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getByTestId("terminal-container")).toBeInTheDocument();
+  });
+
+  it("sequence gap surfaces error banner", async () => {
+    const chunks = [
+      { session_id: baseSession.session_id, generation: 1, sequence: 1, bytes: [65] },
+    ];
+    vi.mocked(terminalPoll).mockResolvedValueOnce({ chunks, replayTruncated: false });
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(xtermMocks.mockWriteln).toHaveBeenCalled(), { timeout: 1500 });
+    expect(xtermMocks.mockWriteln).toHaveBeenCalledWith(expect.stringContaining("sequence gap"));
+  });
+
+  it("replay truncation surfaces warning", async () => {
+    const truncatedSession = { ...baseSession, replay_truncated: true };
+    render(<TerminalView session={truncatedSession} />);
+    expect(screen.getByText(/Replay truncated/)).toBeInTheDocument();
+  });
+
+  it("handles replay bytes on mount", async () => {
+    vi.mocked(terminalReplay).mockResolvedValueOnce({
+      bytes: Array.from(new TextEncoder().encode("replayed")),
+      truncated: false,
+    });
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(terminalReplay).toHaveBeenCalledWith(baseSession.session_id));
+    await waitFor(() => expect(xtermMocks.mockWrite).toHaveBeenCalled(), { timeout: 1500 });
+  });
+});

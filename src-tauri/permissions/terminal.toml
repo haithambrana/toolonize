@@ -1,0 +1,72 @@
+# Terminal M3 production permissions — typed, capability-scoped, least-privilege.
+# No raw exec, no shell plugin, no filesystem, no http.
+
+[[permission]]
+identifier = "allow-terminal-profiles"
+description = "List sanitized opaque shell profiles (no paths, no env)"
+commands.allow = ["terminal_profiles"]
+
+[[permission]]
+identifier = "allow-terminal-start"
+description = "Start a new terminal session with opaque profile id + dimensions"
+commands.allow = ["terminal_start"]
+
+[[permission]]
+identifier = "allow-terminal-list"
+description = "List active Rust-owned terminal sessions"
+commands.allow = ["terminal_list"]
+
+[[permission]]
+identifier = "allow-terminal-attach"
+description = "Attach view to an existing session (reattach after reload)"
+commands.allow = ["terminal_attach"]
+
+[[permission]]
+identifier = "allow-terminal-detach"
+description = "Detach view without killing PTY process"
+commands.allow = ["terminal_detach"]
+
+[[permission]]
+identifier = "allow-terminal-hide"
+description = "Hide view (tab inactive) without killing PTY"
+commands.allow = ["terminal_hide"]
+
+[[permission]]
+identifier = "allow-terminal-show"
+description = "Show hidden view"
+commands.allow = ["terminal_show"]
+
+[[permission]]
+identifier = "allow-terminal-write"
+description = "Forward input bytes to existing session only"
+commands.allow = ["terminal_write"]
+
+[[permission]]
+identifier = "allow-terminal-resize"
+description = "Resize PTY (validated dimensions)"
+commands.allow = ["terminal_resize"]
+
+[[permission]]
+identifier = "allow-terminal-ack"
+description = "Acknowledge output chunk after xterm write"
+commands.allow = ["terminal_ack"]
+
+[[permission]]
+identifier = "allow-terminal-close"
+description = "Close a terminal session and reap child"
+commands.allow = ["terminal_close"]
+
+[[permission]]
+identifier = "allow-terminal-restart"
+description = "Restart a terminated session (retains SessionId, bumps generation)"
+commands.allow = ["terminal_restart"]
+
+[[permission]]
+identifier = "allow-terminal-poll"
+description = "Poll sequenced OutputChunk(s) for delivery"
+commands.allow = ["terminal_poll"]
+
+[[permission]]
+identifier = "allow-terminal-replay"
+description = "Fetch bounded replay bytes for renderer reload reattachment"
+commands.allow = ["terminal_replay"]

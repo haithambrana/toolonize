@@ -1,7 +1,23 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "M1 default capability — main window only, local content only, single custom command app::ping (Tauri invoke: ping). No shell, filesystem, http, process, opener, or remote capabilities.",
+  "description": "M3 production capability — main window only, local content only. Allows ping + typed terminal lifecycle (portable-pty backend). No shell, filesystem, http, process, opener, or remote capabilities. Tauri semantic mapping: terminal::* -> terminal_* invoke ids.",
   "windows": ["main"],
-  "permissions": ["allow-ping"]
+  "permissions": [
+    "allow-ping",
+    "allow-terminal-profiles",
+    "allow-terminal-start",
+    "allow-terminal-list",
+    "allow-terminal-attach",
+    "allow-terminal-detach",
+    "allow-terminal-hide",
+    "allow-terminal-show",
+    "allow-terminal-write",
+    "allow-terminal-resize",
+    "allow-terminal-ack",
+    "allow-terminal-close",
+    "allow-terminal-restart",
+    "allow-terminal-poll",
+    "allow-terminal-replay"
+  ]
 }

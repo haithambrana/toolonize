@@ -1,7 +1,8 @@
 # Roadmap
 
-Status: M0 and M1 complete, human-approved, and merged. M2 complete and
-human-approved; ADR-004 accepted; PR #2 pending final merge. M3 not started.
+Status: M0, M1, and M2 complete, human-approved, and merged. ADR-004 accepted
+(portable-pty 0.9.0 + ToolOnize mitigations). M3 in progress — Production
+Terminal Session Manager on branch `m3-terminal-session-manager`.
 Milestones are dependency-ordered without calendar dates (per engineering
 constitution: no fabricated estimates).
 
@@ -26,19 +27,26 @@ constitution: no fabricated estimates).
   Windows): PTY backend behavior; PTY→Rust→Tauri→WebView→xterm.js
   throughput; lossless byte integrity/backpressure on the full path; xterm
   instance lifecycle; FlexLayout live-terminal move/maximize/restore smoke;
-  renderer reload semantics — both OSes. **Complete / human approved;
-  ADR-004 accepted; PR #2 pending final merge.**
+  renderer reload semantics — both OSes. **Complete / human approved / merged;
+  ADR-004 accepted.**
 - Gate: spike report accepted AND all six critical risks validated on both
   platforms; framework renders on both OSes. **Passed.**
 - Selected backend: `portable-pty` 0.9.0 + ToolOnize-owned mitigations on
   Linux and Windows. Direct native implementations remain spike-verified
   fallback/reference paths only.
 
-## Phase 2 — Terminal core (M3) — NOT STARTED
-The M2 critical-risk gate has passed, but M3 has not started. Session manager,
-terminal lifecycle independent of layout (process state ≠ view attachment),
-lossless output pump, copy/paste/search/resize, exit/reconnect semantics with
-honest plain-SSH behavior remain future work.
+## Phase 2 — Terminal core (M3) — IN PROGRESS
+M3 Production Terminal Session Manager is in progress on branch
+`m3-terminal-session-manager` from base `03e09d0`. Production `PtyBackend` +
+`PortablePtyBackend` (0.9.0), stateful DSR/CPR, writer-lifetime guard, bounded
+lossless transport (chunk 4096, cap 65536, high 49152, low 16384, replay
+65536, sequenced ack), process/view orthogonal states, `SessionManager`
+registry (opaque SessionId, generation), safe opaque profiles, typed
+`terminal::*` commands, and xterm TerminalView (Fit+Search, copy/paste with
+warning, resize, exit banner, replay) are implemented. Renderer reload
+reattachment and byte-integrity/backpressure contract tests are green on Linux;
+Windows contract remains hosted-matrix validated (portable-pty 0.9.0). M4
+(FlexLayout) remains deferred.
 
 ## Phase 3 — Workspace core (M4)
 - flexlayout integration with state-preservation proof; workspace model;

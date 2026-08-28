@@ -3,6 +3,9 @@ import { ping, type PingResponse } from "./lib/ipc";
 // Spike is dev-only and jsdom-incompatible; lazy-load to avoid breaking Vitest
 import { lazy, Suspense } from "react";
 const TerminalSpike = lazy(() => import("./spike/TerminalSpike"));
+const TerminalCore = lazy(() =>
+  import("./terminal/TerminalCore").then((m) => ({ default: m.TerminalCore }))
+);
 
 type IpcState =
   | { status: "idle" }
@@ -35,7 +38,7 @@ export default function App() {
         <h1 className="title">ToolOnize</h1>
         <p className="tagline">Your existing dev tools. One persistent workspace.</p>
         <span className="badge" aria-label="Milestone">
-          Framework Shell — M1
+          Terminal Core — M3
         </span>
       </header>
 
@@ -94,15 +97,28 @@ export default function App() {
             Scope
           </h2>
           <p className="muted">
-            M1 proves the cross-platform shell and hardened IPC boundary. Terminal, workspace,
-            launcher, PTY, layout, SSH, tmux and persistence features are planned for later
-            milestones and are not present in this build.
+            M3 delivers the production terminal lifecycle core (portable-pty 0.9.0 + mitigations)
+            with session manager, lossless transport, and xterm TerminalView. Workspace/layout (M4)
+            and launcher discovery (M5/M6) remain planned.
           </p>
           <ul className="list">
-            <li>Single custom command: app::ping (Tauri invoke: ping)</li>
-            <li>No filesystem, shell, HTTP, or process plugins</li>
+            <li>
+              IPC: ping +
+              terminal_profiles/start/list/attach/detach/write/resize/ack/close/restart/poll/replay
+            </li>
+            <li>No filesystem, shell, HTTP, or process plugins; no raw exec from WebView</li>
             <li>Capability restricted to main window, local content only</li>
+            <li>View vs process state orthogonal; renderer reload reattaches to same SessionId</li>
           </ul>
+        </section>
+
+        <section className="card" aria-labelledby="terminal-heading" style={{ padding: 16 }}>
+          <h2 id="terminal-heading" className="card-title">
+            Terminal Core — M3
+          </h2>
+          <Suspense fallback={<div className="muted small">Loading terminal core…</div>}>
+            <TerminalCore />
+          </Suspense>
         </section>
 
         {/* Throwaway M2 harness, included only in the dedicated spike build. */}
@@ -115,7 +131,9 @@ export default function App() {
 
       <footer className="footer">
         <small className="muted">
-          ToolOnize M1 — framework shell only. No user data leaves this machine.
+          ToolOnize M3 — terminal core. No user data leaves this machine. Full app exit terminates
+          local children; renderer reload survives. Portable-pty 0.9.0 + mitigations (DSR stateful,
+          writer lifetime, lossless transport).
         </small>
       </footer>
     </div>

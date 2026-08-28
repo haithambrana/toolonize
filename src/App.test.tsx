@@ -16,29 +16,41 @@ describe("App shell", () => {
   });
 
   it("renders ToolOnize identity and framework shell badge", async () => {
-    mockedInvoke.mockResolvedValue({
-      app_name: "ToolOnize",
-      app_version: "0.1.0",
-      target_os: "linux",
-      target_arch: "x86_64",
-      status: "ok",
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "ping")
+        return Promise.resolve({
+          app_name: "ToolOnize",
+          app_version: "0.1.0",
+          target_os: "linux",
+          target_arch: "x86_64",
+          status: "ok",
+        });
+      if (cmd === "terminal_profiles") return Promise.resolve([]);
+      if (cmd === "terminal_list") return Promise.resolve({ sessions: [] });
+      return Promise.resolve(undefined);
     });
     render(<App />);
     expect(screen.getByRole("heading", { name: "ToolOnize" })).toBeInTheDocument();
     expect(
       screen.getByText("Your existing dev tools. One persistent workspace.")
     ).toBeInTheDocument();
-    expect(screen.getByText("Framework Shell — M1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Milestone")).toHaveTextContent("Terminal Core — M3");
     expect(await screen.findByText("0.1.0")).toBeInTheDocument();
   });
 
   it("shows loading state then renders sanitized ping data", async () => {
-    mockedInvoke.mockResolvedValue({
-      app_name: "ToolOnize",
-      app_version: "0.1.0",
-      target_os: "linux",
-      target_arch: "x86_64",
-      status: "ok",
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "ping")
+        return Promise.resolve({
+          app_name: "ToolOnize",
+          app_version: "0.1.0",
+          target_os: "linux",
+          target_arch: "x86_64",
+          status: "ok",
+        });
+      if (cmd === "terminal_profiles") return Promise.resolve([]);
+      if (cmd === "terminal_list") return Promise.resolve({ sessions: [] });
+      return Promise.resolve(undefined);
     });
     render(<App />);
     expect(screen.getByText("Contacting Rust core…")).toBeInTheDocument();
@@ -54,26 +66,42 @@ describe("App shell", () => {
   });
 
   it("does not crash on IPC failure and shows error affordance", async () => {
-    mockedInvoke.mockRejectedValue(new Error("backend unreachable"));
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "ping") return Promise.reject(new Error("backend unreachable"));
+      if (cmd === "terminal_profiles") return Promise.resolve([]);
+      if (cmd === "terminal_list") return Promise.resolve({ sessions: [] });
+      return Promise.resolve(undefined);
+    });
     render(<App />);
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.getByText("backend unreachable")).toBeInTheDocument();
     expect(screen.getByText("IPC failed")).toBeInTheDocument();
     // badge still visible
-    expect(screen.getByText("Framework Shell — M1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Milestone")).toBeInTheDocument();
   });
 
-  it("invokes only the ping command", async () => {
-    mockedInvoke.mockResolvedValue({
-      app_name: "ToolOnize",
-      app_version: "0.1.0",
-      target_os: "linux",
-      target_arch: "x86_64",
-      status: "ok",
+  it("invokes only the ping command (and allowed terminal commands)", async () => {
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "ping")
+        return Promise.resolve({
+          app_name: "ToolOnize",
+          app_version: "0.1.0",
+          target_os: "linux",
+          target_arch: "x86_64",
+          status: "ok",
+        });
+      if (cmd === "terminal_profiles") return Promise.resolve([]);
+      if (cmd === "terminal_list") return Promise.resolve({ sessions: [] });
+      return Promise.resolve(undefined);
     });
     render(<App />);
     await waitFor(() => expect(mockedInvoke).toHaveBeenCalled());
     expect(mockedInvoke).toHaveBeenCalledWith("ping");
-    expect(mockedInvoke).toHaveBeenCalledTimes(1);
+    // ping must be called; terminal commands are allowed additional calls
+    const calls = mockedInvoke.mock.calls.map((c) => c[0] as string);
+    expect(calls).toContain("ping");
+    for (const c of calls) {
+      expect(["ping", "terminal_profiles", "terminal_list"]).toContain(c);
+    }
   });
 });

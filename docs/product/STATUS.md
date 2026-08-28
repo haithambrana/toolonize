@@ -1,6 +1,6 @@
 # Project Status
 
-Phase: M2 complete; M3 not started
+Phase: M3 in progress — Production Terminal Session Manager
 
 Architecture: HUMAN APPROVED for progression into M0.
 Naming: ToolOnize — HUMAN APPROVED. ToolOnize is the approved
@@ -12,11 +12,12 @@ gate if required.
 
 M0: COMPLETE / HUMAN APPROVED / MERGED
 M1: COMPLETE / HUMAN APPROVED / MERGED
-M2: COMPLETE / HUMAN APPROVED; ADR-004 ACCEPTED; PR #2 pending final merge
-M3: NOT STARTED
-Selected PTY backend: `portable-pty` 0.9.0 + ToolOnize mitigations
+M2: COMPLETE / HUMAN APPROVED / MERGED
+ADR-004: ACCEPTED
+M3: IN PROGRESS — Production Terminal Session Manager
+Selected production backend: `portable-pty` 0.9.0 + ToolOnize mitigations
 Public repository: CREATED - haithambrana/toolonize
-Implementation: M1 framework shell complete; no production terminal features
+Implementation: M1 framework shell complete; M3 production terminal lifecycle core in progress
 Repository safety CI: GREEN
 
 Tauri identifier direction: com.toolonize.desktop
@@ -87,3 +88,13 @@ run `33131442542` pass.
 Direct native implementations remain spike-verified fallback/reference paths
 only; patched forks are not selected. `PR_2_MERGE=PENDING_FINAL_CI_AND_HUMAN_MERGE`.
 PR #2 remains draft, M2 is COMPLETE / HUMAN APPROVED, and M3 is NOT STARTED.
+
+2026-08-28: M2 merged at `03e09d0f81fccce32435eb04c64bf933cb86da29`.
+`HUMAN_M2_GATE=APPROVED`; `ADR_004=ACCEPTED` (portable-pty 0.9.0 + ToolOnize
+mitigations on Linux and Windows; direct native remains fallback/reference).
+M2 is COMPLETE / HUMAN APPROVED / MERGED.
+
+2026-08-28: `HUMAN_M3_GATE=AUTHORIZED`. M3 Production Terminal Session Manager
+authorized on branch `m3-terminal-session-manager` from base `03e09d0`.
+
+M3 is IN PROGRESS — Production Terminal Session Manager.
