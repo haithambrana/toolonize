@@ -1,9 +1,9 @@
 # ADR-004: PTY backend — Proposed — Spike Complete / Human Decision Required
 
 Date: 2026-08-26 (spike executed 2026-08-27)
-Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (round-2 repair evidence is incomplete until fresh Windows and xvfb CI pass)
+Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (fresh Windows and xvfb evidence pass; backend selection remains human-gated)
 
-> **Human gate:** This ADR must not be flipped to `Accepted` until Windows CI (`windows-latest` spike matrix + `TerminalSpike` full pipeline `produced == delivered` via real WebView) is green and reviewed. Linux evidence is complete; Windows is `NOT_VERIFIED` in this local report.
+> **Human gate:** Fresh `windows-latest` runtime evidence and the Linux real-WebView/xterm pipeline are green at commit `f2d518f`. This ADR remains proposed until a human reviews the evidence, selects a backend shape, and explicitly flips it to `Accepted`.
 
 ## Context
 
@@ -71,7 +71,7 @@ class of decision our constitution requires be settled by experiment.
 - Adopt A/B/C outright; or hybrid (e.g., C on Windows, A on Linux) if
   evidence supports asymmetry — allowed because the trait isolates it.
 
-## Spike results (2026-08-27, Linux x86_64)
+## Spike results (2026-08-27/28, Linux and Windows x86_64)
 
 **Harness:** `tools/spike-pty/` (31 records, 29 PASS, 0 FAIL, 2 Windows-only NOT_VERIFIED on Linux). Report JSON `docs/research/spike-m2/report.json`, human report `docs/research/PTY_SPIKE_REPORT.md`.
 
@@ -81,15 +81,17 @@ class of decision our constitution requires be settled by experiment.
 
 **Transport:** Independent producer/slow-consumer threads produce and deliver 2097152 bytes with 63 producer waits, max queue depth 49152 under a 65536-byte capacity, and zero hard breaches. The contrast transport drops 2031616 bytes.
 
-**Real local WebView:** A Tauri/WebKitGTK window executed PTY -> Rust -> Tauri Channel -> WebView -> xterm.js with 262144 exact payload bytes, matching SHA-256, awaited xterm writes, input return, child-observed resize, and child exit code 0. Fresh fail-closed `xvfb-run` CI must reproduce it.
+**Real WebView:** A Tauri/WebKitGTK window executed PTY -> Rust -> Tauri Channel -> WebView -> xterm.js with 262144 exact payload bytes, matching SHA-256, awaited xterm writes, input return, child-observed resize, and child exit code 0. PR run `33129730084`, Linux job `98716178189`, reproduced it under fail-closed `xvfb-run`.
 
-**Windows:** Cross-compilation passes, but runtime remains `NOT_VERIFIED` after the prior jobs timed out in the old blocking harness. Fresh `windows-latest` runtime evidence is mandatory. Recommendation remains undecided until human review of that evidence.
+**Windows:** PR run `33129730084`, Windows job `98716178092`, recorded 31 PASS, 0 FAIL, 0 BLOCKED, and 0 NOT_VERIFIED. Both `portable-pty-0.9.0` + mitigation and direct ConPTY pass child-observed resize, UTF-8, Ctrl+C, DSR, exact 262144-byte SHA-256, cleanup, shell variants, hidden-console evidence, and five concurrent sessions. Push run `33129727977`, Windows job `98716170413`, independently reproduced the result.
+
+**Proposed recommendation:** portable-pty on Linux plus direct ConPTY on Windows, subject to human review. Both a fully portable backend and the hybrid pass every MUST row; the hybrid avoids the documented portable-pty Windows lifecycle regressions at the cost of owning the Win32 adapter. This is evidence for the decision, not acceptance of it.
 
 ## Consequences
 
-- M3 cannot start until this ADR reaches `Accepted` via the M2 gate (IMPLEMENTATION_PLAN rollback condition). This spike satisfies the evidence requirement for the human gate but does not itself flip the status.
+- M3 cannot start until this ADR reaches `Accepted` via the M2 gate (IMPLEMENTATION_PLAN rollback condition). The technical gate is ready for human review but does not itself flip the status.
 - Short-term cost: spike harness code (`tools/spike-pty`, `src-tauri/src/commands/spike.rs` behind feature `spike`, `src/spike/TerminalSpike.tsx`); long-term benefit: terminal correctness is now evidence-gated.
-- **Next step for human:** Review `docs/research/PTY_SPIKE_REPORT.md` + `docs/research/spike-m2/report.json` + Windows CI logs (including `TerminalSpike` browser capture) and then flip this ADR to `Accepted` with the chosen backend (portable, direct, or hybrid) before M3.
+- **Next step for human:** Review `docs/research/PTY_SPIKE_REPORT.md`, `docs/research/spike-m2/report.json`, and run `33129730084`; then either request changes or flip this ADR to `Accepted` with the chosen backend (portable, direct, or hybrid) before M3.
 
 ## Links
 

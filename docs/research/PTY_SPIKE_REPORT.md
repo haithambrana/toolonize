@@ -10,16 +10,16 @@ ADR: `ADR_004=PROPOSED_NOT_ACCEPTED`
 
 Merge: `PR_2_MERGE=BLOCKED`
 
-This report separates executed evidence from compilation and pending CI. A
-successful job, a Linux report, a transport model, or a cached report is never
-used as Windows or real-WebView evidence.
+This report separates local execution, hosted Windows execution, and hosted
+real-WebView execution. A successful job, a Linux report, a transport model,
+or a cached report is never substituted for platform-specific evidence.
 
 ## Candidates
 
 | Candidate | Spike implementation | Material concern |
 |-----------|----------------------|------------------|
 | `portable-pty` 0.9.0 + mitigation | `native_pty_system`, bounded reader pump, DSR response | wezterm/wezterm#6783 and vercel/turborepo#11816 document Windows DSR and stdin-lifecycle regressions |
-| Direct native | `libc::openpty` on Linux; windows-rs `CreatePseudoConsole` on Windows | More owned unsafe FFI and lifecycle code; requires direct Windows execution evidence |
+| Direct native | `libc::openpty` on Linux; windows-rs `CreatePseudoConsole` on Windows | More owned unsafe FFI and lifecycle code; hosted Windows execution now passes |
 | Patched forks | Research only | Low adoption and additional supply-chain risk |
 
 The harness keeps the choice behind `PtyBackend`; ADR-004 remains proposed
@@ -33,14 +33,18 @@ Ctrl+C termination, DSR behavior, exact high-volume output, cleanup, TUI and
 agent-style output, hidden-console structure, clipboard input, and concurrent
 sessions.
 
-Blocking PTY readers are isolated behind a single reader pump. Harness reads
-return `WouldBlock` after 25 ms, allowing scenario deadlines to fire without
-spawning one abandoned thread per read. The direct Windows implementation:
+The portable backend isolates its blocking reader behind a single reader pump.
+The direct Windows backend polls its synchronous ConPTY output pipe with
+`PeekNamedPipe`. Harness reads return `WouldBlock` after a bounded interval,
+allowing scenario deadlines to fire without an unsafe `Send` override. The
+direct Windows implementation:
 
-- passes the address of the `HPCON` value to `UpdateProcThreadAttribute`;
+- passes the `HPCON` value required by `PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE`;
 - uses aligned process-attribute storage and checks every fallible Win32 call;
-- quotes the Windows command line;
-- owns process/thread handles with `OwnedHandle` and closes `HPCON` once;
+- quotes the Windows command line and explicitly invalidates inherited stdio;
+- owns process/thread handles with `OwnedHandle`, waits for child termination,
+  closes both communication endpoints, and then closes `HPCON` exactly once;
+- responds to DSR even when `ESC[6n` is split across reads;
 - calls `ResizePseudoConsole` and fails on error;
 - does not use an unsafe `Send` implementation.
 
@@ -76,8 +80,14 @@ Key executed results:
 
 ### Exact High Volume
 
-The child emits exactly `262144` `A` bytes followed immediately by
-`DONE_MARKER`. No percentage threshold or CR stripping is used.
+The logical payload is exactly `262144` `A` bytes bounded by
+`PAYLOAD_START`/`DONE_MARKER`. Linux compares the raw bytes without
+normalization. Windows emits the payload in 64-byte rows to avoid ConPTY's
+automatic-wrap redraw. The Windows verifier removes only predefined ConPTY
+terminal protocol bytes (C0 line/cursor controls, CSI, OSC, and the exact
+space/backspace cursor artifact), rejects every unexpected printable byte,
+then requires the exact byte count and SHA-256. There is no percentage
+threshold.
 
 ```text
 PAYLOAD_BYTES=262144
@@ -87,7 +97,13 @@ DELIVERED_SHA256=97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c
 EXACT_MATCH=true
 ```
 
-Both Linux backends produce this result.
+Both Linux backends and both hosted Windows backends produce this result.
+
+### Hosted Linux
+
+PR run [`33129730084`](https://github.com/haithambrana/toolonize/actions/runs/33129730084),
+Linux job `98716178189`, passed at commit `f2d518f`. It independently recorded
+the same 31-row Linux summary and exact SHA-256 for both backends.
 
 ## Backpressure Evidence
 
@@ -136,47 +152,72 @@ validates the browser report, prints `M2_REAL_WEBVIEW_REPORT=...`, and exits
 nonzero on mismatch. There is no simulated fallback and CI does not swallow
 timeouts.
 
-Linux CI must independently reproduce this under `xvfb-run`; local execution
-alone does not satisfy that CI evidence row.
+PR run `33129730084`, Linux job `98716178189`, independently reproduced this
+under `xvfb-run` and emitted exactly one matching `M2_REAL_WEBVIEW_REPORT`.
+The job also passed the spike-feature Tauri build check.
 
 ## Windows Status
 
-`cargo check --target x86_64-pc-windows-msvc --all-targets` passes locally.
-That is compilation evidence only.
+`cargo check --target x86_64-pc-windows-msvc --all-targets` passes locally, but
+the runtime claim comes only from hosted Windows execution.
 
-The last published Windows jobs for commit `b577492` were cancelled at the
-15-minute job limit while the old blocking harness was running. They did not
-produce valid Windows runtime evidence. The repair adds nonblocking readers, a
-180-second process-tree timeout, explicit report platform metadata, and strict
-per-backend PASS validation. A new `windows-latest` run is still required.
+PR run [`33129730084`](https://github.com/haithambrana/toolonize/actions/runs/33129730084),
+Windows job `98716178092`, passed at commit `f2d518f`:
 
-Required Windows evidence:
+```text
+Total: 31, PASS: 31, FAIL: 0, BLOCKED: 0, NOT_VERIFIED: 0
+non-PASS records: 0
+has_portable: True, has_direct_windows: True, has_unix: False
+```
 
-- report metadata says `platform == "windows"`;
-- both `portable-pty-0.9.0` and `direct-windows-ConPTY` execute;
-- PowerShell, `cmd.exe`, and `pwsh.exe` pass;
-- WSL records `WSL=PASS` or `WSL=NOT_AVAILABLE_IN_CI`;
-- child-observed real resize, exact UTF-8, Ctrl+C termination, exact SHA-256
-  high volume, cleanup handle count, and concurrent sessions pass;
-- hidden-console evidence records the ConPTY creation path and absence of
-  `CREATE_NEW_CONSOLE` for the direct backend.
+| Contract | Portable 0.9.0 + mitigation | Direct Windows ConPTY |
+|----------|-----------------------------|------------------------|
+| Child-observed resize | `SIZE=40x120` | `SIZE=40x120` |
+| UTF-8 emoji/CJK/accented/combining | PASS | PASS |
+| Ctrl+C termination | PASS | PASS |
+| DSR startup/response | PASS | PASS |
+| Exact 256 KiB SHA-256 | `262144`, exact match | `262144`, exact match |
+| Cleanup, 20 cycles | handles `126 -> 126` | handles `127 -> 127` |
+| Concurrent sessions | 5 isolated PASS | 5 isolated PASS |
+| Shells | PowerShell/cmd/pwsh PASS; WSL unavailable | PowerShell/cmd/pwsh PASS; WSL unavailable |
+| Hidden console | native ConPTY path | pseudoconsole attribute; no `CREATE_NEW_CONSOLE` |
+
+The independent push run
+[`33129727977`](https://github.com/haithambrana/toolonize/actions/runs/33129727977),
+Windows job `98716170413`, reproduced the same all-PASS result. Earlier failed
+and timed-out runs are retained as repair history and are not counted as
+passing evidence.
+
+## Recommendation for Human Review
+
+Both candidates satisfy every MUST row on Linux and Windows. The proposed
+selection for human review is a hybrid: `portable-pty` on Linux and direct
+ConPTY on Windows. This preserves the mature Linux abstraction while avoiding
+the documented portable-pty Windows DSR/stdin lifecycle regressions; direct
+Windows also showed lower high-volume elapsed time in the canonical run. The
+tradeoff is ownership of a small Win32 lifecycle adapter. A single portable
+backend remains a viable lower-maintenance alternative because its mitigated
+Windows path also passed every row. This recommendation is not an accepted
+architecture decision.
 
 ## Current Gate
 
 | Evidence | State |
 |----------|-------|
-| Linux portable backend | PASS locally; fresh CI pending |
-| Linux direct backend | PASS locally; fresh CI pending |
-| Bounded slow-consumer backpressure | PASS locally; fresh CI pending |
-| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally; fresh xvfb CI pending |
-| Windows portable backend runtime | BLOCKED pending fresh CI |
-| Windows direct ConPTY runtime | BLOCKED pending fresh CI |
+| Linux portable backend | PASS locally and in job `98716178189` |
+| Linux direct backend | PASS locally and in job `98716178189` |
+| Bounded slow-consumer backpressure | PASS locally and in hosted CI |
+| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally and in job `98716178189` |
+| Windows portable backend runtime | PASS in job `98716178092` |
+| Windows direct ConPTY runtime | PASS in job `98716178092` |
+| Full app CI | PASS in run `33129730089` |
+| Repository safety | PASS in run `33129730118` |
 | ADR-004 human selection | NOT ACCEPTED |
 | PR #2 merge | BLOCKED |
 
-The backend recommendation remains undecided pending Windows runtime results.
-Patched forks are not recommended based on current supply-chain evidence. A
-direct-Windows/portable-Linux hybrid and direct native on both platforms both
-remain candidate outcomes for human review.
+The executed technical evidence is complete for human review. Patched forks
+remain not recommended based on current supply-chain evidence. Only the human
+reviewer may select the backend, accept ADR-004, change the M2 human gate, or
+authorize merge.
 
-M2_PTY_SPIKE_GATE=BLOCKED
+M2_PTY_SPIKE_GATE=READY_FOR_HUMAN_REVIEW
