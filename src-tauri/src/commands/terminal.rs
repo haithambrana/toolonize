@@ -25,6 +25,7 @@ use crate::terminal::transport::OutputChunk;
 // ----- Request / Response types (typed) -----
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalStartRequest {
     pub profile_id: String,
     pub rows: u16,
@@ -37,6 +38,7 @@ pub struct TerminalStartResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalWriteRequest {
     pub session_id: String,
     /// Bytes as base64 or raw vec? For M3, frontend sends Vec<u8> as number array.
@@ -45,6 +47,7 @@ pub struct TerminalWriteRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalResizeRequest {
     pub session_id: String,
     pub rows: u16,
@@ -52,12 +55,14 @@ pub struct TerminalResizeRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalAckRequest {
     pub session_id: String,
     pub sequence: u64,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalSessionRequest {
     pub session_id: String,
 }
@@ -87,6 +92,7 @@ pub struct TerminalAttachResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerminalPollRequest {
     pub session_id: String,
     pub max_chunks: Option<usize>,
