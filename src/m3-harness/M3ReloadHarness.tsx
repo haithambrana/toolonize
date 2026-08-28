@@ -40,12 +40,32 @@ export default function M3ReloadHarness() {
   const runBeforeReload = async () => {
     try {
       setState({ status: "running", step: "M3 boot + start session" });
-      const profiles = (await invoke("terminal_profiles")) as unknown as {
-        id: string;
-        available: boolean;
-      }[];
-      const profile = profiles.find((p) => p.available)?.id ?? "sh";
-      const sess = await terminalStart(profile, 24, 80);
+      let profile: string | null = null;
+      try {
+        const profiles = (await invoke("terminal_profiles")) as unknown as {
+          id: string;
+          available: boolean;
+        }[];
+        profile = profiles.find((p) => p.available)?.id ?? null;
+      } catch {
+        profile = null;
+      }
+      if (!profile) {
+        // Fallback to platform default
+        profile = navigator.platform.toLowerCase().includes("win") ? "cmd" : "sh";
+      }
+      let sess: Awaited<ReturnType<typeof terminalStart>> | null = null;
+      const candidates = [profile, "sh", "bash", "cmd", "powershell", "pwsh"].filter(Boolean) as string[];
+      let lastErr: unknown = null;
+      for (const cand of candidates) {
+        try {
+          sess = await terminalStart(cand, 24, 80);
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!sess) throw lastErr ?? new Error("no profile available for m3 harness");
       const id = sess.session_id;
       const gen = sess.generation;
       sessionStorage.setItem("m3_session_id", id);
