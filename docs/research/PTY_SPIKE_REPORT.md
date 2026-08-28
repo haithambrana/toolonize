@@ -4,11 +4,11 @@ Date: 2026-08-28
 
 Branch: `m2-pty-spike`
 
-Human decision: `HUMAN_M2_GATE=CHANGES_REQUIRED`
+Human decision: `HUMAN_M2_GATE=APPROVED`
 
-ADR: `ADR_004=PROPOSED_NOT_ACCEPTED`
+ADR: `ADR_004=ACCEPTED`
 
-Merge: `PR_2_MERGE=BLOCKED`
+Merge: `PR_2_MERGE=PENDING_FINAL_CI_AND_HUMAN_MERGE`
 
 This report separates local execution, hosted Windows execution, and hosted
 real-WebView execution. A successful job, a Linux report, a transport model,
@@ -22,8 +22,10 @@ or a cached report is never substituted for platform-specific evidence.
 | Direct native | `libc::openpty` on Linux; windows-rs `CreatePseudoConsole` on Windows | More owned unsafe FFI and lifecycle code; hosted Windows execution now passes |
 | Patched forks | Research only | Low adoption and additional supply-chain risk |
 
-The harness keeps the choice behind `PtyBackend`; ADR-004 remains proposed
-until the human reviewer accepts one candidate or a hybrid.
+ADR-004 selects `portable-pty` 0.9.0 with ToolOnize-owned mitigations on Linux
+and Windows. The harness keeps the choice behind `PtyBackend`; the direct
+native implementations remain isolated spike fallback/reference paths, not V1
+production backends.
 
 ## Harness
 
@@ -33,7 +35,10 @@ Ctrl+C termination, DSR behavior, exact high-volume output, cleanup, TUI and
 agent-style output, hidden-console structure, clipboard input, and concurrent
 sessions.
 
-The portable backend isolates its blocking reader behind a single reader pump.
+The portable backend isolates its blocking reader behind a single reader pump,
+retains incomplete DSR requests across reads, and controls input-writer
+lifetime. These are required integration behaviors, not claims that the
+upstream Windows risks have disappeared.
 The direct Windows backend polls its synchronous ConPTY output pipe with
 `PeekNamedPipe`. Harness reads return `WouldBlock` after a bounded interval,
 allowing scenario deadlines to fire without an unsafe `Send` override. The
@@ -101,8 +106,8 @@ Both Linux backends and both hosted Windows backends produce this result.
 
 ### Hosted Linux
 
-PR run [`33130859724`](https://github.com/haithambrana/toolonize/actions/runs/33130859724),
-Linux job `98719792866`, passed at commit `49a1599`. It independently recorded
+PR run [`33131442504`](https://github.com/haithambrana/toolonize/actions/runs/33131442504),
+Linux job `98721662032`, passed at commit `3563af5`. It independently recorded
 the same 31-row Linux summary and exact SHA-256 for both backends.
 
 ## Backpressure Evidence
@@ -152,7 +157,7 @@ validates the browser report, prints `M2_REAL_WEBVIEW_REPORT=...`, and exits
 nonzero on mismatch. There is no simulated fallback and CI does not swallow
 timeouts.
 
-PR run `33130859724`, Linux job `98719792866`, independently reproduced this
+PR run `33131442504`, Linux job `98721662032`, independently reproduced this
 under `xvfb-run` and emitted exactly one matching `M2_REAL_WEBVIEW_REPORT`.
 The job also passed the spike-feature Tauri build check.
 
@@ -161,8 +166,8 @@ The job also passed the spike-feature Tauri build check.
 `cargo check --target x86_64-pc-windows-msvc --all-targets` passes locally, but
 the runtime claim comes only from hosted Windows execution.
 
-PR run [`33130859724`](https://github.com/haithambrana/toolonize/actions/runs/33130859724),
-Windows job `98719793033`, passed at commit `49a1599`:
+PR run [`33131442504`](https://github.com/haithambrana/toolonize/actions/runs/33131442504),
+Windows job `98721661871`, passed at commit `3563af5`:
 
 ```text
 Total: 31, PASS: 31, FAIL: 0, BLOCKED: 0, NOT_VERIFIED: 0
@@ -183,43 +188,74 @@ has_portable: True, has_direct_windows: True, has_unix: False
 | Hidden console | native ConPTY path | pseudoconsole attribute; no `CREATE_NEW_CONSOLE` |
 
 The independent push run
-[`33130857270`](https://github.com/haithambrana/toolonize/actions/runs/33130857270),
-Windows job `98719783997`, reproduced the same all-PASS result. A fresh run at
-the preceding documentation commit exposed a portable ConPTY DSR request split
-across reads; commit `49a1599` retains the partial request and responds only
-when it is complete. Earlier failed and timed-out runs are retained as repair
+[`33131439161`](https://github.com/haithambrana/toolonize/actions/runs/33131439161),
+Windows job `98721650821`, reproduced the same all-PASS result. Failed PR run
+`33130352404` at commit `68a375c` exposed a portable ConPTY DSR request split
+across reads. Commit `49a1599` retains the partial request and responds only
+when it is complete; repair PR run `33130859724` and final pre-decision run
+`33131442504` passed. All earlier failed and timed-out runs remain repair
 history and are not counted as passing evidence.
 
-## Recommendation for Human Review
+## Human Architecture Decision
 
-Both candidates satisfy every MUST row on Linux and Windows. The proposed
-selection for human review is a hybrid: `portable-pty` on Linux and direct
-ConPTY on Windows. This preserves the mature Linux abstraction while avoiding
-the documented portable-pty Windows DSR/stdin lifecycle regressions; direct
-Windows also showed lower high-volume elapsed time in the canonical run. The
-tradeoff is ownership of a small Win32 lifecycle adapter. A single portable
-backend remains a viable lower-maintenance alternative because its mitigated
-Windows path also passed every row. This recommendation is not an accepted
-architecture decision.
+The Human Product/Technical Lead selected `portable-pty` 0.9.0 with explicit
+ToolOnize integration mitigations as the V1 production backend on Linux and
+Windows. `HUMAN_M2_GATE=APPROVED` and `ADR_004=ACCEPTED`.
+
+Both portable-pty with mitigations and the direct native implementations pass
+every MUST row. Before human review, this report recommended portable-pty on
+Linux plus direct ConPTY on Windows to avoid the documented portable-pty
+Windows DSR and input-writer lifecycle risks. The human reviewer considered
+that recommendation and selected the single portable backend because it also
+passed the complete matrix and avoids ToolOnize ownership of Win32 handle
+lifecycle, `CreatePseudoConsole`, `CreateProcessW`, process attribute lists,
+pipe ownership, command-line quoting, polling, cleanup, unsafe FFI invariants,
+and Windows-version behavior.
+
+This selection does not erase the upstream risks. M3 production integration
+must preserve regression coverage for:
+
+1. split DSR/CPR startup requests, retaining incomplete `ESC[6n` sequences;
+2. input-writer lifetime without premature ConPTY child termination;
+3. bounded lossless output with no silent dropping or truncation;
+4. child-observed resize;
+5. exact high-volume byte-count and SHA-256 integrity;
+6. Ctrl+C semantics;
+7. lossless UTF-8 and VT sequence preservation;
+8. child exit, cleanup, and process/resource lifecycle;
+9. concurrent-session isolation; and
+10. explicit timeout/desynchronization failure instead of hangs.
+
+`Cargo.lock` remains authoritative. Any portable-pty version upgrade must pass
+the relevant M2 matrix on Linux and Windows before adoption, including all
+Windows DSR/CPR, input lifetime, resize, shells, UTF-8, Ctrl+C, exact-volume,
+cleanup, and concurrency regressions.
+
+The verified `direct-unix-openpty` and `direct-windows-ConPTY` paths remain
+fallback/reference spike implementations only. M3 must not wire them into
+normal execution or add runtime/user backend selection. Patched portable-pty
+forks remain not selected. Future promotion of direct Windows ConPTY requires
+production evidence of a portable-pty blocker and a reviewed ADR amendment.
 
 ## Current Gate
 
 | Evidence | State |
 |----------|-------|
-| Linux portable backend | PASS locally and in job `98719792866` |
-| Linux direct backend | PASS locally and in job `98719792866` |
+| Linux portable backend | PASS locally and in job `98721662032` |
+| Linux direct backend | PASS locally and in job `98721662032` |
 | Bounded slow-consumer backpressure | PASS locally and in hosted CI |
-| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally and in job `98719792866` |
-| Windows portable backend runtime | PASS in job `98719793033` |
-| Windows direct ConPTY runtime | PASS in job `98719793033` |
-| Full app CI | PASS in run `33130859717` |
-| Repository safety | PASS in run `33130859711` |
-| ADR-004 human selection | NOT ACCEPTED |
-| PR #2 merge | BLOCKED |
+| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally and in job `98721662032` |
+| Windows portable backend runtime | PASS in job `98721661871` |
+| Windows direct ConPTY spike runtime | PASS in job `98721661871` |
+| Full app CI | PASS in run `33131442503` |
+| Repository safety | PASS in run `33131442542` |
+| V1 production backend | portable-pty 0.9.0 + ToolOnize mitigations on Linux and Windows |
+| Direct native implementations | SPIKE-VERIFIED FALLBACK / REFERENCE ONLY |
+| ADR-004 human selection | ACCEPTED |
+| PR #2 merge | PENDING FINAL CI AND HUMAN MERGE |
 
-The executed technical evidence is complete for human review. Patched forks
-remain not recommended based on current supply-chain evidence. Only the human
-reviewer may select the backend, accept ADR-004, change the M2 human gate, or
-authorize merge.
+The M2 technical evidence and human architecture decision are complete. PR #2
+remains draft until final post-decision CI is reviewed and a human authorizes
+merge. M3 has not started.
 
-M2_PTY_SPIKE_GATE=READY_FOR_HUMAN_REVIEW
+M2_PTY_SPIKE_GATE=APPROVED

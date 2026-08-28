@@ -1,6 +1,6 @@
 # Project Status
 
-Phase: M1 — Cross-Platform Framework Shell (in progress)
+Phase: M2 complete; M3 not started
 
 Architecture: HUMAN APPROVED for progression into M0.
 Naming: ToolOnize — HUMAN APPROVED. ToolOnize is the approved
@@ -10,11 +10,14 @@ docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal
 trademark clearance; formal legal/trademark review remains a later release
 gate if required.
 
-M0: COMPLETE / HUMAN APPROVED
-M1: IN PROGRESS — Cross-Platform Framework Shell
-Public repository: CREATED — haithambrana/toolonize
-Implementation: STARTED — M1 framework shell only
-Repository safety CI: GREEN at M1 start
+M0: COMPLETE / HUMAN APPROVED / MERGED
+M1: COMPLETE / HUMAN APPROVED / MERGED
+M2: COMPLETE / HUMAN APPROVED; ADR-004 ACCEPTED; PR #2 pending final merge
+M3: NOT STARTED
+Selected PTY backend: `portable-pty` 0.9.0 + ToolOnize mitigations
+Public repository: CREATED - haithambrana/toolonize
+Implementation: M1 framework shell complete; no production terminal features
+Repository safety CI: GREEN
 
 Tauri identifier direction: com.toolonize.desktop
 CLI / binary: toolonize
@@ -35,8 +38,8 @@ Config-directory direction: toolonize
 - Threat model — HUMAN APPROVED
 - Implementation plan — HUMAN APPROVED
 - Test strategy — HUMAN APPROVED
-- ADRs — 001/002/005 Accepted; 003 conditional on its M4 state-preservation
-  gate; 004 Proposed / Spike Required, must be resolved in M2
+- ADRs - 001/002/004/005 Accepted; 003 conditional on its M4
+  state-preservation gate
 - Public-repository secret-safety review — rules defined (docs/security/PUBLIC_REPOSITORY_SAFETY.md); full-history scan required before any public push
 
 2026-08-26: human architecture review corrections applied (documentation
@@ -50,7 +53,8 @@ Spike/Verification Required; release-integrity wording corrected.
 model, implementation plan, and test strategy are human-approved for
 progression into M0. This approval does NOT claim any implementation exists.
 ADR-001, ADR-002, and ADR-005 moved to Accepted; ADR-003 remains conditional
-on the M4 gate; ADR-004 remains Proposed / Spike Required (M2 mandatory gate).
+on the M4 gate. At that time ADR-004 remained Proposed / Spike Required for
+the mandatory M2 gate.
 
 2026-08-26: HUMAN_NAMING_GATE=APPROVED. Final public product name is
 ToolOnize (display ToolOnize, repo toolonize, binary toolonize, config dir
@@ -67,11 +71,19 @@ m1-framework-shell. Only the M1 framework shell (Tauri window + hardened IPC)
 is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
 persistence, or production feature exists yet.
 
-2026-08-28: M2 PTY Backend Technical Spike repair evidence is complete on
-`m2-pty-spike` at `49a1599`. PR run `33130859724` passes the Linux harness and
-real Tauri/WebKitGTK/xterm.js pipeline under xvfb, and records 31/31 PASS on
-Windows for both portable-pty + mitigation and direct ConPTY after split DSR
-requests were handled. App CI run `33130859717` and repository-safety run
-`33130859711` pass. The technical gate is ready for human review.
-`HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 remains proposed and PR #2 remains
-draft/blocked until explicit human selection.
+2026-08-28: M1 is COMPLETE / HUMAN APPROVED / MERGED. The cross-platform
+framework shell is the only production application milestone implemented; no
+production terminal, workspace, launcher, SSH, tmux, or persistence feature
+exists yet.
+
+2026-08-28: M2 PTY Backend Technical Spike evidence is complete. PR run
+`33131442504` passes the Linux harness and real Tauri/WebKitGTK/xterm.js
+pipeline under xvfb, and records 31/31 PASS on Windows for both portable-pty +
+mitigation and direct ConPTY. App CI run `33131442503` and repository-safety
+run `33131442542` pass.
+
+2026-08-28: `HUMAN_M2_GATE=APPROVED`; `ADR_004=ACCEPTED`. ToolOnize V1 selects
+`portable-pty` 0.9.0 with ToolOnize-owned mitigations on Linux and Windows.
+Direct native implementations remain spike-verified fallback/reference paths
+only; patched forks are not selected. `PR_2_MERGE=PENDING_FINAL_CI_AND_HUMAN_MERGE`.
+PR #2 remains draft, M2 is COMPLETE / HUMAN APPROVED, and M3 is NOT STARTED.
