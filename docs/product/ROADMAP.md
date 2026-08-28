@@ -44,9 +44,9 @@ lossless transport (chunk 4096, cap 65536, high 49152, low 16384, replay
 registry (opaque SessionId, generation), safe opaque profiles, typed
 `terminal::*` commands, and xterm TerminalView (Fit+Search, copy/paste with
 warning, resize, exit banner, replay) are implemented. Renderer reload
-reattachment and byte-integrity/backpressure contract tests are green on Linux;
-Windows contract remains hosted-matrix validated (portable-pty 0.9.0). M4
-(FlexLayout) remains deferred.
+reattachment and byte-integrity/backpressure contract tests are green on both
+Linux and Windows (contract, build, and spike-pty matrix); the real Tauri
+WebView reload passes under xvfb. M4 (FlexLayout) remains deferred.
 
 ## Phase 3 — Workspace core (M4)
 - flexlayout integration with state-preservation proof; workspace model;

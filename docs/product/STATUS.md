@@ -97,4 +97,14 @@ M2 is COMPLETE / HUMAN APPROVED / MERGED.
 2026-08-28: `HUMAN_M3_GATE=AUTHORIZED`. M3 Production Terminal Session Manager
 authorized on branch `m3-terminal-session-manager` from base `03e09d0`.
 
+2026-08-29: M3 implementation is feature-complete and ALL M3 CI workflows are
+GREEN on head `7eda6f6` for BOTH push and PR runs: contract (Linux/Windows),
+build (Linux/Windows), spike-pty (Linux/Windows), real WebView reload, and
+repository safety. The reload test is isolated to a single transport consumer
+(single-session deterministic ack ordering), and the Windows
+`restart_retains_session_id_increments_generation` Exited-state deadline was
+widened to 8s to remove scheduling flake. All 56 backend and 23 frontend tests
+pass locally; `cargo clippy -D warnings`, `tsc --noEmit`, and Prettier are clean.
+`PR_3_MERGE=BLOCKED` — PR #3 stays DRAFT pending the human M3 gate.
+
 M3 is IN PROGRESS — Production Terminal Session Manager.
