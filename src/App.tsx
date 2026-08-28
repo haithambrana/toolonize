@@ -113,14 +113,20 @@ export default function App() {
           </ul>
         </section>
 
-        <section className="card" aria-labelledby="terminal-heading" style={{ padding: 16 }}>
-          <h2 id="terminal-heading" className="card-title">
-            Terminal Core — M3
-          </h2>
-          <Suspense fallback={<div className="muted small">Loading terminal core…</div>}>
-            <TerminalCore />
-          </Suspense>
-        </section>
+        {/* Terminal Core is the production consumer. It is excluded from the M3
+            reload build so the harness is the only consumer of its session during
+            the real WebView reload — two concurrent consumers sharing a transport
+            would produce nondeterministic ack ordering (sequence gaps). */}
+        {import.meta.env.VITE_M3_RELOAD !== "1" && (
+          <section className="card" aria-labelledby="terminal-heading" style={{ padding: 16 }}>
+            <h2 id="terminal-heading" className="card-title">
+              Terminal Core — M3
+            </h2>
+            <Suspense fallback={<div className="muted small">Loading terminal core…</div>}>
+              <TerminalCore />
+            </Suspense>
+          </section>
+        )}
 
         {/* Throwaway M2 harness, included only in the dedicated spike build. */}
         {import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test" && (
