@@ -55,7 +55,9 @@ export default function M3ReloadHarness() {
         profile = navigator.platform.toLowerCase().includes("win") ? "cmd" : "sh";
       }
       let sess: Awaited<ReturnType<typeof terminalStart>> | null = null;
-      const candidates = [profile, "sh", "bash", "cmd", "powershell", "pwsh"].filter(Boolean) as string[];
+      const candidates = [profile, "sh", "bash", "cmd", "powershell", "pwsh"].filter(
+        Boolean
+      ) as string[];
       let lastErr: unknown = null;
       for (const cand of candidates) {
         try {
@@ -96,6 +98,8 @@ export default function M3ReloadHarness() {
       if (replay.bytes.length === 0) throw new Error("replay empty before reload");
 
       sessionStorage.setItem("m3_before_ok", "1");
+      // Mark that the WebView is about to reload so the post-reload phase runs below.
+      sessionStorage.setItem("m3_reload_phase", "after");
       setState({ status: "running", step: "trigger WebView reload" });
       // Trigger actual WebView reload
       window.location.reload();
