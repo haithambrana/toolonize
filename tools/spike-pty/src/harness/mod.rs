@@ -375,6 +375,7 @@ fn normalize_conpty_payload(input: &[u8]) -> Result<Vec<u8>> {
                 output.push(b'A');
                 index += 1;
             }
+            b' ' if input.get(index + 1) == Some(&0x08) => index += 2,
             b'\r' | b'\n' | 0x07 | 0x08 => index += 1,
             0x1b if input.get(index + 1) == Some(&b'[') => {
                 index += 2;
@@ -879,7 +880,7 @@ mod tests {
 
     #[test]
     fn conpty_normalization_removes_only_terminal_protocol_bytes() {
-        let raw = b"\x1b[?9001hAA\r\n\x1b[23;80HAA\x08A\x1b]0;title\x07A";
+        let raw = b"\x1b[?9001hAA\r\n\x1b[23;80HAA \x08\x08A\x1b]0;title\x07A";
         assert_eq!(normalize_conpty_payload(raw).unwrap(), b"AAAAAA");
     }
 
@@ -887,6 +888,7 @@ mod tests {
     fn conpty_normalization_rejects_unexpected_payload_bytes() {
         let error = normalize_conpty_payload(b"AB").unwrap_err();
         assert!(error.to_string().contains("unexpected printable byte 0x42"));
+        assert!(normalize_conpty_payload(b"A A").is_err());
     }
 
     #[test]
