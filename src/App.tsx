@@ -6,6 +6,7 @@ const TerminalSpike = lazy(() => import("./spike/TerminalSpike"));
 const TerminalCore = lazy(() =>
   import("./terminal/TerminalCore").then((m) => ({ default: m.TerminalCore }))
 );
+const M3ReloadHarness = lazy(() => import("./m3-harness/M3ReloadHarness"));
 
 type IpcState =
   | { status: "idle" }
@@ -125,6 +126,11 @@ export default function App() {
         {import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test" && (
           <Suspense fallback={<div className="muted small">Loading spike harness…</div>}>
             <TerminalSpike />
+          </Suspense>
+        )}
+        {import.meta.env.VITE_M3_RELOAD === "1" && import.meta.env.MODE !== "test" && (
+          <Suspense fallback={<div className="muted small">Loading M3 harness…</div>}>
+            <M3ReloadHarness />
           </Suspense>
         )}
       </main>

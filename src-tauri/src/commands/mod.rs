@@ -1,3 +1,4 @@
+pub mod m3_harness;
 pub mod ping;
 #[cfg(feature = "spike")]
 pub mod spike;
@@ -24,6 +25,8 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "terminal_restart",
     "terminal_poll",
     "terminal_replay",
+    "m3_complete",
+    "m3_fail",
 ];
 
 #[cfg(test)]
@@ -41,8 +44,9 @@ mod tests {
         assert!(ALLOWED_COMMANDS.contains(&"terminal_ack"));
         assert!(ALLOWED_COMMANDS.contains(&"terminal_close"));
         assert!(ALLOWED_COMMANDS.contains(&"terminal_restart"));
-        // Exactly 15 commands (1 ping + 14 terminal)
-        assert_eq!(ALLOWED_COMMANDS.len(), 15);
+        assert!(ALLOWED_COMMANDS.contains(&"m3_complete"));
+        // Exactly 17 commands (1 ping + 14 terminal + 2 M3 harness)
+        assert_eq!(ALLOWED_COMMANDS.len(), 17);
     }
 
     #[test]

@@ -15,6 +15,8 @@ pub fn run() {
                 crate::commands::spike::spike_input_echo,
                 crate::commands::spike::spike_complete,
                 crate::commands::spike::spike_fail,
+                crate::commands::m3_harness::m3_complete,
+                crate::commands::m3_harness::m3_fail,
                 crate::commands::terminal::terminal_profiles,
                 crate::commands::terminal::terminal_start,
                 crate::commands::terminal::terminal_list,
@@ -43,6 +45,8 @@ pub fn run() {
         tauri::Builder::default()
             .invoke_handler(tauri::generate_handler![
                 crate::commands::ping::ping,
+                crate::commands::m3_harness::m3_complete,
+                crate::commands::m3_harness::m3_fail,
                 crate::commands::terminal::terminal_profiles,
                 crate::commands::terminal::terminal_start,
                 crate::commands::terminal::terminal_list,
@@ -147,7 +151,7 @@ mod tests {
 
     #[test]
     fn registered_commands_are_only_ping() {
-        // Updated for M3: ping + terminal lifecycle (no raw exec).
+        // Updated for M3: ping + terminal lifecycle + M3 harness (no raw exec).
         assert_eq!(
             crate::commands::ALLOWED_COMMANDS,
             &[
@@ -166,6 +170,8 @@ mod tests {
                 "terminal_restart",
                 "terminal_poll",
                 "terminal_replay",
+                "m3_complete",
+                "m3_fail",
             ]
         );
         // Ensure no raw exec is registered

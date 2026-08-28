@@ -72,6 +72,18 @@ pub struct TerminalPollResponse {
     pub chunks: Vec<OutputChunk>,
     /// If replay was truncated due to cap, frontend surfaces warning.
     pub replay_truncated: bool,
+    pub replay_discarded_bytes: u64,
+    pub next_sequence: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TerminalAttachResponse {
+    pub session: SessionInfo,
+    pub attachment_epoch: u64,
+    pub next_sequence: u64,
+    pub acknowledged_up_to: Option<u64>,
+    pub replay_truncated: bool,
+    pub replay_discarded_bytes: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +96,9 @@ pub struct TerminalPollRequest {
 pub struct TerminalReplayResponse {
     pub bytes: Vec<u8>,
     pub truncated: bool,
+    pub discarded_bytes: u64,
+    pub next_sequence: u64,
+    pub attachment_epoch: u64,
 }
 
 // ----- Commands -----
@@ -114,10 +129,21 @@ pub fn terminal_list() -> TerminalListResponse {
 }
 
 /// `terminal::attach` — view attach, does not mutate process state/generation.
+/// H2/H3: returns attachment cursor (epoch, next_sequence) for renderer reload protocol.
 #[tauri::command]
-pub fn terminal_attach(request: TerminalSessionRequest) -> Result<SessionInfo, String> {
+pub fn terminal_attach(request: TerminalSessionRequest) -> Result<TerminalAttachResponse, String> {
     let mgr = global_manager();
-    mgr.attach(&request.session_id).map_err(|e| e.to_string())
+    let (session, attach) = mgr
+        .attach_with_info(&request.session_id)
+        .map_err(|e| e.to_string())?;
+    Ok(TerminalAttachResponse {
+        session,
+        attachment_epoch: attach.attachment_epoch,
+        next_sequence: attach.next_sequence,
+        acknowledged_up_to: attach.acknowledged_up_to,
+        replay_truncated: attach.replay_truncated,
+        replay_discarded_bytes: attach.replay_discarded_bytes,
+    })
 }
 
 /// `terminal::detach`
@@ -188,27 +214,31 @@ pub fn terminal_poll(request: TerminalPollRequest) -> Result<TerminalPollRespons
     let chunks = mgr
         .poll_chunks(&request.session_id, max)
         .map_err(|e| e.to_string())?;
-    // replay_truncated surfaced via session info; for poll we also check session
     let info = mgr
-        .get_info(&request.session_id)
+        .replay_with_info(&request.session_id)
         .map_err(|e| e.to_string())?;
     Ok(TerminalPollResponse {
         chunks,
-        replay_truncated: info.replay_truncated,
+        replay_truncated: info.truncated,
+        replay_discarded_bytes: info.discarded_bytes,
+        next_sequence: info.next_sequence,
     })
 }
 
 /// `terminal::replay` — bounded server-side replay for renderer reload reattachment.
+/// H2/H5: returns replay watermark and truncation metadata.
 #[tauri::command]
 pub fn terminal_replay(request: TerminalSessionRequest) -> Result<TerminalReplayResponse, String> {
     let mgr = global_manager();
-    let bytes = mgr.replay(&request.session_id).map_err(|e| e.to_string())?;
-    let info = mgr
-        .get_info(&request.session_id)
+    let replay = mgr
+        .replay_with_info(&request.session_id)
         .map_err(|e| e.to_string())?;
     Ok(TerminalReplayResponse {
-        bytes,
-        truncated: info.replay_truncated,
+        bytes: replay.bytes,
+        truncated: replay.truncated,
+        discarded_bytes: replay.discarded_bytes,
+        next_sequence: replay.next_sequence,
+        attachment_epoch: replay.attachment_epoch,
     })
 }
 

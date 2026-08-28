@@ -1,0 +1,83 @@
+name: m3-real-webview
+
+on:
+  push:
+    branches: [main, m3-terminal-session-manager]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  reload:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node (LTS)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: stable
+
+      - name: Install Linux Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            patchelf \
+            libssl-dev \
+            xvfb
+
+      - name: Install npm dependencies (deterministic)
+        run: npm ci
+
+      - name: Frontend typecheck
+        run: npm run typecheck
+
+      - name: Frontend build (M3)
+        run: npm run build
+
+      - name: Rust check (M3)
+        working-directory: src-tauri
+        run: cargo check
+
+      - name: Real M3 WebView reload (Linux xvfb)
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 120s xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+            npm run tauri -- dev --no-watch --config src-tauri/tauri.m3.conf.json \
+            2>&1 | tee target/m3-webview.log
+          python3 -c "
+          import json, sys, re
+          marker='M3_REAL_WEBVIEW_REPORT='
+          lines=[line.split(marker,1)[1] for line in open('target/m3-webview.log', encoding='utf-8', errors='ignore') if marker in line]
+          if len(lines) != 1:
+              print(f'ERROR: expected one M3 real WebView report, found {len(lines)}', file=sys.stderr)
+              print(open('target/m3-webview.log', encoding='utf-8', errors='ignore').read()[-2000:], file=sys.stderr)
+              sys.exit(1)
+          report=json.loads(lines[0])
+          print(json.dumps(report, sort_keys=True, indent=2))
+          required_true=('tauriBootOk','terminalViewReady','sessionStarted','beforeReloadOutputOk','webviewReloaded','sessionListed','reattached','sameSessionId','sameGeneration','replayOk','liveSequenceResumed','afterReloadOutputOk','afterReloadInputOk','afterReloadResizeOk','closeOk','appExitOk')
+          if not all(report.get(k) is True for k in required_true):
+              print(f'ERROR: M3 real WebView boolean gate failed: {report}', file=sys.stderr)
+              sys.exit(1)
+          if not report.get('sessionIdBefore'):
+              print('ERROR: sessionIdBefore missing', file=sys.stderr)
+              sys.exit(1)
+          print('M3 real WebView PASS')
+          "

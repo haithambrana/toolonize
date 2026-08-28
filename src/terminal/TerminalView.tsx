@@ -11,6 +11,7 @@ import {
   terminalAck,
   terminalPoll,
   terminalReplay,
+  terminalAttach,
 } from "./terminalClient";
 
 type Props = {
@@ -32,7 +33,6 @@ export function TerminalView({ session }: Props) {
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
-  const pollTimer = useRef<number | null>(null);
   const pendingAck = useRef<Map<number, boolean>>(new Map());
   const searchQuery = useRef<string>("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -41,10 +41,35 @@ export function TerminalView({ session }: Props) {
   const [replayTruncated, setReplayTruncated] = useState(session.replay_truncated);
   const sessionIdRef = useRef(session.session_id);
   const generationRef = useRef(session.generation);
+  const expectedSeqRef = useRef<number>(0);
+  const epochRef = useRef<number>(0);
+  const pollInFlightRef = useRef<boolean>(false);
+  const cancelledRef = useRef<boolean>(false);
+  const generationBannerRef = useRef<string | null>(null);
+  const [generationBanner, setGenerationBanner] = useState<string | null>(null);
 
   useEffect(() => {
     sessionIdRef.current = session.session_id;
-    generationRef.current = session.generation;
+    // H10: generation change must invalidate old delivery state
+    if (generationRef.current !== session.generation) {
+      const oldGen = generationRef.current;
+      const newGen = session.generation;
+      generationRef.current = newGen;
+      // Invalidate pending ACKs from prior generation
+      pendingAck.current.clear();
+      // Reset expected sequence for new generation (new Transport starts at 0)
+      expectedSeqRef.current = 0;
+      epochRef.current = 0;
+      const msg = `[restart] generation ${oldGen} -> ${newGen} — new stream cursor 0`;
+      generationBannerRef.current = msg;
+      setGenerationBanner(msg);
+      const term = termRef.current;
+      if (term) {
+        // H10: explicit xterm behavior on generation change — clear stale content and show banner
+        term.clear();
+        term.writeln(`\r\n${msg}`);
+      }
+    }
     setReplayTruncated(session.replay_truncated);
   }, [session.session_id, session.generation, session.replay_truncated]);
 
@@ -68,13 +93,15 @@ export function TerminalView({ session }: Props) {
     try {
       await terminalResize(sessionIdRef.current, dims.rows, dims.cols);
     } catch {
-      // Resize failures are non-fatal; surface via console only (no PII)
+      // Resize failures are non-fatal
     }
   }, [getDimensions]);
 
   // Create one Terminal instance per mounted TerminalView
   useEffect(() => {
     if (!containerRef.current) return;
+    cancelledRef.current = false;
+    pollInFlightRef.current = false;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -97,26 +124,18 @@ export function TerminalView({ session }: Props) {
     searchRef.current = search;
 
     term.open(containerRef.current);
-    // Fit once after open
     try {
       fit.fit();
     } catch {
       // ignore
     }
 
-    // Handle input -> forward bytes to existing session only
     const dispData = term.onData((data: string) => {
       const enc = new TextEncoder();
       const bytes = enc.encode(data);
-      terminalWrite(sessionIdRef.current, bytes).catch(() => {
-        // Write failure is non-crash; UI remains usable
-      });
+      terminalWrite(sessionIdRef.current, bytes).catch(() => {});
     });
 
-    // Also handle binary? xterm onData gives string; for UTF-8 we encode.
-    // For paste, we handle separately via bracketed-aware flow.
-
-    // Resize observer with debounce
     let resizeTimer: number | null = null;
     const ro = new ResizeObserver(() => {
       if (resizeTimer) window.clearTimeout(resizeTimer);
@@ -126,73 +145,98 @@ export function TerminalView({ session }: Props) {
     });
     ro.observe(containerRef.current);
 
-    // Initial replay for renderer reload reattachment
-    (async () => {
+    // H2/H3: establish correct delivery cursor via attach handshake
+    // H5: fetch bounded replay with truncation flag
+    let pollTimer: number | null = null;
+    let gapNotified = false;
+
+    const initAndPoll = async () => {
       try {
+        // Attach to get cursor: epoch + next_sequence (H2)
+        const attach = await terminalAttach(sessionIdRef.current);
+        if (cancelledRef.current) return;
+        epochRef.current = attach.attachment_epoch;
+        expectedSeqRef.current = attach.next_sequence;
+        if (attach.replay_truncated) setReplayTruncated(true);
+
+        // Replay bounded history
         const replay = await terminalReplay(sessionIdRef.current);
+        if (cancelledRef.current) return;
         if (replay.bytes.length > 0) {
           const chunk = new Uint8Array(replay.bytes);
-          // Write without ack tracking for replay (it's history, not sequenced)
           term.write(chunk);
         }
         if (replay.truncated) setReplayTruncated(true);
       } catch {
-        // replay failure is non-fatal
-      }
-    })();
-
-    // Poll sequenced chunks; ack after xterm write completes
-    let expectedSeq = 0;
-    let gapNotified = false;
-    const poll = async () => {
-      try {
-        const { chunks, replayTruncated: truncated } = await terminalPoll(sessionIdRef.current, 16);
-        if (truncated) setReplayTruncated(true);
-        // Sort by sequence to ensure ordering check (backend already sequences)
-        chunks.sort((a, b) => a.sequence - b.sequence);
-        for (const ch of chunks) {
-          // Generation check: if chunk generation differs, it's from previous incarnation — skip or warn
-          if (ch.generation !== generationRef.current) {
-            // Generation mismatch means restart occurred; we can surface via banner externally
-            continue;
-          }
-          if (ch.sequence !== expectedSeq) {
-            if (!gapNotified) {
-              term.writeln("\r\n[transport] sequence gap detected — desynchronized");
-              gapNotified = true;
-            }
-            // Do not ack gap; surface error and stop processing further in this poll
-            break;
-          }
-          pendingAck.current.set(ch.sequence, true);
-          const bytes = new Uint8Array(ch.bytes);
-          // Wait for xterm write callback before ack
-          await new Promise<void>((resolve) => {
-            term.write(bytes, () => {
-              resolve();
-            });
-          });
-          try {
-            await terminalAck(sessionIdRef.current, ch.sequence);
-            pendingAck.current.delete(ch.sequence);
-            expectedSeq = ch.sequence + 1;
-          } catch {
-            // ack failure surfaces desync; stop advancing
-            break;
-          }
+        // If attach/replay fails, fallback to 0 and continue polling
+        if (!cancelledRef.current) {
+          expectedSeqRef.current = 0;
         }
-      } catch {
-        // Poll errors are non-crash; next interval will retry
       }
+
+      // H4: strictly serialized poll loop (no overlapping setInterval)
+      const pollOnce = async () => {
+        if (cancelledRef.current) return;
+        if (pollInFlightRef.current) return; // guard ensures max 1 concurrent
+        pollInFlightRef.current = true;
+        try {
+          const { chunks, replayTruncated } = await terminalPoll(sessionIdRef.current, 16);
+          if (cancelledRef.current) return;
+          if (replayTruncated) setReplayTruncated(true);
+          chunks.sort((a, b) => a.sequence - b.sequence);
+          for (const ch of chunks) {
+            if (cancelledRef.current) break;
+            // H10: generation check — stale generation chunks are ignored safely
+            if (ch.generation !== generationRef.current) {
+              continue;
+            }
+            // H3: epoch check via sequence — stale in-flight cleared on attach, so any
+            // unexpectedly low sequence is a gap, not a redelivery
+            if (ch.sequence !== expectedSeqRef.current) {
+              if (!gapNotified) {
+                term.writeln("\r\n[transport] sequence gap detected — desynchronized");
+                gapNotified = true;
+              }
+              break;
+            }
+            pendingAck.current.set(ch.sequence, true);
+            const bytes = new Uint8Array(ch.bytes);
+            await new Promise<void>((resolve) => {
+              term.write(bytes, () => resolve());
+            });
+            if (cancelledRef.current) break;
+            try {
+              await terminalAck(sessionIdRef.current, ch.sequence);
+              pendingAck.current.delete(ch.sequence);
+              expectedSeqRef.current = ch.sequence + 1;
+            } catch {
+              break;
+            }
+          }
+        } catch {
+          // Poll errors non-fatal
+        } finally {
+          pollInFlightRef.current = false;
+        }
+      };
+
+      const loop = async () => {
+        while (!cancelledRef.current) {
+          await pollOnce();
+          if (cancelledRef.current) break;
+          await new Promise<void>((resolve) => {
+            pollTimer = window.setTimeout(() => resolve(), POLL_INTERVAL_MS);
+          });
+        }
+      };
+      void loop();
     };
-    pollTimer.current = window.setInterval(() => {
-      void poll();
-    }, POLL_INTERVAL_MS);
-    // Also poll immediately
-    void poll();
+
+    void initAndPoll();
 
     return () => {
-      if (pollTimer.current) window.clearInterval(pollTimer.current);
+      cancelledRef.current = true;
+      if (pollTimer) window.clearTimeout(pollTimer);
       if (resizeTimer) window.clearTimeout(resizeTimer);
       ro.disconnect();
       dispData.dispose();
@@ -202,15 +246,11 @@ export function TerminalView({ session }: Props) {
       termRef.current = null;
       fitRef.current = null;
       searchRef.current = null;
+      pollInFlightRef.current = false;
     };
     // Do NOT recreate on ordinary React rerender; only when session id changes is handled via sessionIdRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Attach handling: when generation changes, reset expectedSeq
-  useEffect(() => {
-    // Generation is tracked via ref updated above; instance stays stable.
-  }, [session.generation]);
 
   const handleCopy = useCallback(async () => {
     const term = termRef.current;
@@ -225,7 +265,6 @@ export function TerminalView({ session }: Props) {
       await navigator.clipboard.writeText(sel);
       setCopyFeedback("Copied");
     } catch {
-      // Fallback: execCommand if clipboard permission denied
       try {
         const ta = document.createElement("textarea");
         ta.value = sel;
@@ -250,7 +289,6 @@ export function TerminalView({ session }: Props) {
       setTimeout(() => setCopyFeedback(null), 1500);
       return;
     }
-    // No clipboard contents persisted or logged — per security policy
     if (!text) return;
     const lines = text.split("\n");
     if (lines.length > 1 || text.length > 200) {
@@ -262,7 +300,6 @@ export function TerminalView({ session }: Props) {
     }
     const enc = new TextEncoder();
     const bytes = enc.encode(text);
-    // Preserve bracketed-paste mode: xterm will handle bracketed prefix; we just forward bytes
     try {
       await terminalWrite(sessionIdRef.current, bytes);
     } catch {
@@ -351,6 +388,12 @@ export function TerminalView({ session }: Props) {
       {replayTruncated && (
         <div className="terminal-banner terminal-banner--truncated" role="status">
           Replay truncated — scrollback beyond the bounded replay cap is not available after reload.
+        </div>
+      )}
+
+      {generationBanner && (
+        <div className="terminal-banner terminal-banner--restart" role="status" aria-live="polite">
+          {generationBanner}
         </div>
       )}
 

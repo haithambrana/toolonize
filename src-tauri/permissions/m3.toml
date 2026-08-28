@@ -1,0 +1,10 @@
+# M3 harness permissions — for real WebView reload test only
+[[permission]]
+identifier = "allow-m3-complete"
+description = "Complete M3 real WebView reload harness"
+commands.allow = ["m3_complete"]
+
+[[permission]]
+identifier = "allow-m3-fail"
+description = "Fail M3 real WebView reload harness"
+commands.allow = ["m3_fail"]

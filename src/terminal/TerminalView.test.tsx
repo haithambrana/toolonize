@@ -24,6 +24,7 @@ const xtermMocks = vi.hoisted(() => {
     onData = mockOnData;
     getSelection = mockGetSelection;
     dispose = vi.fn();
+    clear = vi.fn();
     cols = 80;
     rows = 24;
   }
@@ -54,11 +55,41 @@ vi.mock("./terminalClient", () => ({
   terminalWrite: vi.fn(() => Promise.resolve(undefined)),
   terminalResize: vi.fn(() => Promise.resolve(undefined)),
   terminalAck: vi.fn(() => Promise.resolve(undefined)),
-  terminalPoll: vi.fn(() => Promise.resolve({ chunks: [], replayTruncated: false })),
-  terminalReplay: vi.fn(() => Promise.resolve({ bytes: [], truncated: false })),
+  terminalPoll: vi.fn(() =>
+    Promise.resolve({ chunks: [], replayTruncated: false, nextSequence: 0 })
+  ),
+  terminalReplay: vi.fn(() =>
+    Promise.resolve({
+      bytes: [],
+      truncated: false,
+      discarded_bytes: 0,
+      next_sequence: 0,
+      attachment_epoch: 0,
+    })
+  ),
   terminalProfiles: vi.fn(() => Promise.resolve([])),
   terminalList: vi.fn(() => Promise.resolve([])),
-  terminalAttach: vi.fn(() => Promise.resolve({})),
+  terminalAttach: vi.fn(() =>
+    Promise.resolve({
+      session: {
+        session_id: "sess_00000001_deadbeef",
+        generation: 1,
+        profile_id: "bash",
+        process_state: { state: "running" },
+        view_state: "Attached",
+        rows: 24,
+        cols: 80,
+        transport_state: "Normal",
+        replay_truncated: false,
+        exit_code: null,
+      },
+      attachment_epoch: 1,
+      next_sequence: 0,
+      acknowledged_up_to: null,
+      replay_truncated: false,
+      replay_discarded_bytes: 0,
+    })
+  ),
   terminalDetach: vi.fn(() => Promise.resolve({})),
   terminalHide: vi.fn(() => Promise.resolve({})),
   terminalShow: vi.fn(() => Promise.resolve({})),
@@ -66,7 +97,13 @@ vi.mock("./terminalClient", () => ({
   terminalRestart: vi.fn(() => Promise.resolve({})),
 }));
 
-import { terminalWrite, terminalAck, terminalPoll, terminalReplay } from "./terminalClient";
+import {
+  terminalWrite,
+  terminalAck,
+  terminalPoll,
+  terminalReplay,
+  terminalAttach,
+} from "./terminalClient";
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: xtermMocks.TerminalMock,
@@ -96,8 +133,18 @@ const baseSession: SessionInfo = {
 describe("TerminalView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(terminalPoll).mockResolvedValue({ chunks: [], replayTruncated: false });
-    vi.mocked(terminalReplay).mockResolvedValue({ bytes: [], truncated: false });
+    vi.mocked(terminalPoll).mockResolvedValue({
+      chunks: [],
+      replayTruncated: false,
+      nextSequence: 0,
+    });
+    vi.mocked(terminalReplay).mockResolvedValue({
+      bytes: [],
+      truncated: false,
+      discarded_bytes: 0,
+      next_sequence: 0,
+      attachment_epoch: 0,
+    });
     Object.assign(navigator, {
       clipboard: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -152,7 +199,11 @@ describe("TerminalView", () => {
         bytes: Array.from(new TextEncoder().encode("world")),
       },
     ];
-    vi.mocked(terminalPoll).mockResolvedValueOnce({ chunks, replayTruncated: false });
+    vi.mocked(terminalPoll).mockResolvedValueOnce({
+      chunks,
+      replayTruncated: false,
+      nextSequence: 0,
+    });
     render(<TerminalView session={baseSession} />);
     await waitFor(() => expect(terminalPoll).toHaveBeenCalled(), { timeout: 1500 });
     await waitFor(() => expect(xtermMocks.mockWrite).toHaveBeenCalled(), { timeout: 1500 });
@@ -232,7 +283,11 @@ describe("TerminalView", () => {
     const chunks = [
       { session_id: baseSession.session_id, generation: 1, sequence: 1, bytes: [65] },
     ];
-    vi.mocked(terminalPoll).mockResolvedValueOnce({ chunks, replayTruncated: false });
+    vi.mocked(terminalPoll).mockResolvedValueOnce({
+      chunks,
+      replayTruncated: false,
+      nextSequence: 0,
+    });
     render(<TerminalView session={baseSession} />);
     await waitFor(() => expect(xtermMocks.mockWriteln).toHaveBeenCalled(), { timeout: 1500 });
     expect(xtermMocks.mockWriteln).toHaveBeenCalledWith(expect.stringContaining("sequence gap"));
@@ -248,9 +303,88 @@ describe("TerminalView", () => {
     vi.mocked(terminalReplay).mockResolvedValueOnce({
       bytes: Array.from(new TextEncoder().encode("replayed")),
       truncated: false,
+      discarded_bytes: 0,
+      next_sequence: 0,
+      attachment_epoch: 0,
     });
     render(<TerminalView session={baseSession} />);
     await waitFor(() => expect(terminalReplay).toHaveBeenCalledWith(baseSession.session_id));
     await waitFor(() => expect(xtermMocks.mockWrite).toHaveBeenCalled(), { timeout: 1500 });
+  });
+
+  it("serialized poll: only one poll active when xterm.write delayed", async () => {
+    let pollCount = 0;
+    vi.mocked(terminalPoll).mockImplementation(async () => {
+      pollCount++;
+      if (pollCount === 1) {
+        return {
+          chunks: [
+            {
+              session_id: baseSession.session_id,
+              generation: 1,
+              sequence: 0,
+              bytes: [65],
+            },
+          ],
+          replayTruncated: false,
+          nextSequence: 1,
+        };
+      }
+      return { chunks: [], replayTruncated: false, nextSequence: 1 };
+    });
+    // Delay xterm write 200ms (> poll interval 80ms)
+    xtermMocks.mockWrite.mockImplementation((_data: unknown, cb?: () => void) => {
+      setTimeout(() => cb && cb(), 200);
+    });
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(pollCount).toBeGreaterThan(0), { timeout: 2000 });
+    await new Promise((r) => setTimeout(r, 100));
+    // Still only 1 poll should have been started because first poll's write not yet completed
+    expect(pollCount).toBe(1);
+    await waitFor(() => expect(pollCount).toBe(2), { timeout: 1000 });
+    await waitFor(() => expect(terminalAck).toHaveBeenCalledWith(baseSession.session_id, 0), {
+      timeout: 1000,
+    });
+    // No duplicate ack, no gap
+    expect(xtermMocks.mockWriteln).not.toHaveBeenCalledWith(
+      expect.stringContaining("sequence gap")
+    );
+  });
+
+  it("generation change clears stale state and shows banner", async () => {
+    const { rerender } = render(<TerminalView session={baseSession} />);
+    await new Promise((r) => setTimeout(r, 200));
+    const newSession = { ...baseSession, generation: 2 };
+    rerender(<TerminalView session={newSession} />);
+    await waitFor(() => expect(screen.getByText(/generation 1 -> 2/)).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    expect(screen.getByText(/new stream cursor 0/)).toBeInTheDocument();
+  });
+
+  it("reattach via attach handshake establishes correct next_sequence without false gap", async () => {
+    vi.mocked(terminalAttach).mockResolvedValueOnce({
+      session: baseSession,
+      attachment_epoch: 2,
+      next_sequence: 5,
+      acknowledged_up_to: 4,
+      replay_truncated: false,
+      replay_discarded_bytes: 0,
+    });
+    vi.mocked(terminalPoll).mockResolvedValueOnce({
+      chunks: [{ session_id: baseSession.session_id, generation: 1, sequence: 5, bytes: [66] }],
+      replayTruncated: false,
+      nextSequence: 6,
+    });
+    render(<TerminalView session={baseSession} />);
+    await waitFor(() => expect(terminalAttach).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(terminalPoll).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(xtermMocks.mockWrite).toHaveBeenCalled(), { timeout: 1500 });
+    expect(xtermMocks.mockWriteln).not.toHaveBeenCalledWith(
+      expect.stringContaining("sequence gap")
+    );
+    await waitFor(() => expect(terminalAck).toHaveBeenCalledWith(baseSession.session_id, 5), {
+      timeout: 1500,
+    });
   });
 });
