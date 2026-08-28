@@ -101,8 +101,8 @@ Both Linux backends and both hosted Windows backends produce this result.
 
 ### Hosted Linux
 
-PR run [`33129730084`](https://github.com/haithambrana/toolonize/actions/runs/33129730084),
-Linux job `98716178189`, passed at commit `f2d518f`. It independently recorded
+PR run [`33130859724`](https://github.com/haithambrana/toolonize/actions/runs/33130859724),
+Linux job `98719792866`, passed at commit `49a1599`. It independently recorded
 the same 31-row Linux summary and exact SHA-256 for both backends.
 
 ## Backpressure Evidence
@@ -152,7 +152,7 @@ validates the browser report, prints `M2_REAL_WEBVIEW_REPORT=...`, and exits
 nonzero on mismatch. There is no simulated fallback and CI does not swallow
 timeouts.
 
-PR run `33129730084`, Linux job `98716178189`, independently reproduced this
+PR run `33130859724`, Linux job `98719792866`, independently reproduced this
 under `xvfb-run` and emitted exactly one matching `M2_REAL_WEBVIEW_REPORT`.
 The job also passed the spike-feature Tauri build check.
 
@@ -161,8 +161,8 @@ The job also passed the spike-feature Tauri build check.
 `cargo check --target x86_64-pc-windows-msvc --all-targets` passes locally, but
 the runtime claim comes only from hosted Windows execution.
 
-PR run [`33129730084`](https://github.com/haithambrana/toolonize/actions/runs/33129730084),
-Windows job `98716178092`, passed at commit `f2d518f`:
+PR run [`33130859724`](https://github.com/haithambrana/toolonize/actions/runs/33130859724),
+Windows job `98719793033`, passed at commit `49a1599`:
 
 ```text
 Total: 31, PASS: 31, FAIL: 0, BLOCKED: 0, NOT_VERIFIED: 0
@@ -183,10 +183,12 @@ has_portable: True, has_direct_windows: True, has_unix: False
 | Hidden console | native ConPTY path | pseudoconsole attribute; no `CREATE_NEW_CONSOLE` |
 
 The independent push run
-[`33129727977`](https://github.com/haithambrana/toolonize/actions/runs/33129727977),
-Windows job `98716170413`, reproduced the same all-PASS result. Earlier failed
-and timed-out runs are retained as repair history and are not counted as
-passing evidence.
+[`33130857270`](https://github.com/haithambrana/toolonize/actions/runs/33130857270),
+Windows job `98719783997`, reproduced the same all-PASS result. A fresh run at
+the preceding documentation commit exposed a portable ConPTY DSR request split
+across reads; commit `49a1599` retains the partial request and responds only
+when it is complete. Earlier failed and timed-out runs are retained as repair
+history and are not counted as passing evidence.
 
 ## Recommendation for Human Review
 
@@ -204,14 +206,14 @@ architecture decision.
 
 | Evidence | State |
 |----------|-------|
-| Linux portable backend | PASS locally and in job `98716178189` |
-| Linux direct backend | PASS locally and in job `98716178189` |
+| Linux portable backend | PASS locally and in job `98719792866` |
+| Linux direct backend | PASS locally and in job `98719792866` |
 | Bounded slow-consumer backpressure | PASS locally and in hosted CI |
-| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally and in job `98716178189` |
-| Windows portable backend runtime | PASS in job `98716178092` |
-| Windows direct ConPTY runtime | PASS in job `98716178092` |
-| Full app CI | PASS in run `33129730089` |
-| Repository safety | PASS in run `33129730118` |
+| Real Tauri/WebKitGTK/xterm.js pipeline | PASS locally and in job `98719792866` |
+| Windows portable backend runtime | PASS in job `98719793033` |
+| Windows direct ConPTY runtime | PASS in job `98719793033` |
+| Full app CI | PASS in run `33130859717` |
+| Repository safety | PASS in run `33130859711` |
 | ADR-004 human selection | NOT ACCEPTED |
 | PR #2 merge | BLOCKED |
 
