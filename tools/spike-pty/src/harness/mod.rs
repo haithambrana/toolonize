@@ -319,12 +319,12 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let (cmd, args) = if cfg!(unix) {
             // Use python to write raw payload without newline translation, then marker
             // Disable PTY onlcr via stty raw, but for spike we just write raw 'A's and then marker without newline
-            let py = format!("python3 -c \"import sys; sys.stdout.buffer.write(b'A'*{}); sys.stdout.buffer.write(b'DONE_MARKER'); sys.stdout.buffer.flush()\"", bytes);
+            let py = format!("python3 -c \"import sys; sys.stdout.buffer.write(b'PAYLOAD_START'); sys.stdout.buffer.write(b'A'*{}); sys.stdout.buffer.write(b'DONE_MARKER'); sys.stdout.buffer.flush()\"", bytes);
             ("bash".to_string(), vec!["-c".to_string(), py])
         } else {
             // Keep rows below the 80-column viewport width. ConPTY's VT
             // renderer redraws the boundary cell on automatic line wraps.
-            let ps = format!("$d=[byte[]]::new(64); for($i=0;$i -lt 64;$i++){{$d[$i]=65}}; $nl=[byte[]](13,10); $out=[Console]::OpenStandardOutput(); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(64, $total-$written); $out.Write($d,0,$chunk); $out.Write($nl,0,2); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush()", bytes);
+            let ps = format!("$d=[byte[]]::new(64); for($i=0;$i -lt 64;$i++){{$d[$i]=65}}; $nl=[byte[]](13,10); $out=[Console]::OpenStandardOutput(); $start=[System.Text.Encoding]::ASCII.GetBytes('PAYLOAD_START'); $out.Write($start,0,$start.Length); $out.Write($nl,0,2); $total={}; $written=0; while($written -lt $total){{ $chunk=[Math]::Min(64, $total-$written); $out.Write($d,0,$chunk); $out.Write($nl,0,2); $written+=$chunk }}; $m=[System.Text.Encoding]::ASCII.GetBytes('DONE_MARKER'); $out.Write($m,0,$m.Length); $out.Flush(); Start-Sleep -Milliseconds 500", bytes);
             (
                 "powershell.exe".to_string(),
                 vec!["-NoProfile".to_string(), "-Command".to_string(), ps],
@@ -342,16 +342,25 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         let elapsed = start.elapsed();
         let _ = handle.kill();
         let _ = handle.wait();
+        let start_marker = b"PAYLOAD_START";
+        let start_pos = out
+            .windows(start_marker.len())
+            .position(|window| window == start_marker)
+            .map(|position| position + start_marker.len());
         let marker_pos = out
             .windows(11)
             .position(|w| w == b"DONE_MARKER")
             .unwrap_or(out.len());
-        let payload_raw = &out[..marker_pos];
+        let payload_raw = start_pos
+            .filter(|position| *position <= marker_pos)
+            .map(|position| &out[position..marker_pos])
+            .unwrap_or(&[]);
         #[cfg(windows)]
         let payload_delivered = normalize_conpty_payload(payload_raw)?;
         #[cfg(not(windows))]
         let payload_delivered = payload_raw.to_vec();
         let delivered_sha = format!("{:x}", Sha256::digest(&payload_delivered));
+        let has_start_marker = start_pos.is_some();
         let has_marker = out.windows(11).any(|w| w == b"DONE_MARKER");
         let exact_match = payload_delivered.len() == bytes
             && payload_delivered == expected_payload
@@ -363,7 +372,7 @@ pub fn scenario_high_volume(backend: &mut dyn PtyBackend) -> ScenarioResult {
         } else {
             "FAIL"
         };
-        Ok((status.to_string(), format!("high-volume payload {} expected_sha256 {} delivered {} delivered_sha256 {} raw_bytes {} normalization {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_delivered.len(), delivered_sha, payload_raw.len(), if cfg!(windows) { "conpty-vt-control-only" } else { "none" }, has_marker, throughput_mbs, exact_match, elapsed)))
+        Ok((status.to_string(), format!("high-volume payload {} expected_sha256 {} delivered {} delivered_sha256 {} raw_bytes {} normalization {} has_start_marker {} has_marker {} throughput {:.2} MB/s exact_match {} in {:?}", bytes, expected_sha, payload_delivered.len(), delivered_sha, payload_raw.len(), if cfg!(windows) { "conpty-vt-control-only" } else { "none" }, has_start_marker, has_marker, throughput_mbs, exact_match, elapsed)))
     })
 }
 
