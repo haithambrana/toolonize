@@ -8,6 +8,19 @@ use std::io::{Error, ErrorKind, Read};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::Duration;
 
+pub(crate) fn count_dsr_requests(tail: &mut Vec<u8>, data: &[u8]) -> usize {
+    let mut scan = tail.clone();
+    scan.extend_from_slice(data);
+    let requests = scan
+        .windows(4)
+        .filter(|window| *window == b"\x1b[6n")
+        .count();
+    let tail_start = scan.len().saturating_sub(3);
+    tail.clear();
+    tail.extend_from_slice(&scan[tail_start..]);
+    requests
+}
+
 /// Trait isolating PTY backend choice (ADR-004).
 pub trait PtyBackend: Send {
     fn name(&self) -> &'static str;
@@ -140,4 +153,18 @@ pub struct SpikeReport {
     pub platform: &'static str,
     pub architecture: &'static str,
     pub results: Vec<ScenarioResult>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::count_dsr_requests;
+
+    #[test]
+    fn detects_dsr_requests_split_across_reads_without_recounting() {
+        let mut tail = Vec::new();
+        assert_eq!(count_dsr_requests(&mut tail, b"prefix\x1b["), 0);
+        assert_eq!(count_dsr_requests(&mut tail, b"6ntext"), 1);
+        assert_eq!(count_dsr_requests(&mut tail, b"more text"), 0);
+        assert_eq!(count_dsr_requests(&mut tail, b"\x1b[6n\x1b[6n"), 2);
+    }
 }

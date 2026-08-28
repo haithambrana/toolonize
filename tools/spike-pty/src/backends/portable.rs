@@ -1,4 +1,4 @@
-use super::{PtyBackend, PtyHandle, ReadPump};
+use super::{count_dsr_requests, PtyBackend, PtyHandle, ReadPump};
 use anyhow::Result;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::io::Write;
@@ -16,6 +16,7 @@ pub struct PortableHandle {
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send>,
     backend_name: &'static str,
+    dsr_tail: Vec<u8>,
 }
 
 impl PortableBackend {
@@ -89,6 +90,7 @@ impl PtyBackend for PortableBackend {
             writer,
             child,
             backend_name: "portable-pty-0.9.0",
+            dsr_tail: Vec::with_capacity(3),
         }))
     }
 }
@@ -96,10 +98,12 @@ impl PtyBackend for PortableBackend {
 impl PtyHandle for PortableHandle {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = self.reader.read(buf)?;
-        if buf[..n].windows(4).any(|w| w == [0x1b, b'[', b'6', b'n']) {
-            // Respond to DSR
-            let _ = self.writer.write_all(b"\x1b[24;80R");
-            let _ = self.writer.flush();
+        let responses = count_dsr_requests(&mut self.dsr_tail, &buf[..n]);
+        for _ in 0..responses {
+            self.writer.write_all(b"\x1b[24;80R")?;
+        }
+        if responses > 0 {
+            self.writer.flush()?;
         }
         Ok(n)
     }
