@@ -193,8 +193,12 @@ Windows job `98721650821`, reproduced the same all-PASS result. Failed PR run
 `33130352404` at commit `68a375c` exposed a portable ConPTY DSR request split
 across reads. Commit `49a1599` retains the partial request and responds only
 when it is complete; repair PR run `33130859724` and final pre-decision run
-`33131442504` passed. All earlier failed and timed-out runs remain repair
-history and are not counted as passing evidence.
+`33131442504` passed. Post-decision push run `33132617007` then exposed two
+runner-speed assumptions in the portable Windows scenarios: a fixed
+three-second shell-output window and Ctrl+C sent before PowerShell explicitly
+reported readiness. The harness now uses a bounded five-second Windows startup
+window and waits for `CTRLC_READY` before sending Ctrl+C. All failed and
+timed-out runs remain repair history and are not counted as passing evidence.
 
 ## Human Architecture Decision
 
