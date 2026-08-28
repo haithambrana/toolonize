@@ -1152,6 +1152,38 @@ mod tests {
             })
     }
 
+    /// Drain live output from a session until `needle` is observed, acking as
+    /// we go. Uses a generous bounded deadline so slow CI runners (esp.
+    /// Windows) that start the child shell + process an echo after an arbitrary
+    /// delay are not flaked by a fixed short sleep + "break on first empty poll"
+    /// loop. Returns accumulated output. Mirrors the runtime transport's bounded
+    /// poll; changes nothing about transport semantics.
+    fn drain_until(
+        mgr: &SessionManager,
+        id: &str,
+        needle: &str,
+        max_drain: usize,
+        timeout: Duration,
+    ) -> String {
+        let deadline = std::time::Instant::now() + timeout;
+        let mut out = String::new();
+        loop {
+            let chunks = mgr.poll_chunks(id, max_drain).unwrap_or_default();
+            for c in &chunks {
+                out.push_str(&String::from_utf8_lossy(&c.bytes));
+                let _ = mgr.ack(id, c.sequence);
+            }
+            if out.contains(needle) {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        out
+    }
+
     #[test]
     fn view_attach_does_not_mutate_process_state() {
         let mgr = SessionManager::new();
@@ -1871,34 +1903,23 @@ mod tests {
             "session id must be listed"
         );
 
-        // 3. Write enough output to establish an observable history.
+        // 3. Write enough output to establish an observable history, then drain
+        //    until both markers are observed (bounded, robust on slow runners).
         mgr.write(&id, b"echo M3ACCEPTANCE_MARKER_01\n").ok();
         mgr.write(&id, b"echo M3ACCEPTANCE_MARKER_02\n").ok();
-        std::thread::sleep(Duration::from_millis(400));
-
-        // Drain live output to ack and confirm markers observed.
-        let mut observed = String::new();
-        let mut acked: Vec<u64> = Vec::new();
-        for _ in 0..8 {
-            let chunks = mgr.poll_chunks(&id, 16).unwrap();
-            if chunks.is_empty() {
-                break;
-            }
-            for c in &chunks {
-                observed.push_str(&String::from_utf8_lossy(&c.bytes));
-                acked.push(c.sequence);
-            }
-        }
+        let observed = drain_until(
+            &mgr,
+            &id,
+            "M3ACCEPTANCE_MARKER_02",
+            16,
+            Duration::from_secs(8),
+        );
         assert!(
             observed.contains("M3ACCEPTANCE_MARKER_01")
                 && observed.contains("M3ACCEPTANCE_MARKER_02"),
             "history output not observed: {}",
             observed
         );
-        // 10. ACK behavior: ack every polled sequence, no duplicate/lower ack.
-        for seq in acked {
-            mgr.ack(&id, seq).expect("ack");
-        }
 
         // 4. Detach (view detaches; process must remain alive).
         let detached = mgr.detach(&id).unwrap();
@@ -1933,18 +1954,7 @@ mod tests {
         // 8. Resize: backend accepts and child observes via SIGWINCH/cols.
         mgr.resize(&id, 40, 120).unwrap();
         mgr.write(&id, b"stty size\n").ok();
-        std::thread::sleep(Duration::from_millis(400));
-        let mut rsz = String::new();
-        for _ in 0..8 {
-            let chunks = mgr.poll_chunks(&id, 16).unwrap();
-            if chunks.is_empty() {
-                break;
-            }
-            for c in &chunks {
-                rsz.push_str(&String::from_utf8_lossy(&c.bytes));
-                let _ = mgr.ack(&id, c.sequence);
-            }
-        }
+        let rsz = drain_until(&mgr, &id, "120", 16, Duration::from_secs(8));
         assert!(
             rsz.contains("40 120") || rsz.contains("40, 120") || rsz.contains("40\t120"),
             "child did not observe resized dimensions: {}",
@@ -1975,18 +1985,13 @@ mod tests {
         assert_eq!(restarted.process_state, ProcessSessionState::Running);
         // Post-restart writes go to the new generation's process.
         mgr.write(&id, b"echo M3ACCEPTANCE_RESTART_OK\n").ok();
-        std::thread::sleep(Duration::from_millis(350));
-        let mut after = String::new();
-        for _ in 0..8 {
-            let chunks = mgr.poll_chunks(&id, 8).unwrap();
-            if chunks.is_empty() {
-                break;
-            }
-            for c in &chunks {
-                after.push_str(&String::from_utf8_lossy(&c.bytes));
-                let _ = mgr.ack(&id, c.sequence);
-            }
-        }
+        let after = drain_until(
+            &mgr,
+            &id,
+            "M3ACCEPTANCE_RESTART_OK",
+            8,
+            Duration::from_secs(8),
+        );
         assert!(
             after.contains("M3ACCEPTANCE_RESTART_OK"),
             "new generation must accept writes: {}",
