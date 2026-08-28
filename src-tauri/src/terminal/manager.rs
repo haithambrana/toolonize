@@ -1846,4 +1846,190 @@ mod tests {
             std::env::temp_dir().join(format!("toolonize_payload_{}.bin", std::process::id())),
         );
     }
+
+    /// M3 runtime acceptance — drives a real portable-pty child through the
+    /// documented end-to-end lifecycle: start -> list -> write (history) ->
+    /// detach (process stays alive) -> reattach (same session + history) ->
+    /// attach/reload reestablishment -> resize (child observes) -> restart
+    /// (new generation, old not confused) -> exited-truthful -> close.
+    /// Uses only the public SessionManager surface against a real PTY process.
+    #[test]
+    fn m3_runtime_acceptance_lifecycle() {
+        let mgr = SessionManager::new();
+        mgr.shutdown_all();
+
+        // 1. Start a new terminal session.
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
+        let id = info.session_id.clone();
+        assert!(!id.is_empty());
+        assert_eq!(info.generation, 1);
+        assert_eq!(info.process_state, ProcessSessionState::Running);
+
+        // 2. Confirm the returned SessionId appears in the session list.
+        assert!(
+            mgr.list().iter().any(|s| s.session_id == id),
+            "session id must be listed"
+        );
+
+        // 3. Write enough output to establish an observable history.
+        mgr.write(&id, b"echo M3ACCEPTANCE_MARKER_01\n").ok();
+        mgr.write(&id, b"echo M3ACCEPTANCE_MARKER_02\n").ok();
+        std::thread::sleep(Duration::from_millis(400));
+
+        // Drain live output to ack and confirm markers observed.
+        let mut observed = String::new();
+        let mut acked: Vec<u64> = Vec::new();
+        for _ in 0..8 {
+            let chunks = mgr.poll_chunks(&id, 16).unwrap();
+            if chunks.is_empty() {
+                break;
+            }
+            for c in &chunks {
+                observed.push_str(&String::from_utf8_lossy(&c.bytes));
+                acked.push(c.sequence);
+            }
+        }
+        assert!(
+            observed.contains("M3ACCEPTANCE_MARKER_01")
+                && observed.contains("M3ACCEPTANCE_MARKER_02"),
+            "history output not observed: {}",
+            observed
+        );
+        // 10. ACK behavior: ack every polled sequence, no duplicate/lower ack.
+        for seq in acked {
+            mgr.ack(&id, seq).expect("ack");
+        }
+
+        // 4. Detach (view detaches; process must remain alive).
+        let detached = mgr.detach(&id).unwrap();
+        assert_eq!(detached.view_state, ViewAttachmentState::Detached);
+
+        // 5. Confirm underlying terminal/process remains alive after detach.
+        mgr.refresh_process_states();
+        assert!(
+            matches!(
+                mgr.process_state(&id).unwrap(),
+                ProcessSessionState::Running,
+            ),
+            "process must remain alive after detach"
+        );
+
+        // 6. Reattach and prove same session and output history preserved.
+        let re = mgr.attach_with_info(&id).unwrap();
+        assert_eq!(re.0.session_id, id);
+        assert_eq!(re.0.generation, 1);
+        let replay = mgr.replay_with_info(&id).unwrap();
+        assert!(
+            String::from_utf8_lossy(&replay.bytes).contains("M3ACCEPTANCE_MARKER_01"),
+            "replay must preserve history after reattach"
+        );
+
+        // 7. Reload/recreate renderer: reattach re-establishes same SessionId
+        //    and continues the transport (next_sequence monotonic, no reset).
+        let re2 = mgr.attach_with_info(&id).unwrap();
+        assert_eq!(re2.0.session_id, id);
+        assert!(re2.1.attachment_epoch >= 1);
+
+        // 8. Resize: backend accepts and child observes via SIGWINCH/cols.
+        mgr.resize(&id, 40, 120).unwrap();
+        mgr.write(&id, b"stty size\n").ok();
+        std::thread::sleep(Duration::from_millis(400));
+        let mut rsz = String::new();
+        for _ in 0..8 {
+            let chunks = mgr.poll_chunks(&id, 16).unwrap();
+            if chunks.is_empty() {
+                break;
+            }
+            for c in &chunks {
+                rsz.push_str(&String::from_utf8_lossy(&c.bytes));
+                let _ = mgr.ack(&id, c.sequence);
+            }
+        }
+        assert!(
+            rsz.contains("40 120") || rsz.contains("40, 120") || rsz.contains("40\t120"),
+            "child did not observe resized dimensions: {}",
+            rsz
+        );
+
+        // 12. Restart: same SessionId, new generation. Let the first session
+        //     reach Exited, restart (Exited -> Running), and confirm the new
+        //     instance is distinct from (and not confused with) the prior one.
+        mgr.write(&id, b"exit 0\n").ok();
+        let ed = std::time::Instant::now() + Duration::from_secs(8);
+        let mut ex = false;
+        while std::time::Instant::now() < ed {
+            mgr.refresh_process_states();
+            if matches!(
+                mgr.process_state(&id).unwrap(),
+                ProcessSessionState::Exited { .. }
+            ) {
+                ex = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(ex, "session must reach Exited before restart");
+        let restarted = mgr.restart(&id).expect("restart from exited");
+        assert_eq!(restarted.session_id, id);
+        assert_eq!(restarted.generation, 2);
+        assert_eq!(restarted.process_state, ProcessSessionState::Running);
+        // Post-restart writes go to the new generation's process.
+        mgr.write(&id, b"echo M3ACCEPTANCE_RESTART_OK\n").ok();
+        std::thread::sleep(Duration::from_millis(350));
+        let mut after = String::new();
+        for _ in 0..8 {
+            let chunks = mgr.poll_chunks(&id, 8).unwrap();
+            if chunks.is_empty() {
+                break;
+            }
+            for c in &chunks {
+                after.push_str(&String::from_utf8_lossy(&c.bytes));
+                let _ = mgr.ack(&id, c.sequence);
+            }
+        }
+        assert!(
+            after.contains("M3ACCEPTANCE_RESTART_OK"),
+            "new generation must accept writes: {}",
+            after
+        );
+
+        // 11. Close transitions the restarted (currently Running) session to
+        //     Closed observably, and the writer-lifetime guard (9) then rejects
+        //     further writes to the retired writer.
+        let closed = mgr.close_with_result(&id).unwrap();
+        assert_eq!(closed.session.process_state, ProcessSessionState::Closed);
+        assert!(closed.pump_joined, "pump should join on close (H11)");
+        assert!(closed.child_reaped, "child should be reaped on close (H11)");
+        assert!(
+            mgr.write(&id, b"echo nope\n").is_err(),
+            "post-close write must fail"
+        );
+
+        // 13. Exited session truthfully represented: a fresh session that
+        //     exits remains in the registry as Exited (Running false).
+        let info2 = mgr.start(&available_profile(), 24, 80).expect("start2");
+        let id2 = info2.session_id.clone();
+        mgr.write(&id2, b"exit 0\n").ok();
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        let mut exited = false;
+        while std::time::Instant::now() < deadline {
+            mgr.refresh_process_states();
+            if matches!(
+                mgr.process_state(&id2).unwrap(),
+                ProcessSessionState::Exited { .. }
+            ) {
+                exited = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(exited, "session must truthfully reach Exited");
+        assert!(
+            mgr.list().iter().any(|s| s.session_id == id2),
+            "exited session must remain in registry"
+        );
+        let _ = mgr.close(&id);
+        let _ = mgr.close(&id2);
+        mgr.shutdown_all();
+    }
 }
