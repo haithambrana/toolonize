@@ -1,0 +1,262 @@
+{
+  "platform": "linux",
+  "architecture": "x86_64",
+  "results": [
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-001 spawn shells",
+      "status": "PASS",
+      "details": "spawn ok, output contains hello: \"hello\\r\\n\"",
+      "duration_ms": 9,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-010-ish invalid exe",
+      "status": "PASS",
+      "details": "invalid exe correctly errored on spawn: Unable to spawn /nonexistent/invalid_executable_xyz_12345 because it doesn't exist on the filesystem (ENOENT: No such file or directory)",
+      "duration_ms": 2,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-002 resize",
+      "status": "PASS",
+      "details": "resize 24x80->40x120; backend 40x120, child observed SIZE=40x120",
+      "duration_ms": 238,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-003 utf8",
+      "status": "PASS",
+      "details": "utf8 round-trip ok: \"Hello 🌍 🌟 🚀 👩\\u{200d}💻 — test 🎉 こんにちは世界 你好世界 안녕하세요 café naïve résumé façade coöperate e\\u{301} a\\u{308} o\\u{302} Mix: ASCII 123, emoji 🦀, CJK 中文, accented café \\r\\nUTF8_DONE\\r\\n\"",
+      "duration_ms": 31,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-005 ctrlc",
+      "status": "PASS",
+      "details": "Ctrl+C terminated child, exit code 1",
+      "duration_ms": 330,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-004 cursor DSR",
+      "status": "PASS",
+      "details": "DSR handshake no hang, elapsed 15.045432ms, output contains DSR_TEST",
+      "duration_ms": 15,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-006 high-volume lossless",
+      "status": "PASS",
+      "details": "high-volume payload 262144 expected_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 delivered 262144 delivered_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 raw_bytes 262144 normalization none has_start_marker true has_marker true throughput 1.19 MB/s exact_match true in 210.491396ms",
+      "duration_ms": 220,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-013 cleanup",
+      "status": "PASS",
+      "details": "cleanup 20 cycles fd before 4 after 4 stable",
+      "duration_ms": 899,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-008 TUI",
+      "status": "PASS",
+      "details": "TUI alt-screen enter/exit simulated cleanly",
+      "duration_ms": 220,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-009 agent CLI",
+      "status": "PASS",
+      "details": "agent CLI full-screen refresh cycles completed",
+      "duration_ms": 365,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-001 shells variants",
+      "status": "PASS",
+      "details": "bash:PASS, sh:PASS, wsl:NOT_VERIFIED (Linux host, requires Windows)",
+      "duration_ms": 36,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-012 hidden console",
+      "status": "NOT_VERIFIED",
+      "details": "hidden console is Windows-only, not applicable on Linux",
+      "duration_ms": 0,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY clipboard",
+      "status": "PASS",
+      "details": "clipboard bracketed paste sent, output len 40, contains CLIP_DONE, no hang",
+      "duration_ms": 536,
+      "extra": {}
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "T-PTY-013 concurrent sessions",
+      "status": "PASS",
+      "details": "concurrent 5 sessions isolated and completed",
+      "duration_ms": 288,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-001 spawn shells",
+      "status": "PASS",
+      "details": "spawn ok, output contains hello: \"hello\\r\\n\"",
+      "duration_ms": 14,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-010-ish invalid exe",
+      "status": "PASS",
+      "details": "invalid exe correctly errored on spawn: Unable to spawn /nonexistent/invalid_executable_xyz_12345 because it doesn't exist on the filesystem (ENOENT)",
+      "duration_ms": 0,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-002 resize",
+      "status": "PASS",
+      "details": "resize 24x80->40x120; backend 40x120, child observed SIZE=40x120",
+      "duration_ms": 221,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-003 utf8",
+      "status": "PASS",
+      "details": "utf8 round-trip ok: \"Hello 🌍 🌟 🚀 👩\\u{200d}💻 — test 🎉 こんにちは世界 你好世界 안녕하세요 café naïve résumé façade coöperate e\\u{301} a\\u{308} o\\u{302} Mix: ASCII 123, emoji 🦀, CJK 中文, accented café \\r\\nUTF8_DONE\\r\\n\"",
+      "duration_ms": 13,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-005 ctrlc",
+      "status": "PASS",
+      "details": "Ctrl+C terminated child, exit code 130",
+      "duration_ms": 329,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-004 cursor DSR",
+      "status": "PASS",
+      "details": "DSR handshake no hang, elapsed 11.229727ms, output contains DSR_TEST",
+      "duration_ms": 14,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-006 high-volume lossless",
+      "status": "PASS",
+      "details": "high-volume payload 262144 expected_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 delivered 262144 delivered_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 raw_bytes 262144 normalization none has_start_marker true has_marker true throughput 1.07 MB/s exact_match true in 234.126469ms",
+      "duration_ms": 248,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-013 cleanup",
+      "status": "PASS",
+      "details": "cleanup 20 cycles fd before 4 after 4 stable",
+      "duration_ms": 970,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-008 TUI",
+      "status": "PASS",
+      "details": "TUI alt-screen enter/exit simulated cleanly",
+      "duration_ms": 230,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-009 agent CLI",
+      "status": "PASS",
+      "details": "agent CLI full-screen refresh cycles completed",
+      "duration_ms": 356,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-001 shells variants",
+      "status": "PASS",
+      "details": "bash:PASS, sh:PASS, wsl:NOT_VERIFIED (Linux host, requires Windows)",
+      "duration_ms": 24,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-012 hidden console",
+      "status": "NOT_VERIFIED",
+      "details": "hidden console is Windows-only, not applicable on Linux",
+      "duration_ms": 0,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY clipboard",
+      "status": "PASS",
+      "details": "clipboard bracketed paste sent, output len 40, contains CLIP_DONE, no hang",
+      "duration_ms": 536,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "T-PTY-013 concurrent sessions",
+      "status": "PASS",
+      "details": "concurrent 5 sessions isolated and completed",
+      "duration_ms": 282,
+      "extra": {}
+    },
+    {
+      "backend": "transport",
+      "scenario": "T-PTY-007 backpressure/desync",
+      "status": "PASS",
+      "details": "capacity 65536 high_water 49152 low_water 16384; produced 2097152 delivered 2097152 dropped 0 backpressure 63 max_depth 49152 hard_breaches 0; dropping dropped 2031616",
+      "duration_ms": 0,
+      "extra": {
+        "max_queue_depth": "49152",
+        "lossless_produced": "2097152",
+        "hard_limit_breaches": "0",
+        "lossless_delivered": "2097152",
+        "dropping_dropped": "2031616",
+        "backpressure_events": "63",
+        "lossless_dropped": "0"
+      }
+    },
+    {
+      "backend": "portable-pty-0.9.0",
+      "scenario": "PERF high-volume 256KiB",
+      "status": "PASS",
+      "details": "high-volume payload 262144 expected_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 delivered 262144 delivered_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 raw_bytes 262144 normalization none has_start_marker true has_marker true throughput 3.70 MB/s exact_match true in 67.570137ms",
+      "duration_ms": 82,
+      "extra": {}
+    },
+    {
+      "backend": "direct-unix-openpty",
+      "scenario": "PERF high-volume 256KiB",
+      "status": "PASS",
+      "details": "high-volume payload 262144 expected_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 delivered 262144 delivered_sha256 97a2fc5541dcc9c06b99b2a84c34961fa0c3af20dba3968df2f96a56c6bc00c9 raw_bytes 262144 normalization none has_start_marker true has_marker true throughput 2.06 MB/s exact_match true in 121.563497ms",
+      "duration_ms": 128,
+      "extra": {}
+    }
+  ]
+}

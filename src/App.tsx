@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { ping, type PingResponse } from "./lib/ipc";
+// Spike is dev-only and jsdom-incompatible; lazy-load to avoid breaking Vitest
+import { lazy, Suspense } from "react";
+const TerminalSpike = lazy(() => import("./spike/TerminalSpike"));
 
 type IpcState =
   | { status: "idle" }
@@ -101,6 +104,13 @@ export default function App() {
             <li>Capability restricted to main window, local content only</li>
           </ul>
         </section>
+
+        {/* Throwaway M2 harness, included only in the dedicated spike build. */}
+        {import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test" && (
+          <Suspense fallback={<div className="muted small">Loading spike harness…</div>}>
+            <TerminalSpike />
+          </Suspense>
+        )}
       </main>
 
       <footer className="footer">
