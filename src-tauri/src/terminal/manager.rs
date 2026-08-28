@@ -1165,6 +1165,19 @@ mod tests {
         max_drain: usize,
         timeout: Duration,
     ) -> String {
+        drain_until_pred(mgr, id, max_drain, timeout, |out| out.contains(needle))
+    }
+
+    /// Like [`drain_until`] but waits until `done` returns true over the whole
+    /// accumulated output, so a spurious early substring (e.g. a lone fragment)
+    /// never stops collection prematurely.
+    fn drain_until_pred(
+        mgr: &SessionManager,
+        id: &str,
+        max_drain: usize,
+        timeout: Duration,
+        done: impl Fn(&str) -> bool,
+    ) -> String {
         let deadline = std::time::Instant::now() + timeout;
         let mut out = String::new();
         loop {
@@ -1173,7 +1186,7 @@ mod tests {
                 out.push_str(&String::from_utf8_lossy(&c.bytes));
                 let _ = mgr.ack(id, c.sequence);
             }
-            if out.contains(needle) {
+            if done(&out) {
                 break;
             }
             if std::time::Instant::now() >= deadline {
@@ -1951,12 +1964,26 @@ mod tests {
         assert_eq!(re2.0.session_id, id);
         assert!(re2.1.attachment_epoch >= 1);
 
-        // 8. Resize: backend accepts and child observes via SIGWINCH/cols.
+        // 8. Resize: backend accepts and child observes via the PTY. The child
+        //    either reports dimensions via `stty size` text ("40 120") or, on
+        //    shells that emit a DECRQM/size capability report on resize, via
+        //    "^[[8;40;120t". Accept either form; wait for the whole pattern so a
+        //    lone "120" fragment cannot end collection early.
         mgr.resize(&id, 40, 120).unwrap();
         mgr.write(&id, b"stty size\n").ok();
-        let rsz = drain_until(&mgr, &id, "120", 16, Duration::from_secs(8));
+        let rsz = drain_until_pred(&mgr, &id, 16, Duration::from_secs(8), |out| {
+            out.contains("40 120")
+                || out.contains("40, 120")
+                || out.contains("40\t120")
+                || out.contains("8;40;120t")
+                || out.contains(";40;120t")
+        });
         assert!(
-            rsz.contains("40 120") || rsz.contains("40, 120") || rsz.contains("40\t120"),
+            rsz.contains("40 120")
+                || rsz.contains("40, 120")
+                || rsz.contains("40\t120")
+                || rsz.contains("8;40;120t")
+                || rsz.contains(";40;120t"),
             "child did not observe resized dimensions: {}",
             rsz
         );
