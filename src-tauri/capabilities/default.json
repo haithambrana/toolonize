@@ -18,6 +18,8 @@
     "allow-terminal-close",
     "allow-terminal-restart",
     "allow-terminal-poll",
-    "allow-terminal-replay"
+    "allow-terminal-replay",
+    "allow-m3-complete",
+    "allow-m3-fail"
   ]
 }

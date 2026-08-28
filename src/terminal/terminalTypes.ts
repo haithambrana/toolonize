@@ -41,6 +41,41 @@ export interface OutputChunk {
   bytes: number[];
 }
 
+export interface AttachmentInfo {
+  attachment_epoch: number;
+  next_sequence: number;
+  acknowledged_up_to: number | null;
+  replay_truncated: boolean;
+  replay_discarded_bytes: number;
+}
+
+export interface AttachResponse {
+  session: SessionInfo;
+  attachment_epoch: number;
+  next_sequence: number;
+  acknowledged_up_to: number | null;
+  replay_truncated: boolean;
+  replay_discarded_bytes: number;
+}
+
+export interface ReplayInfo {
+  bytes: number[];
+  truncated: boolean;
+  discarded_bytes: number;
+  next_sequence: number;
+  attachment_epoch: number;
+}
+
+export interface PollResponse {
+  chunks: OutputChunk[];
+  replayTruncated: boolean;
+  replay_truncated?: boolean;
+  replayDiscardedBytes?: number;
+  replay_discarded_bytes?: number;
+  nextSequence?: number;
+  next_sequence?: number;
+}
+
 export type TerminalEventKind =
   | "SessionCreated"
   | "StateChanged"

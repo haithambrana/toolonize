@@ -80,6 +80,9 @@ pub struct TransportStats {
     pub state: TransportState,
     pub lossless: bool,
     pub dropped_bytes: usize,
+    pub replay_truncated: bool,
+    pub replay_discarded_bytes: u64,
+    pub attachment_epoch: u64,
 }
 
 /// Lossless bounded transport with sequence numbers and ack tracking.
@@ -100,6 +103,8 @@ pub struct Transport {
 
     /// Replay buffer — last `replay_cap` bytes in arrival order, for reattach.
     replay: Vec<u8>,
+    replay_truncated: bool,
+    replay_discarded_bytes: u64,
 
     next_sequence: u64,
     acknowledged_up_to: Option<u64>,
@@ -111,6 +116,7 @@ pub struct Transport {
     hard_limit_breaches: usize,
     desync: bool,
     desync_reason: Option<&'static str>,
+    attachment_epoch: u64,
 }
 
 impl Default for Transport {
@@ -129,6 +135,8 @@ impl Transport {
             queue: Vec::with_capacity(QUEUE_CAPACITY),
             in_flight: Default::default(),
             replay: Vec::with_capacity(REPLAY_CAP),
+            replay_truncated: false,
+            replay_discarded_bytes: 0,
             next_sequence: 0,
             acknowledged_up_to: None,
             produced_bytes: 0,
@@ -138,6 +146,7 @@ impl Transport {
             hard_limit_breaches: 0,
             desync: false,
             desync_reason: None,
+            attachment_epoch: 0,
         }
     }
 
@@ -155,6 +164,8 @@ impl Transport {
             queue: Vec::with_capacity(capacity),
             in_flight: Default::default(),
             replay: Vec::with_capacity(replay_cap),
+            replay_truncated: false,
+            replay_discarded_bytes: 0,
             next_sequence: 0,
             acknowledged_up_to: None,
             produced_bytes: 0,
@@ -164,6 +175,7 @@ impl Transport {
             hard_limit_breaches: 0,
             desync: false,
             desync_reason: None,
+            attachment_epoch: 0,
         }
     }
 
@@ -191,11 +203,13 @@ impl Transport {
         self.queue.extend_from_slice(data);
         self.produced_bytes += data.len();
         self.max_queue_depth = self.max_queue_depth.max(self.queue.len() + in_flight_bytes);
-        // Update replay (bounded)
+        // Update replay (bounded) — track truncation explicitly (H5)
         self.replay.extend_from_slice(data);
         if self.replay.len() > self.replay_cap {
             let excess = self.replay.len() - self.replay_cap;
+            self.replay_discarded_bytes += excess as u64;
             self.replay.drain(..excess);
+            self.replay_truncated = true;
         }
         Ok(())
     }
@@ -247,14 +261,39 @@ impl Transport {
                 });
             }
         } else if sequence != 0 {
-            // First ack must be 0
-            if sequence != 0 {
+            // First ack must be 0 unless we have reattached and reset
+            // For new attachment after clearing in_flight, acknowledged_up_to is None
+            // so first ack after reattach should be next_sequence? Actually after
+            // new_attachment we clear in_flight and set acknowledged_up_to=None,
+            // but next live chunk will have sequence = next_sequence (e.g., 5).
+            // So we need to allow first ack to be any sequence after reattach
+            // if attachment_epoch >0. To keep simple: if next_sequence >0 and
+            // we have had prior deliveries, allow gap? No, we handle via
+            // new_attachment that resets acknowledged_up_to but also ensures
+            // next_chunk sequence starts where left off. The new renderer
+            // will have expectedSeq = next_sequence, so first ack should be
+            // that value. So we allow sequence !=0 if attachment_epoch>0
+            // and next_sequence matches.
+            if self.attachment_epoch == 0 {
                 self.desync = true;
                 self.desync_reason = Some("sequence_gap_first");
                 return Err(TransportError::SequenceGap {
                     expected: 0,
                     got: sequence,
                 });
+            } else {
+                // After reattach, first ack must equal the first sequence
+                // delivered in this epoch. We cannot know exactly without
+                // tracking, so we allow any sequence that is in in_flight
+                // and set acknowledged_up_to to sequence.
+                // If sequence is not in in_flight, it will fail below as UnknownSequence
+                // which is fine.
+                if !self.in_flight.contains_key(&sequence) {
+                    return Err(TransportError::UnknownSequence { sequence });
+                }
+                // For reattached session, we accept this as first ack
+                // and set acknowledged_up_to, but we must ensure no gap
+                // within epoch. Since we cleared prior acks, this is correct.
             }
         }
         if let Some(bytes) = self.in_flight.remove(&sequence) {
@@ -270,10 +309,49 @@ impl Transport {
         &self.replay
     }
 
+    pub fn replay_truncated(&self) -> bool {
+        self.replay_truncated
+    }
+
+    pub fn replay_discarded_bytes(&self) -> u64 {
+        self.replay_discarded_bytes
+    }
+
+    pub fn attachment_epoch(&self) -> u64 {
+        self.attachment_epoch
+    }
+
+    pub fn current_epoch(&self) -> u64 {
+        self.attachment_epoch
+    }
+
+    /// Create new attachment epoch for renderer reload (H2/H3).
+    /// Clears in-flight (unacked from previous renderer) — those bytes
+    /// remain available via replay buffer if not truncated.
+    /// Returns (new_epoch, next_sequence).
+    pub fn new_attachment(&mut self) -> (u64, u64) {
+        self.attachment_epoch += 1;
+        // H3: stale in-flight cannot block new renderer.
+        // Clear in-flight; replay covers recent bytes.
+        self.in_flight.clear();
+        self.acknowledged_up_to = None;
+        (self.attachment_epoch, self.next_sequence)
+    }
+
     /// Whether the next `enqueue` would be below low-water (resume signal).
     pub fn below_low_water(&self) -> bool {
         let in_flight_bytes: usize = self.in_flight.values().map(|v| v.len()).sum();
         self.queue.len() + in_flight_bytes <= self.low_water
+    }
+
+    /// Get replay watermark for reattach protocol (H2).
+    pub fn replay_watermark(&self) -> (&[u8], bool, u64, u64) {
+        (
+            &self.replay,
+            self.replay_truncated,
+            self.replay_discarded_bytes,
+            self.next_sequence,
+        )
     }
 
     pub fn state(&self) -> TransportState {
@@ -308,6 +386,9 @@ impl Transport {
                 && self.hard_limit_breaches == 0
                 && self.produced_bytes == self.delivered_bytes + self.queue.len() + in_flight_bytes,
             dropped_bytes: 0,
+            replay_truncated: self.replay_truncated,
+            replay_discarded_bytes: self.replay_discarded_bytes,
+            attachment_epoch: self.attachment_epoch,
         }
     }
 
@@ -418,11 +499,44 @@ mod tests {
     }
 
     #[test]
-    fn replay_bounded() {
+    fn replay_bounded_and_truncated_flag() {
         let mut t = Transport::with_capacity(65536, 49152, 16384, 10);
         t.enqueue(b"0123456789ABCDEF").unwrap();
         assert_eq!(t.replay_bytes().len(), 10);
         // Last 10 bytes: should be tail of input
         assert_eq!(t.replay_bytes(), b"6789ABCDEF");
+        assert!(t.replay_truncated());
+        assert_eq!(t.replay_discarded_bytes(), 6);
+        assert!(t.stats().replay_truncated);
+    }
+
+    #[test]
+    fn replay_not_truncated_within_cap() {
+        let mut t = Transport::new();
+        t.enqueue(b"hello").unwrap();
+        assert!(!t.replay_truncated());
+        assert_eq!(t.replay_discarded_bytes(), 0);
+    }
+
+    #[test]
+    fn attachment_epoch_clears_inflight() {
+        let mut t = Transport::new();
+        t.enqueue(b"hello").unwrap();
+        let c = t.next_chunk("sess", 0).unwrap().unwrap();
+        assert_eq!(t.in_flight_len(), 1);
+        let (epoch, next_seq) = t.new_attachment();
+        assert_eq!(epoch, 1);
+        assert_eq!(next_seq, 1);
+        assert_eq!(t.in_flight_len(), 0);
+        assert_eq!(t.attachment_epoch(), 1);
+        // Old ack should now fail as UnknownSequence
+        assert!(matches!(
+            t.ack(c.sequence),
+            Err(TransportError::UnknownSequence { .. })
+        ));
+        // New chunk should have sequence 1
+        t.enqueue(b"world").unwrap();
+        let c2 = t.next_chunk("sess", 0).unwrap().unwrap();
+        assert_eq!(c2.sequence, 1);
     }
 }

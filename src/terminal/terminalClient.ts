@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { TerminalProfile, SessionInfo, OutputChunk } from "./terminalTypes";
+import type {
+  TerminalProfile,
+  SessionInfo,
+  OutputChunk,
+  AttachResponse,
+  ReplayInfo,
+} from "./terminalTypes";
 
 // Semantic mapping: terminal::* -> terminal_* invoke ids (Tauri 2 behaviour)
 
@@ -23,10 +29,29 @@ export async function terminalList(): Promise<SessionInfo[]> {
   return r.sessions;
 }
 
-export async function terminalAttach(sessionId: string): Promise<SessionInfo> {
-  return invoke<SessionInfo>("terminal_attach", {
+export async function terminalAttach(sessionId: string): Promise<AttachResponse> {
+  const r = await invoke<AttachResponse>("terminal_attach", {
     request: { sessionId },
   });
+  // Backward compat: if server still returns plain SessionInfo (old mock), wrap
+  if ((r as unknown as SessionInfo).session_id) {
+    const sess = r as unknown as SessionInfo;
+    return {
+      session: sess,
+      attachment_epoch: 0,
+      next_sequence: 0,
+      acknowledged_up_to: null,
+      replay_truncated: sess.replay_truncated,
+      replay_discarded_bytes: 0,
+    };
+  }
+  return r;
+}
+
+// Helper for callers that only need SessionInfo
+export async function terminalAttachSession(sessionId: string): Promise<SessionInfo> {
+  const r = await terminalAttach(sessionId);
+  return r.session;
 }
 
 export async function terminalDetach(sessionId: string): Promise<SessionInfo> {
@@ -87,27 +112,38 @@ export async function terminalRestart(sessionId: string): Promise<SessionInfo> {
 export async function terminalPoll(
   sessionId: string,
   maxChunks = 16
-): Promise<{ chunks: OutputChunk[]; replayTruncated: boolean }> {
+): Promise<{ chunks: OutputChunk[]; replayTruncated: boolean; nextSequence: number }> {
   const r = await invoke<{
     chunks: OutputChunk[];
-    replayTruncated: boolean;
+    replayTruncated?: boolean;
+    replay_truncated?: boolean;
+    nextSequence?: number;
+    next_sequence?: number;
+    replayDiscardedBytes?: number;
   }>("terminal_poll", {
     request: { sessionId, maxChunks },
   });
-  // Tauri serde renames to camelCase -> check both
-  // Backend returns `replay_truncated` as `replayTruncated` due to serde rename?
-  // Our Rust struct uses `replay_truncated` with default serde (snake_case) but
-  // we serialize with Rust's default (snake). Need to handle both.
   const replayTruncated =
     (r as unknown as { replay_truncated?: boolean }).replay_truncated ?? r.replayTruncated ?? false;
-  return { chunks: r.chunks, replayTruncated };
+  const nextSequence =
+    (r as unknown as { next_sequence?: number }).next_sequence ?? r.nextSequence ?? 0;
+  return { chunks: r.chunks, replayTruncated, nextSequence };
 }
 
-export async function terminalReplay(
-  sessionId: string
-): Promise<{ bytes: number[]; truncated: boolean }> {
-  const r = await invoke<{ bytes: number[]; truncated: boolean }>("terminal_replay", {
+export async function terminalReplay(sessionId: string): Promise<ReplayInfo> {
+  const r = await invoke<ReplayInfo>("terminal_replay", {
     request: { sessionId },
   });
+  // Handle old shape { bytes, truncated }
+  if ((r as unknown as { discarded_bytes?: number }).discarded_bytes === undefined) {
+    const legacy = r as unknown as { bytes: number[]; truncated: boolean };
+    return {
+      bytes: legacy.bytes,
+      truncated: legacy.truncated,
+      discarded_bytes: 0,
+      next_sequence: 0,
+      attachment_epoch: 0,
+    };
+  }
   return r;
 }

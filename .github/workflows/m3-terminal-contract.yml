@@ -1,0 +1,89 @@
+name: m3-terminal-contract
+
+on:
+  push:
+    branches: [main, m3-terminal-session-manager]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node (LTS)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Set up Python (for docs checks)
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: stable
+
+      - name: Install Rust components (fmt, clippy)
+        run: rustup component add rustfmt clippy
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            patchelf \
+            libssl-dev
+
+      - name: Install npm dependencies (deterministic)
+        run: npm ci
+
+      - name: Frontend typecheck
+        run: npm run typecheck
+
+      - name: Frontend tests (M3 TerminalView)
+        run: npm test
+
+      - name: Rust fmt check
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Rust clippy (M3 production)
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Rust tests (M3 production — Linux/Windows contract)
+        working-directory: src-tauri
+        run: cargo test --all-targets -- --test-threads=1
+
+      - name: Verify no blocked lockfiles
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then echo "pnpm-lock.yaml must not exist" >&2; exit 1; fi
+          if [ -f "yarn.lock" ]; then echo "yarn.lock must not exist" >&2; exit 1; fi
+          if [ -f "bun.lockb" ]; then echo "bun.lockb must not exist" >&2; exit 1; fi
+          echo "lockfile check ok"
+        shell: bash

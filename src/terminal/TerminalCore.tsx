@@ -84,7 +84,8 @@ export function TerminalCore() {
   const handleAttach = async () => {
     if (!selectedSession) return;
     try {
-      const s = await terminalAttach(selectedSession.session_id);
+      const attach = await terminalAttach(selectedSession.session_id);
+      const s = attach.session;
       setSessions((prev) => prev.map((x) => (x.session_id === s.session_id ? s : x)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
