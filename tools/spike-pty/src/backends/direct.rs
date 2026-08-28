@@ -160,6 +160,7 @@ mod unix_impl {
 #[cfg(windows)]
 mod windows_impl {
     use super::*;
+    use crate::backends::count_dsr_requests;
     use std::mem;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
     use std::ptr;
@@ -235,15 +236,7 @@ mod windows_impl {
         fn respond_to_dsr(&mut self, data: &[u8]) -> Result<()> {
             use std::io::Write;
 
-            let mut scan = self.dsr_tail.clone();
-            scan.extend_from_slice(data);
-            let responses = scan
-                .windows(4)
-                .filter(|window| *window == b"\x1b[6n")
-                .count();
-            let tail_start = scan.len().saturating_sub(3);
-            self.dsr_tail.clear();
-            self.dsr_tail.extend_from_slice(&scan[tail_start..]);
+            let responses = count_dsr_requests(&mut self.dsr_tail, data);
 
             for _ in 0..responses {
                 self.writer
