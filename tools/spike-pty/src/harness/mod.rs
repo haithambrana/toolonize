@@ -100,7 +100,12 @@ pub fn scenario_spawn_shell(backend: &mut dyn PtyBackend) -> ScenarioResult {
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
-        let out = read_with_timeout(handle.as_mut(), Duration::from_secs(3), 8192)?;
+        let timeout = if cfg!(windows) {
+            Duration::from_secs(5)
+        } else {
+            Duration::from_secs(3)
+        };
+        let out = read_with_timeout(handle.as_mut(), timeout, 8192)?;
         let s = String::from_utf8_lossy(&out);
         if s.contains("hello") {
             Ok((
@@ -274,7 +279,8 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
                 vec![
                     "-NoProfile".to_string(),
                     "-Command".to_string(),
-                    "while($true){ Start-Sleep -Milliseconds 100 }".to_string(),
+                    "Write-Output 'CTRLC_READY'; while($true){ Start-Sleep -Milliseconds 100 }"
+                        .to_string(),
                 ],
             )
         } else {
@@ -285,10 +291,23 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
         };
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let mut handle = backend.spawn(&cmd, &args_ref, 24, 80)?;
-        thread::sleep(Duration::from_millis(300));
+        if cfg!(windows) {
+            let ready =
+                read_until_marker(handle.as_mut(), Duration::from_secs(5), 8192, "CTRLC_READY")?;
+            if !String::from_utf8_lossy(&ready).contains("CTRLC_READY") {
+                let _ = handle.kill();
+                return Ok((
+                    "FAIL".to_string(),
+                    "Ctrl+C child did not become ready within 5 seconds".to_string(),
+                ));
+            }
+        } else {
+            thread::sleep(Duration::from_millis(300));
+        }
         // Send Ctrl+C
         handle.write(&[0x03])?;
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let timeout_seconds = if cfg!(windows) { 5 } else { 3 };
+        let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
         while handle.is_alive() && Instant::now() < deadline {
             let mut output = [0u8; 256];
             let _ = handle.read(&mut output);
@@ -304,7 +323,7 @@ pub fn scenario_ctrlc(backend: &mut dyn PtyBackend) -> ScenarioResult {
         } else {
             Ok((
                 "FAIL".to_string(),
-                "Ctrl+C did not terminate child within 3 seconds".to_string(),
+                format!("Ctrl+C did not terminate child within {timeout_seconds} seconds"),
             ))
         }
     })
