@@ -861,18 +861,30 @@ impl SessionManager {
         let handle = sess.pump_handle.take();
         let child_clone = Arc::clone(&sess.child);
         drop(sess);
-        thread::sleep(Duration::from_millis(50));
+        // Bound child reaping: never block indefinitely. Poll try_wait for up to
+        // CHILD_REAP_BOUND while the child (and its ConPTY on Windows) unwinds.
+        const CHILD_REAP_BOUND: Duration = Duration::from_millis(2000);
         let mut child_reaped = false;
-        {
+        let reap_deadline = std::time::Instant::now() + CHILD_REAP_BOUND;
+        while std::time::Instant::now() < reap_deadline {
             let mut h = child_clone.lock().unwrap();
-            if let Ok(Some(status)) = h.try_wait() {
-                let mut s2 = arc.lock().unwrap();
-                s2.exit_code = Some(status.exit_code() as i32);
-                child_reaped = true;
-            } else if h.wait().is_ok() {
-                child_reaped = true;
+            match h.try_wait() {
+                Ok(Some(status)) => {
+                    let mut s2 = arc.lock().unwrap();
+                    s2.exit_code = Some(status.exit_code() as i32);
+                    child_reaped = true;
+                    break;
+                }
+                Ok(None) => {
+                    drop(h);
+                    thread::sleep(Duration::from_millis(25));
+                }
+                Err(_) => break,
             }
         }
+        // Bound pump join so a reader blocked on a slow ConPTY teardown is still
+        // observable (honest and non-hanging). Pump read releases as the child is
+        // reaped above; allow generous slack on Windows.
         let mut pump_joined = false;
         if let Some(handle) = handle {
             let (tx, rx) = std::sync::mpsc::channel();
@@ -880,7 +892,9 @@ impl SessionManager {
                 let _ = handle.join();
                 let _ = tx.send(());
             });
-            pump_joined = rx.recv_timeout(Duration::from_millis(500)).is_ok();
+            pump_joined = rx
+                .recv_timeout(CHILD_REAP_BOUND + Duration::from_millis(500))
+                .is_ok();
         }
         let mut s = arc.lock().unwrap();
         let _ = validate_transition(&s.process_state, &ProcessSessionState::Closed);
@@ -1093,10 +1107,25 @@ mod tests {
     use crate::terminal::session::ProcessSessionState;
     use std::time::Duration;
 
+    fn available_profile() -> String {
+        let profiles = crate::terminal::available_profiles();
+        profiles
+            .iter()
+            .find(|p| p.available)
+            .map(|p| p.id.clone())
+            .unwrap_or_else(|| {
+                if cfg!(windows) {
+                    "cmd".to_string()
+                } else {
+                    "sh".to_string()
+                }
+            })
+    }
+
     #[test]
     fn view_attach_does_not_mutate_process_state() {
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start sh");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start sh");
         let id = info.session_id.clone();
         let proc_before = mgr.process_state(&id).unwrap();
         let gen_before = mgr.generation(&id).unwrap();
@@ -1120,7 +1149,7 @@ mod tests {
     #[test]
     fn renderer_reload_survival_same_id_and_generation() {
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         let gen = info.generation;
         let proc = mgr.process_state(&id).unwrap();
@@ -1147,7 +1176,7 @@ mod tests {
     #[test]
     fn restart_retains_session_id_increments_generation() {
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         let gen1 = info.generation;
         {
@@ -1181,7 +1210,7 @@ mod tests {
     #[test]
     fn close_reaps_child() {
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id;
         std::thread::sleep(Duration::from_millis(100));
         let closed = mgr.close(&id).expect("close");
@@ -1192,8 +1221,8 @@ mod tests {
     #[test]
     fn shutdown_all_terminates_children() {
         let mgr = SessionManager::new();
-        let a = mgr.start("sh", 24, 80).expect("a");
-        let b = mgr.start("sh", 24, 80).expect("b");
+        let a = mgr.start(&available_profile(), 24, 80).expect("a");
+        let b = mgr.start(&available_profile(), 24, 80).expect("b");
         std::thread::sleep(Duration::from_millis(100));
         mgr.shutdown_all();
         assert_eq!(
@@ -1211,7 +1240,9 @@ mod tests {
         let mgr = SessionManager::new();
         let mut ids = Vec::new();
         for _ in 0..5 {
-            let info = mgr.start("sh", 24, 80).expect("start concurrent");
+            let info = mgr
+                .start(&available_profile(), 24, 80)
+                .expect("start concurrent");
             ids.push(info.session_id);
         }
         assert_eq!(ids.len(), 5);
@@ -1280,7 +1311,9 @@ mod tests {
         assert_eq!(transport.stats().hard_limit_breaches, 0);
 
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start sh for byte test");
+        let info = mgr
+            .start(&available_profile(), 24, 80)
+            .expect("start sh for byte test");
         let id = info.session_id.clone();
         std::thread::sleep(Duration::from_millis(100));
         mgr.write(&id, b"printf 'B%.0s' {1..4096}; echo DONE_MARKER\n")
@@ -1443,7 +1476,7 @@ mod tests {
         assert_eq!(t2.stats().hard_limit_breaches, 0);
         // Manager-level replay truncation via real session
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         // Produce > REPLAY_CAP via direct transport mutation for determinism
         {
@@ -1500,7 +1533,7 @@ mod tests {
     fn reattach_clears_inflight_and_establishes_cursor() {
         // H2/H3: attach increments epoch, clears in-flight, next_sequence continues
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         std::thread::sleep(Duration::from_millis(100));
         mgr.write(&id, b"echo hello\n").ok();
@@ -1540,7 +1573,7 @@ mod tests {
     #[test]
     fn reattach_before_any_output() {
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         // Immediately detach/attach before any output
         mgr.detach(&id).unwrap();
@@ -1565,8 +1598,8 @@ mod tests {
     fn isolation_stalled_a_responsive_b() {
         // H8: session A stalled/backpressured, B must remain responsive within bounded time
         let mgr = std::sync::Arc::new(SessionManager::new());
-        let a = mgr.start("sh", 24, 80).expect("a");
-        let b = mgr.start("sh", 24, 80).expect("b");
+        let a = mgr.start(&available_profile(), 24, 80).expect("a");
+        let b = mgr.start(&available_profile(), 24, 80).expect("b");
         let a_id = a.session_id.clone();
         let b_id = b.session_id.clone();
         // Stall A by filling its transport without acking
@@ -1615,7 +1648,7 @@ mod tests {
     fn restart_invalidates_old_inflight() {
         // H10: restart while output from previous generation is in-flight
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         mgr.write(&id, b"echo before_restart\n").ok();
         std::thread::sleep(Duration::from_millis(200));
@@ -1653,7 +1686,7 @@ mod tests {
     fn cleanup_observable_pump_join() {
         // H11: close should observably join pump and reap child
         let mgr = SessionManager::new();
-        let info = mgr.start("sh", 24, 80).expect("start");
+        let info = mgr.start(&available_profile(), 24, 80).expect("start");
         let id = info.session_id.clone();
         std::thread::sleep(Duration::from_millis(50));
         let result = mgr.close_with_result(&id).expect("close_with_result");
@@ -1665,7 +1698,7 @@ mod tests {
         assert!(result.child_reaped, "child should have been reaped");
         // Repeated lifecycle
         for _ in 0..3 {
-            let info = mgr.start("sh", 24, 80).expect("start");
+            let info = mgr.start(&available_profile(), 24, 80).expect("start");
             let id = info.session_id;
             std::thread::sleep(Duration::from_millis(20));
             let r = mgr.close_with_result(&id).expect("close");
