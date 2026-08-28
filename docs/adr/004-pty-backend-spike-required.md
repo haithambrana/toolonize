@@ -1,9 +1,11 @@
-# ADR-004: PTY backend — Proposed — Spike Complete / Human Decision Required
+# ADR-004: PTY backend - portable-pty 0.9.0 with mitigations
 
-Date: 2026-08-26 (spike executed 2026-08-27)
-Status: **PROPOSED — SPIKE COMPLETE / HUMAN DECISION REQUIRED** (fresh Windows and xvfb evidence pass; backend selection remains human-gated)
+Date: 2026-08-26 (spike executed 2026-08-27/28; accepted 2026-08-28)
+Status: ACCEPTED
 
-> **Human gate:** Fresh `windows-latest` runtime evidence and the Linux real-WebView/xterm pipeline are green at commit `49a1599`. This ADR remains proposed until a human reviews the evidence, selects a backend shape, and explicitly flips it to `Accepted`.
+> **Human decision:** `HUMAN_M2_GATE=APPROVED`; `ADR_004=ACCEPTED`.
+> ToolOnize V1 uses `portable-pty` 0.9.0 with explicit ToolOnize-owned
+> integration mitigations on Linux and Windows.
 
 ## Context
 
@@ -44,32 +46,61 @@ class of decision our constitution requires be settled by experiment.
 
 ## Decision
 
-**Do not lock a PTY backend now.** Instead:
+ToolOnize V1 uses `portable-pty` 0.9.0 with ToolOnize-owned integration
+mitigations on both supported platforms:
 
-1. The architecture defines an internal `PtyBackend` trait (spawn / read /
-   write / resize / kill / wait) so backend choice is isolated behind one
-   boundary.
-2. Milestone M2 executes a throwaway-spike comparison of:
-   - **A**: `portable-pty` 0.9.0 + documented mitigations (respond-to-DSR
-     handshake; guarded stdin drop per turborepo findings);
-   - **B**: patched fork (psmux flags), assessed also for supply-chain risk;
-   - **C**: thin in-house implementation over `libc`(openpty) /
-     `windows` crate `CreatePseudoConsole`.
-3. The spike must validate, per platform: Linux PTY; Windows ConPTY;
-   PowerShell; cmd; WSL; resize; UTF-8; cursor behavior incl. DSR/CPR
-   handshake; Ctrl+C; clipboard boundary behavior; high-volume output;
-   TUIs; OpenCode-like full-screen apps; process exit; reconnect/restart;
-   hidden console-window suppression; resource cleanup (no orphans/handle
-   leaks).
-4. Selection rule: choose the option passing every MUST row, weighing
-   maintenance reality (upstream responsiveness evidence above) over
-   feature claims. Result recorded by flipping this ADR to Accepted with
-   the results table linked under docs/research/spike-m2/.
+- Linux: `portable-pty` 0.9.0.
+- Windows: `portable-pty` 0.9.0 over ConPTY.
 
-## Alternatives (post-spike shapes)
+The internal `PtyBackend` abstraction remains the production boundary so the
+backend can be replaced without redesigning terminal sessions. The verified
+`direct-unix-openpty` and `direct-windows-ConPTY` implementations remain
+isolated, non-production spike fallback/reference paths. M3 must not wire them
+into normal execution, expose runtime backend selection, or add a user backend
+preference. Patched portable-pty forks are not selected.
 
-- Adopt A/B/C outright; or hybrid (e.g., C on Windows, A on Linux) if
-  evidence supports asymmetry — allowed because the trait isolates it.
+`Cargo.lock` is authoritative for reproducible builds. Acceptance of this ADR
+does not authorize an automatic portable-pty upgrade.
+
+## Mandatory integration mitigations
+
+M3 production integration must preserve regression coverage for all of these
+constraints:
+
+1. DSR/CPR startup handling must retain an incomplete `ESC[6n` across reads
+   and respond only after the complete request is observed.
+2. Input-writer lifetime must be controlled so premature writer drop does not
+   terminate a Windows ConPTY child.
+3. Output transport must be bounded and lossless: no drop-oldest, drop-newest,
+   or silent truncation.
+4. Resize must be verified by the child, not inferred from the API call.
+5. High-volume output must retain exact byte-count and SHA-256 integrity
+   regression coverage.
+6. Ctrl+C semantics must remain covered on Linux and Windows.
+7. UTF-8 and VT sequences must be preserved without lossy conversion.
+8. Child exit, cleanup, orphan prevention, and resource lifecycle must remain
+   covered.
+9. Concurrent sessions must remain isolated.
+10. Timeouts and transport desynchronization must fail explicitly rather than
+    hang.
+
+## Dependency upgrade gate
+
+Any change from `portable-pty` 0.9.0 must pass the relevant M2 regression
+matrix on both Linux and Windows before adoption. Windows coverage must include
+DSR/CPR, input-writer lifetime, resize, shells, UTF-8, Ctrl+C, exact
+high-volume integrity, cleanup, and concurrency. An upgrade requires reviewed
+evidence; dependency tooling must not advance this baseline automatically.
+
+## Alternatives considered
+
+- A direct native backend on both platforms passed the spike but was not
+  selected because it requires ToolOnize to own more platform-specific code.
+- A hybrid of portable-pty on Linux and direct ConPTY on Windows passed every
+  MUST row and was the pre-decision technical recommendation, but was not
+  selected for V1.
+- Patched portable-pty forks were not selected because their low adoption adds
+  supply-chain and maintenance risk.
 
 ## Spike results (2026-08-27/28, Linux and Windows x86_64)
 
@@ -85,13 +116,20 @@ class of decision our constitution requires be settled by experiment.
 
 **Windows:** PR run `33130859724`, Windows job `98719793033`, recorded 31 PASS, 0 FAIL, 0 BLOCKED, and 0 NOT_VERIFIED after the portable and direct backends were made resilient to DSR requests split across reads. Both `portable-pty-0.9.0` + mitigation and direct ConPTY pass child-observed resize, UTF-8, Ctrl+C, DSR, exact 262144-byte SHA-256, cleanup, shell variants, hidden-console evidence, and five concurrent sessions. Push run `33130857270`, Windows job `98719783997`, independently reproduced the result.
 
-**Proposed recommendation:** portable-pty on Linux plus direct ConPTY on Windows, subject to human review. Both a fully portable backend and the hybrid pass every MUST row; the hybrid avoids the documented portable-pty Windows lifecycle regressions at the cost of owning the Win32 adapter. This is evidence for the decision, not acceptance of it.
+**Decision interpretation:** Both a fully portable backend and the hybrid pass every MUST row. The pre-decision report recommended portable-pty on Linux plus direct ConPTY on Windows to avoid the documented portable-pty Windows lifecycle risks. The human reviewer considered that recommendation and selected the fully portable shape because the mitigated portable backend also passed, while direct ConPTY would make ToolOnize own Win32 handle lifecycle, `CreatePseudoConsole`, `CreateProcessW`, process attribute lists, pipe ownership, command-line quoting, polling, cleanup, unsafe FFI invariants, and Windows-version behavior. The upstream portable-pty risks remain real and are controlled by the mandatory mitigations and upgrade gate above.
 
 ## Consequences
 
-- M3 cannot start until this ADR reaches `Accepted` via the M2 gate (IMPLEMENTATION_PLAN rollback condition). The technical gate is ready for human review but does not itself flip the status.
-- Short-term cost: spike harness code (`tools/spike-pty`, `src-tauri/src/commands/spike.rs` behind feature `spike`, `src/spike/TerminalSpike.tsx`); long-term benefit: terminal correctness is now evidence-gated.
-- **Next step for human:** Review `docs/research/PTY_SPIKE_REPORT.md`, `docs/research/spike-m2/report.json`, and run `33130859724`; then either request changes or flip this ADR to `Accepted` with the chosen backend (portable, direct, or hybrid) before M3.
+- M2 and ADR-004 are human-approved. M3 remains not started and is outside this
+  decision-recording change.
+- Production terminal work must use portable-pty behind `PtyBackend` and carry
+  the mandatory mitigations into implementation and acceptance criteria.
+- The direct implementations remain available only as isolated spike evidence
+  and fallback/reference code. Promotion requires production evidence of a
+  portable-pty blocker and a reviewed ADR amendment.
+- The spike harness and fail-closed hosted matrix remain regression assets for
+  dependency upgrades and backend-risk changes.
+- PR #2 remains draft pending final post-decision CI review and human merge.
 
 ## Links
 

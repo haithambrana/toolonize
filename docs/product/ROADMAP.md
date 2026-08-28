@@ -1,8 +1,9 @@
 # Roadmap
 
-Status: APPROVED through architecture + naming gates; M0 repository foundation
-in progress. Milestones are dependency-ordered without calendar dates (per
-engineering constitution: no fabricated estimates).
+Status: M0 and M1 complete, human-approved, and merged. M2 complete and
+human-approved; ADR-004 accepted; PR #2 pending final merge. M3 not started.
+Milestones are dependency-ordered without calendar dates (per engineering
+constitution: no fabricated estimates).
 
 ## Phase 0 — Discovery & architecture — APPROVED
 - Competitive, technology, platform-discovery research. **Done.**
@@ -13,28 +14,31 @@ engineering constitution: no fabricated estimates).
   docs/research/NAMING_RESEARCH.md).
 - Preliminary naming research is not legal trademark clearance; formal
   legal/trademark review remains a later release gate if required.
-- After M0 human approval the first local commit may occur; public GitHub
-  repository creation remains a separate human-controlled step. M1 has not
-  started.
+- M0 repository foundation and public-repository gate: **Complete / human
+  approved / merged.**
 
 ## Phase 1 — Foundations (M0–M2)
 - M0 Repository/public-safety foundation (CI skeleton, security policy,
-  fixture conventions).
+  fixture conventions): **Complete / human approved / merged.**
 - M1 Cross-platform framework shell (Tauri window on Linux+Windows, IPC
-  sanity, empty React UI shell).
+  sanity, empty React UI shell): **Complete / human approved / merged.**
 - M2 PTY technical spike **+ critical integration risk gate** (Linux +
   Windows): PTY backend behavior; PTY→Rust→Tauri→WebView→xterm.js
   throughput; lossless byte integrity/backpressure on the full path; xterm
   instance lifecycle; FlexLayout live-terminal move/maximize/restore smoke;
-  renderer reload semantics — both OSes. Resolves ADR-004.
+  renderer reload semantics — both OSes. **Complete / human approved;
+  ADR-004 accepted; PR #2 pending final merge.**
 - Gate: spike report accepted AND all six critical risks validated on both
-  platforms; framework renders on both OSes.
+  platforms; framework renders on both OSes. **Passed.**
+- Selected backend: `portable-pty` 0.9.0 + ToolOnize-owned mitigations on
+  Linux and Windows. Direct native implementations remain spike-verified
+  fallback/reference paths only.
 
-## Phase 2 — Terminal core (M3)
-Locked until the M2 critical-risk gate passes. Session manager, terminal
-lifecycle independent of layout (process state ≠ view attachment), lossless
-output pump, copy/paste/search/resize, exit/reconnect semantics with honest
-plain-SSH behavior.
+## Phase 2 — Terminal core (M3) — NOT STARTED
+The M2 critical-risk gate has passed, but M3 has not started. Session manager,
+terminal lifecycle independent of layout (process state ≠ view attachment),
+lossless output pump, copy/paste/search/resize, exit/reconnect semantics with
+honest plain-SSH behavior remain future work.
 
 ## Phase 3 — Workspace core (M4)
 - flexlayout integration with state-preservation proof; workspace model;
