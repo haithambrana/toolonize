@@ -4,10 +4,27 @@ pub mod commands;
 /// to keep `main.rs` minimal (Tauri convention).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![crate::commands::ping::ping])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    #[cfg(feature = "spike")]
+    {
+        tauri::Builder::default()
+            .invoke_handler(tauri::generate_handler![
+                crate::commands::ping::ping,
+                crate::commands::spike::spike_pty_stream,
+                crate::commands::spike::spike_resize,
+                crate::commands::spike::spike_input_echo,
+                crate::commands::spike::spike_complete,
+                crate::commands::spike::spike_fail
+            ])
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application");
+    }
+    #[cfg(not(feature = "spike"))]
+    {
+        tauri::Builder::default()
+            .invoke_handler(tauri::generate_handler![crate::commands::ping::ping])
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application");
+    }
 }
 
 #[cfg(test)]

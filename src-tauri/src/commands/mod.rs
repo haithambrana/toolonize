@@ -1,4 +1,6 @@
 pub mod ping;
+#[cfg(feature = "spike")]
+pub mod spike;
 
 pub use ping::ping;
 

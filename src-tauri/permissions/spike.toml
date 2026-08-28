@@ -1,0 +1,22 @@
+# Spike permissions - throwaway M2 harness, feature-gated `spike`
+# This is not part of M1 product surface; only enabled when `spike` feature is active.
+
+[[permission]]
+identifier = "allow-spike-pty-stream"
+description = "Enables spike_pty_stream for M2 PTY spike harness"
+commands.allow = ["spike_pty_stream"]
+
+[[permission]]
+identifier = "allow-spike-resize"
+description = "Enables spike_resize for M2 spike"
+commands.allow = ["spike_resize"]
+
+[[permission]]
+identifier = "allow-spike-input-echo"
+description = "Enables spike_input_echo for M2 spike"
+commands.allow = ["spike_input_echo"]
+
+[[permission]]
+identifier = "allow-spike-completion"
+description = "Enables fail-closed M2 browser report and auto-exit commands"
+commands.allow = ["spike_complete", "spike_fail"]

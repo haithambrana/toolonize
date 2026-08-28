@@ -29,6 +29,7 @@ describe("App shell", () => {
       screen.getByText("Your existing dev tools. One persistent workspace.")
     ).toBeInTheDocument();
     expect(screen.getByText("Framework Shell — M1")).toBeInTheDocument();
+    expect(await screen.findByText("0.1.0")).toBeInTheDocument();
   });
 
   it("shows loading state then renders sanitized ping data", async () => {
