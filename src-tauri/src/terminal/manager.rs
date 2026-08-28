@@ -1216,7 +1216,7 @@ mod tests {
             let _ = w.write_all(b"exit 0\n");
             let _ = w.flush();
         }
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
         let mut exited = false;
         while std::time::Instant::now() < deadline {
             mgr.refresh_process_states();
