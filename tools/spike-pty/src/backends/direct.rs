@@ -160,22 +160,23 @@ mod unix_impl {
 #[cfg(windows)]
 mod windows_impl {
     use super::*;
-    use crate::backends::ReadPump;
     use std::mem;
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
     use std::ptr;
     use windows::core::PWSTR;
-    use windows::Win32::Foundation::{HANDLE, WAIT_OBJECT_0, WAIT_TIMEOUT};
+    use windows::Win32::Foundation::{HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0, WAIT_TIMEOUT};
     use windows::Win32::Security::SECURITY_ATTRIBUTES;
     use windows::Win32::System::Console::{
         ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
+        PSEUDOCONSOLE_INHERIT_CURSOR,
     };
-    use windows::Win32::System::Pipes::CreatePipe;
+    use windows::Win32::System::Pipes::{CreatePipe, PeekNamedPipe};
     use windows::Win32::System::Threading::{
         CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
         InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
         WaitForSingleObject, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
-        LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, STARTUPINFOEXW, STARTUPINFOW,
+        LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+        STARTUPINFOW,
     };
 
     struct OwnedPseudoConsole(HPCON);
@@ -187,9 +188,9 @@ mod windows_impl {
     }
 
     pub struct DirectWindowsHandle {
-        writer: std::fs::File,
-        pcon: OwnedPseudoConsole,
-        reader: ReadPump,
+        writer: Option<std::fs::File>,
+        pcon: Option<OwnedPseudoConsole>,
+        reader: Option<std::fs::File>,
         process: OwnedHandle,
         _thread: OwnedHandle,
         dsr_tail: Vec<u8>,
@@ -198,8 +199,8 @@ mod windows_impl {
     }
 
     impl DirectWindowsHandle {
-        pub fn new(
-            pcon: HPCON,
+        fn new(
+            pcon: OwnedPseudoConsole,
             writer: std::fs::File,
             reader: std::fs::File,
             child: PROCESS_INFORMATION,
@@ -207,9 +208,9 @@ mod windows_impl {
             cols: u16,
         ) -> Self {
             Self {
-                writer,
-                pcon: OwnedPseudoConsole(pcon),
-                reader: ReadPump::spawn(Box::new(reader)),
+                writer: Some(writer),
+                pcon: Some(pcon),
+                reader: Some(reader),
                 process: unsafe { OwnedHandle::from_raw_handle(child.hProcess.0) },
                 _thread: unsafe { OwnedHandle::from_raw_handle(child.hThread.0) },
                 dsr_tail: Vec::with_capacity(3),
@@ -245,10 +246,16 @@ mod windows_impl {
             self.dsr_tail.extend_from_slice(&scan[tail_start..]);
 
             for _ in 0..responses {
-                self.writer.write_all(b"\x1b[24;80R")?;
+                self.writer
+                    .as_mut()
+                    .ok_or_else(|| anyhow!("ConPTY input pipe is closed"))?
+                    .write_all(b"\x1b[24;80R")?;
             }
             if responses > 0 {
-                self.writer.flush()?;
+                self.writer
+                    .as_mut()
+                    .ok_or_else(|| anyhow!("ConPTY input pipe is closed"))?
+                    .flush()?;
             }
             Ok(())
         }
@@ -256,20 +263,52 @@ mod windows_impl {
 
     impl PtyHandle for DirectWindowsHandle {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            let count = self.reader.read(buf)?;
+            use std::io::{Error, ErrorKind, Read};
+
+            let count = {
+                let reader = self
+                    .reader
+                    .as_mut()
+                    .ok_or_else(|| anyhow!("ConPTY output pipe is closed"))?;
+                let mut available = 0u32;
+                unsafe {
+                    PeekNamedPipe(
+                        HANDLE(reader.as_raw_handle()),
+                        None,
+                        0,
+                        None,
+                        Some(&mut available),
+                        None,
+                    )?;
+                }
+                if available == 0 {
+                    return Err(
+                        Error::new(ErrorKind::WouldBlock, "no ConPTY output available").into(),
+                    );
+                }
+                let limit = buf.len().min(available as usize);
+                reader.read(&mut buf[..limit])?
+            };
             self.respond_to_dsr(&buf[..count])?;
             Ok(count)
         }
         fn write(&mut self, data: &[u8]) -> Result<usize> {
             use std::io::Write;
-            let n = self.writer.write(data)?;
-            self.writer.flush()?;
+            let writer = self
+                .writer
+                .as_mut()
+                .ok_or_else(|| anyhow!("ConPTY input pipe is closed"))?;
+            let n = writer.write(data)?;
+            writer.flush()?;
             Ok(n)
         }
         fn resize(&mut self, rows: u16, cols: u16) -> Result<()> {
             unsafe {
                 ResizePseudoConsole(
-                    self.pcon.0,
+                    self.pcon
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("pseudoconsole is closed"))?
+                        .0,
                     COORD {
                         X: cols as i16,
                         Y: rows as i16,
@@ -308,6 +347,9 @@ mod windows_impl {
     impl Drop for DirectWindowsHandle {
         fn drop(&mut self) {
             let _ = self.terminate_and_wait();
+            drop(self.writer.take());
+            drop(self.reader.take());
+            drop(self.pcon.take());
         }
     }
 
@@ -369,7 +411,7 @@ mod windows_impl {
                 coord,
                 HANDLE(in_read.as_raw_handle()),
                 HANDLE(out_write.as_raw_handle()),
-                0,
+                PSEUDOCONSOLE_INHERIT_CURSOR,
             )?;
             let owned_pcon = OwnedPseudoConsole(pcon);
 
@@ -409,6 +451,10 @@ mod windows_impl {
 
             let mut si_ex = STARTUPINFOEXW::default();
             si_ex.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
+            si_ex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+            si_ex.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+            si_ex.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
+            si_ex.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
             si_ex.lpAttributeList = attr_list;
 
             let cmd_line = std::iter::once(cmd)
@@ -440,11 +486,9 @@ mod windows_impl {
 
             let writer_file = std::fs::File::from(in_write);
             let reader_file = std::fs::File::from(out_read);
-            let pcon = owned_pcon.0;
-            mem::forget(owned_pcon);
 
             Ok(Box::new(DirectWindowsHandle::new(
-                pcon,
+                owned_pcon,
                 writer_file,
                 reader_file,
                 pi,
