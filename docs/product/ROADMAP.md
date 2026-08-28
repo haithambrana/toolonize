@@ -64,6 +64,14 @@ M4 Workspace / Layout Core on branch `m3-terminal-session-manager`. Focus areas:
   Grid/Focus/Tabs/Master+Stack modes; layout persistence round-trip (ADR-003
   state-preservation gate).
 
+### M4 progress (2026-08-29)
+Implemented the Workspace/Layout Core shell: full-viewport geometry, persistent
+top toolbar, resizable session sidebar (drag divider 200–520px) + terminal pane
+filling the window (no white-area waste), responsive drawer below 720px, bottom
+status bar. Terminal state preserved across layout via SessionId keying +
+ResizeObserver/FitAddon re-fit; no transport rework. Remaining: FlexLayout
+docking modes + layout persistence round-trip (ADR-003 state-preservation gate).
+
 ## Phase 4 — Discovery (M5–M6)
 - M5 Linux adapter (.desktop pipeline incl. user Desktop dir via
   xdg-user-dirs + opt-in custom roots, Flatpak/Snap, inotify rescan).
