@@ -59,7 +59,8 @@ jobs:
       - name: Real M3 WebView reload (Linux xvfb)
         run: |
           set -o pipefail
-          timeout --signal=TERM --kill-after=10s 120s xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
+          mkdir -p target
+          timeout --signal=TERM --kill-after=10s 150s xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
             npm run tauri -- dev --no-watch --config src-tauri/tauri.m3.conf.json \
             2>&1 | tee target/m3-webview.log
           python3 -c "
