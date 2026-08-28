@@ -77,7 +77,9 @@ struct Session {
     rows: u16,
     cols: u16,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>,
+    /// Master PTY. `None` once retired at close: dropping the master closes the
+    /// ConPTY (Windows) / host pty so the pump reader reaches EOF and joins.
+    master: Arc<Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>>,
     child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
     shared_rows: Arc<Mutex<u16>>,
     shared_cols: Arc<Mutex<u16>>,
@@ -327,8 +329,8 @@ impl SessionManager {
         let mut backend = PortablePtyBackend::new();
         let split = backend.spawn_split(&resolved.program, &resolved.args, rows, cols)?;
         let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(split.writer));
-        let master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>> =
-            Arc::new(Mutex::new(split.master));
+        let master: Arc<Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>> =
+            Arc::new(Mutex::new(Some(split.master)));
         let child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>> =
             Arc::new(Mutex::new(split.child));
         let reader = split.reader;
@@ -404,8 +406,8 @@ impl SessionManager {
         let mut backend = PortablePtyBackend::new();
         let split = backend.spawn_split(program, args, rows, cols)?;
         let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(split.writer));
-        let master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>> =
-            Arc::new(Mutex::new(split.master));
+        let master: Arc<Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>> =
+            Arc::new(Mutex::new(Some(split.master)));
         let child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>> =
             Arc::new(Mutex::new(split.child));
         let reader = split.reader;
@@ -508,6 +510,9 @@ impl SessionManager {
         };
         {
             let m = master.lock().unwrap();
+            let m = m
+                .as_ref()
+                .ok_or_else(|| TerminalError::backend("pty master already retired"))?;
             m.resize(portable_pty::PtySize {
                 rows,
                 cols,
@@ -743,6 +748,10 @@ impl SessionManager {
                 let mut h = sess.child.lock().unwrap();
                 let _ = h.kill();
             }
+            {
+                // Retire the master so the pump reader reaches EOF and joins.
+                *sess.master.lock().unwrap() = None;
+            }
             let handle = sess.pump_handle.take();
             drop(sess);
             if let Some(h) = handle {
@@ -778,6 +787,10 @@ impl SessionManager {
             let (lock, cv) = &*sess.pump_cvar;
             let _g = lock.lock().unwrap();
             cv.notify_one();
+        }
+        {
+            // Retire the master so the pump reader reaches EOF and joins.
+            *sess.master.lock().unwrap() = None;
         }
         let handle = sess.pump_handle.take();
         let id_clone = sess.id.clone();
@@ -857,6 +870,11 @@ impl SessionManager {
         {
             let mut h = sess.child.lock().unwrap();
             let _ = h.kill();
+        }
+        {
+            // Retire the master so the ConPTY/pty closes and the pump reader
+            // reaches EOF and joins promptly (H11).
+            *sess.master.lock().unwrap() = None;
         }
         let handle = sess.pump_handle.take();
         let child_clone = Arc::clone(&sess.child);
@@ -960,6 +978,10 @@ impl SessionManager {
                 let mut h = s.child.lock().unwrap();
                 let _ = h.kill();
             }
+            {
+                // Retire the old master so its pump reader EOFs and joins.
+                *s.master.lock().unwrap() = None;
+            }
             let handle = s.pump_handle.take();
             drop(s);
             if let Some(handle) = handle {
@@ -976,8 +998,8 @@ impl SessionManager {
         let mut backend = PortablePtyBackend::new();
         let split = backend.spawn_split(&resolved.program, &resolved.args, rows, cols)?;
         let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(split.writer));
-        let master: Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>> =
-            Arc::new(Mutex::new(split.master));
+        let master: Arc<Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>> =
+            Arc::new(Mutex::new(Some(split.master)));
         let child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>> =
             Arc::new(Mutex::new(split.child));
         let reader = split.reader;
@@ -1108,7 +1130,15 @@ mod tests {
     use std::time::Duration;
 
     fn available_profile() -> String {
+        // Tests issue POSIX command sequences (echo, exit 0), so prefer a POSIX
+        // shell when present (covers Git Bash sh/bash on Windows runners), then
+        // fall back to a platform default only when no POSIX shell exists.
         let profiles = crate::terminal::available_profiles();
+        for pref in ["sh", "bash", "default-shell"] {
+            if let Some(p) = profiles.iter().find(|p| p.id == pref && p.available) {
+                return p.id.clone();
+            }
+        }
         profiles
             .iter()
             .find(|p| p.available)
