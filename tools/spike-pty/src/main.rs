@@ -4,6 +4,20 @@ use spike_pty::transport;
 use std::collections::HashMap;
 use std::time::Instant;
 
+fn run_and_record(
+    results: &mut Vec<ScenarioResult>,
+    label: &str,
+    run: impl FnOnce() -> ScenarioResult,
+) {
+    println!("START: {label}");
+    let result = run();
+    println!(
+        "[{}] {}: {} - {} ({}ms)",
+        result.backend, result.scenario, result.status, result.details, result.duration_ms
+    );
+    results.push(result);
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::init();
     println!("=== M2 PTY Backend Technical Spike ===");
@@ -25,37 +39,50 @@ fn main() -> anyhow::Result<()> {
         let name = backend.name().to_string();
         println!("--- Backend: {} ---", name);
 
-        let scenarios: Vec<ScenarioResult> = vec![
-            harness::scenario_spawn_shell(backend.as_mut()),
-            harness::scenario_invalid_exe(backend.as_mut()),
-            harness::scenario_resize(backend.as_mut()),
-            harness::scenario_utf8(backend.as_mut()),
-            harness::scenario_ctrlc(backend.as_mut()),
-            harness::scenario_cursor_dsr(backend.as_mut()),
-            harness::scenario_high_volume(backend.as_mut()),
-            harness::scenario_cleanup(backend.as_mut()),
-            harness::scenario_tui(backend.as_mut()),
-            harness::scenario_agent_cli(backend.as_mut()),
-            harness::scenario_shell_variants(backend.as_mut()),
-            harness::scenario_hidden_console(backend.as_mut()),
-            harness::scenario_clipboard(backend.as_mut()),
-        ];
-
-        for r in &scenarios {
-            println!(
-                "[{}] {}: {} - {} ({}ms)",
-                r.backend, r.scenario, r.status, r.details, r.duration_ms
-            );
-            all_results.push(r.clone());
-        }
+        run_and_record(&mut all_results, "spawn shells", || {
+            harness::scenario_spawn_shell(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "invalid executable", || {
+            harness::scenario_invalid_exe(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "resize", || {
+            harness::scenario_resize(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "UTF-8", || {
+            harness::scenario_utf8(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "Ctrl+C", || {
+            harness::scenario_ctrlc(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "cursor DSR", || {
+            harness::scenario_cursor_dsr(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "high-volume lossless", || {
+            harness::scenario_high_volume(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "cleanup", || {
+            harness::scenario_cleanup(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "TUI", || {
+            harness::scenario_tui(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "agent CLI", || {
+            harness::scenario_agent_cli(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "shell variants", || {
+            harness::scenario_shell_variants(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "hidden console", || {
+            harness::scenario_hidden_console(backend.as_mut())
+        });
+        run_and_record(&mut all_results, "clipboard", || {
+            harness::scenario_clipboard(backend.as_mut())
+        });
 
         // Concurrent is separate because it needs fresh backend per session
-        let conc = harness::scenario_concurrent(name.as_str());
-        println!(
-            "[{}] {}: {} - {} ({}ms)",
-            conc.backend, conc.scenario, conc.status, conc.details, conc.duration_ms
-        );
-        all_results.push(conc);
+        run_and_record(&mut all_results, "concurrent sessions", || {
+            harness::scenario_concurrent(name.as_str())
+        });
 
         println!();
     }

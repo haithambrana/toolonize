@@ -165,7 +165,7 @@ mod windows_impl {
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
     use std::ptr;
     use windows::core::PWSTR;
-    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Foundation::{HANDLE, WAIT_OBJECT_0, WAIT_TIMEOUT};
     use windows::Win32::Security::SECURITY_ATTRIBUTES;
     use windows::Win32::System::Console::{
         ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON,
@@ -174,8 +174,8 @@ mod windows_impl {
     use windows::Win32::System::Threading::{
         CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
         InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
-        CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
-        PROCESS_INFORMATION, STARTUPINFOEXW, STARTUPINFOW,
+        WaitForSingleObject, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+        LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, STARTUPINFOEXW, STARTUPINFOW,
     };
 
     struct OwnedPseudoConsole(HPCON);
@@ -192,6 +192,7 @@ mod windows_impl {
         reader: ReadPump,
         process: OwnedHandle,
         _thread: OwnedHandle,
+        dsr_tail: Vec<u8>,
         rows: u16,
         cols: u16,
     }
@@ -211,15 +212,53 @@ mod windows_impl {
                 reader: ReadPump::spawn(Box::new(reader)),
                 process: unsafe { OwnedHandle::from_raw_handle(child.hProcess.0) },
                 _thread: unsafe { OwnedHandle::from_raw_handle(child.hThread.0) },
+                dsr_tail: Vec::with_capacity(3),
                 rows,
                 cols,
             }
+        }
+
+        fn terminate_and_wait(&mut self) -> Result<()> {
+            let process = HANDLE(self.process.as_raw_handle());
+            if self.wait()?.is_none() {
+                unsafe { TerminateProcess(process, 1)? };
+            }
+
+            match unsafe { WaitForSingleObject(process, 5_000) } {
+                WAIT_OBJECT_0 => Ok(()),
+                WAIT_TIMEOUT => Err(anyhow!("timed out waiting for ConPTY child termination")),
+                _ => Err(std::io::Error::last_os_error().into()),
+            }
+        }
+
+        fn respond_to_dsr(&mut self, data: &[u8]) -> Result<()> {
+            use std::io::Write;
+
+            let mut scan = self.dsr_tail.clone();
+            scan.extend_from_slice(data);
+            let responses = scan
+                .windows(4)
+                .filter(|window| *window == b"\x1b[6n")
+                .count();
+            let tail_start = scan.len().saturating_sub(3);
+            self.dsr_tail.clear();
+            self.dsr_tail.extend_from_slice(&scan[tail_start..]);
+
+            for _ in 0..responses {
+                self.writer.write_all(b"\x1b[24;80R")?;
+            }
+            if responses > 0 {
+                self.writer.flush()?;
+            }
+            Ok(())
         }
     }
 
     impl PtyHandle for DirectWindowsHandle {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-            Ok(self.reader.read(buf)?)
+            let count = self.reader.read(buf)?;
+            self.respond_to_dsr(&buf[..count])?;
+            Ok(count)
         }
         fn write(&mut self, data: &[u8]) -> Result<usize> {
             use std::io::Write;
@@ -245,10 +284,7 @@ mod windows_impl {
             Ok((self.rows, self.cols))
         }
         fn kill(&mut self) -> Result<()> {
-            if self.wait()?.is_none() {
-                unsafe { TerminateProcess(HANDLE(self.process.as_raw_handle()), 1)? };
-            }
-            Ok(())
+            self.terminate_and_wait()
         }
         fn wait(&mut self) -> Result<Option<i32>> {
             unsafe {
@@ -271,9 +307,7 @@ mod windows_impl {
 
     impl Drop for DirectWindowsHandle {
         fn drop(&mut self) {
-            if self.wait().ok().flatten().is_none() {
-                let _ = unsafe { TerminateProcess(HANDLE(self.process.as_raw_handle()), 1) };
-            }
+            let _ = self.terminate_and_wait();
         }
     }
 
