@@ -68,9 +68,10 @@ is in progress. No terminal, workspace, launcher, PTY, layout, SSH, tmux,
 persistence, or production feature exists yet.
 
 2026-08-28: M2 PTY Backend Technical Spike repair evidence is complete on
-`m2-pty-spike` at `f2d518f`. PR run `33129730084` passes the Linux harness and
+`m2-pty-spike` at `49a1599`. PR run `33130859724` passes the Linux harness and
 real Tauri/WebKitGTK/xterm.js pipeline under xvfb, and records 31/31 PASS on
-Windows for both portable-pty + mitigation and direct ConPTY. App CI run
-`33129730089` and repository-safety run `33129730118` pass. The technical gate
-is ready for human review. `HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 remains
-proposed and PR #2 remains draft/blocked until explicit human selection.
+Windows for both portable-pty + mitigation and direct ConPTY after split DSR
+requests were handled. App CI run `33130859717` and repository-safety run
+`33130859711` pass. The technical gate is ready for human review.
+`HUMAN_M2_GATE=CHANGES_REQUIRED`; ADR-004 remains proposed and PR #2 remains
+draft/blocked until explicit human selection.
