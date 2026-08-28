@@ -1130,13 +1130,13 @@ mod tests {
     use std::time::Duration;
 
     fn available_profile() -> String {
-        // Tests issue POSIX command sequences (echo, exit 0), so prefer a POSIX
-        // shell when present (covers Git Bash sh/bash on Windows runners), then
-        // fall back to a platform default only when no POSIX shell exists.
+        // Tests issue POSIX command sequences (echo, exit 0) and were designed
+        // around 'sh' — Git Bash provides sh on Windows runners, so prefer sh
+        // (then bash) before falling back to any advertised available shell.
         let profiles = crate::terminal::available_profiles();
-        for pref in ["sh", "bash", "default-shell"] {
-            if let Some(p) = profiles.iter().find(|p| p.id == pref && p.available) {
-                return p.id.clone();
+        for pref in ["sh", "bash"] {
+            if crate::terminal::profiles::resolve_profile(pref).is_ok() {
+                return pref.to_string();
             }
         }
         profiles
