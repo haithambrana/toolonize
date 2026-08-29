@@ -16,6 +16,7 @@ const xtermMocks = vi.hoisted(() => {
   const mockFindNext = vi.fn();
   const mockFindPrev = vi.fn();
   const mockFit = vi.fn();
+  const mockPaste = vi.fn();
   class TerminalMock {
     open = vi.fn();
     loadAddon = vi.fn();
@@ -25,6 +26,7 @@ const xtermMocks = vi.hoisted(() => {
     getSelection = mockGetSelection;
     dispose = vi.fn();
     clear = vi.fn();
+    paste = mockPaste;
     cols = 80;
     rows = 24;
   }
@@ -45,6 +47,7 @@ const xtermMocks = vi.hoisted(() => {
     mockFindNext,
     mockFindPrev,
     mockFit,
+    mockPaste,
     TerminalMock,
     FitAddonMock,
     SearchAddonMock,
@@ -262,13 +265,15 @@ describe("TerminalView", () => {
     expect(await screen.findByText("Copied")).toBeInTheDocument();
   });
 
-  it("multi-line paste warns via confirm", async () => {
+  it("multi-line paste warns via confirm (H14C: shared policy)", async () => {
     vi.mocked(navigator.clipboard.readText).mockResolvedValue("line1\nline2\nline3");
     render(<TerminalView session={baseSession} />);
     fireEvent.click(screen.getByRole("button", { name: "Paste" }));
     await waitFor(() => expect(window.confirm).toHaveBeenCalled());
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Multi-line paste"));
-    await waitFor(() => expect(terminalWrite).toHaveBeenCalled());
+    // H14A: toolbar paste routes through xterm's paste API, not terminalWrite.
+    await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalled());
+    expect(vi.mocked(terminalWrite)).not.toHaveBeenCalled();
   });
 
   it("IPC failure does not crash UI and remains usable", async () => {
@@ -385,6 +390,172 @@ describe("TerminalView", () => {
     );
     await waitFor(() => expect(terminalAck).toHaveBeenCalledWith(baseSession.session_id, 5), {
       timeout: 1500,
+    });
+  });
+
+  describe("H14 paste policy (shared, xterm-paste, native-intercepted)", () => {
+    // jsdom has no DataTransfer/ClipboardEvent; build a generic paste Event
+    // whose clipboardData returns the supplied plain text (text/plain).
+    const makePasteEvent = (text: string): Event => {
+      const ev = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, "clipboardData", {
+        value: { getData: (t: string) => (t === "text/plain" ? text : "") },
+      });
+      return ev;
+    };
+
+    beforeEach(() => {
+      xtermMocks.mockPaste.mockClear();
+    });
+
+    it("toolbar single-line paste: no warning, paste exactly once via term.paste", async () => {
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("hello world");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      expect(window.confirm).not.toHaveBeenCalled();
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith("hello world");
+      // Not routed via terminalWrite directly (H14A)
+      expect(vi.mocked(terminalWrite)).not.toHaveBeenCalled();
+    });
+
+    it("toolbar multi-line paste: warning shown, Cancel -> zero sends", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("line1\nline2\nline3");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(window.confirm).toHaveBeenCalled());
+      // Cancel -> zero bytes to PTY
+      expect(xtermMocks.mockPaste).not.toHaveBeenCalled();
+      expect(vi.mocked(terminalWrite)).not.toHaveBeenCalled();
+    });
+
+    it("toolbar multi-line paste: warning shown, Confirm -> exactly one paste", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("line1\nline2\nline3");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(window.confirm).toHaveBeenCalled());
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith("line1\nline2\nline3");
+      expect(vi.mocked(terminalWrite)).not.toHaveBeenCalled();
+    });
+
+    it("native DOM paste: same warning policy on multi-line", async () => {
+      const container = render(<TerminalView session={baseSession} />).getByTestId(
+        "terminal-container"
+      );
+      const spy = vi.spyOn(window, "confirm").mockReturnValue(true);
+      container.dispatchEvent(makePasteEvent("native\npaste\nmulti\nline"));
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1000,
+      });
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith("native\npaste\nmulti\nline");
+    });
+
+    it("native paste intercepted: xterm default path does NOT send a duplicate (exactly one paste)", async () => {
+      const container = render(<TerminalView session={baseSession} />).getByTestId(
+        "terminal-container"
+      );
+      const ev = makePasteEvent("single-line native");
+      container.dispatchEvent(ev);
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1000,
+      });
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith("single-line native");
+      // preventDefault was called so nothing re-consumed/copy-sent
+      expect(ev.defaultPrevented).toBe(true);
+      expect(vi.mocked(terminalWrite)).not.toHaveBeenCalled();
+    });
+
+    it(">200-character single line: warning shown", async () => {
+      const long = "x".repeat(201);
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue(long);
+      render(<TerminalView session={baseSession} />);
+      // Phase 1: Cancel -> zero sends
+      vi.mocked(window.confirm).mockReturnValue(false);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(window.confirm).toHaveBeenCalled());
+      expect(xtermMocks.mockPaste).not.toHaveBeenCalled();
+      // Phase 2: Confirm -> pasted exactly once (no double)
+      vi.mocked(window.confirm).mockReturnValue(true);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith(long);
+    });
+
+    it("Unicode/Arabic paste preserved verbatim", async () => {
+      const arabic = "مرحبا بالعالم\nالسطر الثاني";
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue(arabic);
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      expect(xtermMocks.mockPaste).toHaveBeenCalledWith(arabic);
+    });
+
+    it("bracketed-paste mode off: no bracket markers added by ToolOnize", async () => {
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("plain");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      const arg = xtermMocks.mockPaste.mock.calls[0][0] as string;
+      expect(arg).toBe("plain");
+      expect(arg).not.toContain("\u001b[200~");
+      expect(arg).not.toContain("\u001b[201~");
+    });
+
+    it("bracketed-paste mode on: xterm handles framing (ToolOnize must not double-wrap)", async () => {
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("payload");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      // ToolOnize only forwards the raw payload: xterm is responsible for any
+      // bracketed framing. Assert no markers are injected by ToolOnize.
+      const arg = xtermMocks.mockPaste.mock.calls[0][0] as string;
+      expect(arg).toBe("payload");
+      expect(arg).not.toContain("\u001b[200~");
+      expect(arg).not.toContain("\u001b[201~");
+      expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1);
+    });
+
+    it("no literal/doubled bracket markers caused by ToolOnize", async () => {
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue("line1\nline2");
+      render(<TerminalView session={baseSession} />);
+      fireEvent.click(screen.getByRole("button", { name: "Paste" }));
+      await waitFor(() => expect(xtermMocks.mockPaste).toHaveBeenCalledTimes(1), {
+        timeout: 1500,
+      });
+      const arg = xtermMocks.mockPaste.mock.calls[0][0] as string;
+      const start = "\u001b[200~";
+      const end = "\u001b[201~";
+      // No literal markers at all — ToolOnize must not wrap or double-wrap.
+      expect(arg.includes(start)).toBe(false);
+      expect(arg.includes(end)).toBe(false);
+    });
+
+    it("component unmount removes the paste listener", async () => {
+      const { unmount, getByTestId } = render(<TerminalView session={baseSession} />);
+      const container = getByTestId("terminal-container");
+      await waitFor(() => expect(xtermMocks.mockPaste).toBeDefined(), { timeout: 1000 });
+      unmount();
+      // After unmount, dispatching paste must NOT trigger term.paste
+      xtermMocks.mockPaste.mockClear();
+      container.dispatchEvent(makePasteEvent("after-unmount"));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(xtermMocks.mockPaste).not.toHaveBeenCalled();
     });
   });
 });

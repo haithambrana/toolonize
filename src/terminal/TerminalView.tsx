@@ -136,6 +136,19 @@ export function TerminalView({ session }: Props) {
       terminalWrite(sessionIdRef.current, bytes).catch(() => {});
     });
 
+    // H14B: intercept native paste (keyboard Ctrl+V, context-menu paste) at the
+    // container in CAPTURE phase BEFORE xterm's own paste handler consumes it.
+    // preventDefault() stops xterm's default paste path so the clipboard data is
+    // not sent twice; we route the text through the SAME paste policy.
+    const containerElement = containerRef.current;
+    const pasteHandler = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!text) return;
+      e.preventDefault();
+      pasteText(text);
+    };
+    containerElement.addEventListener("paste", pasteHandler, true);
+
     let resizeTimer: number | null = null;
     const ro = new ResizeObserver(() => {
       if (resizeTimer) window.clearTimeout(resizeTimer);
@@ -238,6 +251,8 @@ export function TerminalView({ session }: Props) {
       cancelledRef.current = true;
       if (pollTimer) window.clearTimeout(pollTimer);
       if (resizeTimer) window.clearTimeout(resizeTimer);
+      // H14B: remove the paste listener during cleanup.
+      containerElement.removeEventListener("paste", pasteHandler, true);
       ro.disconnect();
       dispData.dispose();
       search.dispose();
@@ -280,6 +295,32 @@ export function TerminalView({ session }: Props) {
     setTimeout(() => setCopyFeedback(null), 1500);
   }, []);
 
+  // H14: single shared paste policy. Every user paste path (toolbar button,
+  // keyboard/native paste, context-menu paste) must route through this function
+  // so behavior is identical and exactly one paste reaches the PTY.
+  const pasteText = useCallback((raw: string): boolean => {
+    if (!raw) return false;
+    const lines = raw.split("\n");
+    // H14C: warn when multi-line (>1 line) OR large (>200 chars).
+    if (lines.length > 1 || raw.length > 200) {
+      const ok = window.confirm(
+        `Paste warning: clipboard contains ${lines.length} line(s) / ${raw.length} chars.\n` +
+          "Multi-line paste will be sent as typed. Continue?"
+      );
+      // Cancel -> zero bytes sent to the PTY.
+      if (!ok) return false;
+    }
+    const term = termRef.current;
+    if (!term) return false;
+    // H14A: use xterm's public paste API. term.paste() performs the terminal's
+    // paste transformations and respects bracketed-paste mode itself; we must
+    // NOT manually wrap with ESC[200~ / ESC[201~ and must NOT call
+    // terminalWrite directly. xterm fires its onData handler, which is the
+    // single existing input path -> exactly one send.
+    term.paste(raw);
+    return true;
+  }, []);
+
   const handlePaste = useCallback(async () => {
     let text = "";
     try {
@@ -289,24 +330,8 @@ export function TerminalView({ session }: Props) {
       setTimeout(() => setCopyFeedback(null), 1500);
       return;
     }
-    if (!text) return;
-    const lines = text.split("\n");
-    if (lines.length > 1 || text.length > 200) {
-      const ok = window.confirm(
-        `Paste warning: clipboard contains ${lines.length} line(s) / ${text.length} chars.\n` +
-          "Multi-line paste will be sent as typed. Continue?"
-      );
-      if (!ok) return;
-    }
-    const enc = new TextEncoder();
-    const bytes = enc.encode(text);
-    try {
-      await terminalWrite(sessionIdRef.current, bytes);
-    } catch {
-      setCopyFeedback("Paste write failed");
-      setTimeout(() => setCopyFeedback(null), 1500);
-    }
-  }, []);
+    pasteText(text);
+  }, [pasteText]);
 
   const handleSearch = useCallback((dir: "next" | "prev") => {
     const addon = searchRef.current;
