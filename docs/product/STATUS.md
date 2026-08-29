@@ -1,6 +1,6 @@
 # Project Status
 
-Phase: M4 in progress — Workspace / Layout Core
+Phase: M3 in progress — Production Terminal Session Manager
 
 Architecture: HUMAN APPROVED for progression into M0.
 Naming: ToolOnize — HUMAN APPROVED. ToolOnize is the approved
@@ -14,11 +14,10 @@ M0: COMPLETE / HUMAN APPROVED / MERGED
 M1: COMPLETE / HUMAN APPROVED / MERGED
 M2: COMPLETE / HUMAN APPROVED / MERGED
 ADR-004: ACCEPTED
-M3: COMPLETE — validated from real runtime (2026-08-29)
-M4: IN PROGRESS — Workspace / Layout Core (started 2026-08-29)
+M3: IN PROGRESS — Production Terminal Session Manager
 Selected production backend: `portable-pty` 0.9.0 + ToolOnize mitigations
 Public repository: CREATED - haithambrana/toolonize
-Implementation: M1 framework shell complete; M3 production terminal lifecycle core complete & runtime-validated; M4 workspace/layout core in progress
+Implementation: M1 framework shell complete; M3 production terminal lifecycle core in progress
 Repository safety CI: GREEN
 
 Tauri identifier direction: com.toolonize.desktop
@@ -108,17 +107,4 @@ widened to 8s to remove scheduling flake. All 56 backend and 23 frontend tests
 pass locally; `cargo clippy -D warnings`, `tsc --noEmit`, and Prettier are clean.
 `PR_3_MERGE=BLOCKED` — PR #3 stays DRAFT pending the human M3 gate.
 
-2026-08-29: M3 final acceptance validated from the real runtime (owner-directed
-M3 acceptance). Added `m3_runtime_acceptance_lifecycle` — drives a real
-portable-pty child through the documented lifecycle via the public
-`SessionManager` surface: start → list → write history → detach (process alive)
-→ reattach (same session + history) → resize (child observes) → restart (new
-generation, prior not confused) → exited-truthful → close (writer guard +
-observable `pump_joined`/`child_reaped`). 57 backend + 23 frontend tests pass;
-`cargo clippy -D warnings`, `tsc --noEmit`, Prettier clean; real WebView reload
-proven under xvfb in CI (runs `33214132886`/`33214135708`). M3 verdict: PASS.
-M3 marked COMPLETE and M4 (Workspace/Layout Core) started on branch
-`m3-terminal-session-manager`. PR #3 remains DRAFT (do not merge before the
-human M3 gate).
-
-M4 is IN PROGRESS — Workspace / Layout Core.
+M3 is IN PROGRESS — Production Terminal Session Manager.

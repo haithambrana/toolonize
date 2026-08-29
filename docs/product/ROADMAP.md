@@ -35,9 +35,9 @@ constitution: no fabricated estimates).
   Linux and Windows. Direct native implementations remain spike-verified
   fallback/reference paths only.
 
-## Phase 2 — Terminal core (M3) — COMPLETE (validated from real runtime, 2026-08-29)
-M3 Production Terminal Session Manager is completed and runtime-validated on
-branch `m3-terminal-session-manager`. Production `PtyBackend` +
+## Phase 2 — Terminal core (M3) — IN PROGRESS
+M3 Production Terminal Session Manager is in progress on branch
+`m3-terminal-session-manager` from base `03e09d0`. Production `PtyBackend` +
 `PortablePtyBackend` (0.9.0), stateful DSR/CPR, writer-lifetime guard, bounded
 lossless transport (chunk 4096, cap 65536, high 49152, low 16384, replay
 65536, sequenced ack), process/view orthogonal states, `SessionManager`
@@ -46,23 +46,11 @@ registry (opaque SessionId, generation), safe opaque profiles, typed
 warning, resize, exit banner, replay) are implemented. Renderer reload
 reattachment and byte-integrity/backpressure contract tests are green on both
 Linux and Windows (contract, build, and spike-pty matrix); the real Tauri
-WebView reload passes under xvfb. M3 acceptance driven end-to-end against a
-real portable-pty child (`m3_runtime_acceptance_lifecycle`): start → list →
-write history → detach (alive) → reattach (same session+history) → resize
-(child observes) → restart (new generation) → exited-truthful → close (writer
-guard + observable pump join / child reap). 57 backend + 23 frontend tests.
+WebView reload passes under xvfb. M4 (FlexLayout) remains deferred.
 
-## Phase 3 — Workspace core (M4) — IN PROGRESS (started 2026-08-29)
-M4 Workspace / Layout Core on branch `m3-terminal-session-manager`. Focus areas:
-- usable terminal workspace geometry and resizable panes; eliminate the large
-  unused white area from the M3 layout
-- terminal pane sizing + session-list sizing/overflow
-- responsive layout and toolbar/control placement
-- multi-session workspace usability; preserve terminal state during layout
-  changes (no architecture rework unless M3 exposes a genuine defect)
+## Phase 3 — Workspace core (M4)
 - flexlayout integration with state-preservation proof; workspace model;
-  Grid/Focus/Tabs/Master+Stack modes; layout persistence round-trip (ADR-003
-  state-preservation gate).
+  Grid/Focus/Tabs/Master+Stack modes; layout persistence round-trip.
 
 ## Phase 4 — Discovery (M5–M6)
 - M5 Linux adapter (.desktop pipeline incl. user Desktop dir via
