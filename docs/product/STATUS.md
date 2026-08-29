@@ -108,3 +108,31 @@ pass locally; `cargo clippy -D warnings`, `tsc --noEmit`, and Prettier are clean
 `PR_3_MERGE=BLOCKED` — PR #3 stays DRAFT pending the human M3 gate.
 
 M3 is IN PROGRESS — Production Terminal Session Manager.
+
+2026-08-29: HUMAN M3 MANUAL SMOKE (first pass) recorded. Manual window/shell/
+UTF-8/clean-exit verified; the paste gate is NOT yet acceptable (RETEST
+REQUIRED). Manual smoke status:
+`MANUAL_WINDOW_OPEN=PASS`, `MANUAL_REAL_SHELL=PASS`, `MANUAL_UTF8=PASS`,
+`MANUAL_CLEAN_EXIT=PASS`, `MANUAL_PASTE=RETEST_REQUIRED`. A bracketed-paste
+marker was observed once in the outer host terminal; that is external, not
+ToolOnize, and is not attributed to this app.
+
+The source-level ToolOnize paste-policy defect that triggered the repair:
+`TerminalView` toolbar Paste read the clipboard and wrote
+`TextEncoder` bytes straight to `terminal_write`, bypassing xterm.js paste
+semantics and bracketed-paste framing; the multi-line warning existed only on
+the toolbar path, so native keyboard/context-menu paste bypassed the warning.
+
+2026-08-29: H14 paste repair implemented and committed (`36c056e`). Centralized
+all paste paths (toolbar button, native keyboard, context-menu) through one
+shared paste policy and through xterm's public `term.paste()` API; native paste
+is intercepted at the container in capture phase (`preventDefault()` so the
+data reaches the PTY exactly once); the multi-line (>1 line) / large (>200
+chars) warning is shared by every path, Cancel sends zero bytes, Confirm sends
+exactly once; no ESC[200~/ESC[201~ are added by ToolOnize (xterm owns
+bracketed-paste framing); clipboard text is never logged or persisted. 11 new
+deterministic paste tests added (34 frontend tests total; no existing test
+weakened). M3 run under this milestone is M3-only: the premature M4 workspace
+commits were reverted off this branch (recoverable in history) so PR #3 scope
+stays M3; `M4_STARTED=NO`. `MANUAL_PASTE=RETEST_REQUIRED` until the human
+manual paste re-test passes.
