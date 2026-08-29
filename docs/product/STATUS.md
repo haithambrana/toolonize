@@ -122,19 +122,3 @@ M3 marked COMPLETE and M4 (Workspace/Layout Core) started on branch
 human M3 gate).
 
 M4 is IN PROGRESS — Workspace / Layout Core.
-
-2026-08-29: M4 Workspace/Layout Core implementation started. Replaced the
-narrow 880px centered demo shell with a full-viewport workspace
-(`src/workspace/Workspace.tsx` + `workspace.css`): persistent top toolbar
-(profile select + Start + session count), left session sidebar with
-drag-resizable divider (200–520px, pointer-based), main terminal pane that
-fills the window (eliminating the previous large unused white area), and a
-bottom status bar carrying session diagnostics + attach/detach/restart/close.
-Responsive below 720px collapses the sidebar into a drawer overlay. `App.tsx`
-lazy-loads the Workspace and keeps the M2 spike / M3 reload harnesses isolated
-(single transport consumer). Terminal state is preserved across layout
-changes: `TerminalView` is keyed by SessionId and its ResizeObserver + FitAddon
-re-fit the PTY on pane resize (process + scrollback via replay survive);
-no transport rework. Frontend gates green: `tsc --noEmit`, 23 vitest,
-`npm run build`, Prettier, ESLint; backend untouched (57 tests + clippy clean).
-
