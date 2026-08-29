@@ -2,11 +2,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 560px;
   background: #0e0e10;
   color: #e6e6e6;
   border: 1px solid #2a2a2e;
   border-radius: 6px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .terminal-toolbar {
@@ -17,6 +19,7 @@
   background: #1a1a1e;
   border-bottom: 1px solid #2a2a2e;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .terminal-toolbar .spacer {
@@ -25,7 +28,8 @@
 
 .terminal-container {
   flex: 1;
-  min-height: 300px;
+  min-height: 520px;
+  min-width: 0;
   padding: 4px;
 }
 
@@ -41,12 +45,14 @@
 .terminal-search input {
   flex: 1;
   max-width: 320px;
+  min-width: 0;
 }
 
 .terminal-banner {
   padding: 8px 12px;
   font-size: 0.875rem;
   border-bottom: 1px solid #2a2a2e;
+  overflow-wrap: anywhere;
 }
 
 .terminal-banner--exit {
@@ -66,26 +72,129 @@
 .terminal-core {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
 }
 
-.terminal-core__header {
+/* UX6 — compact header, UX2/UX3 primary area */
+.terminal-core__topbar {
   display: flex;
-  gap: 12px;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.terminal-core__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.terminal-core__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.terminal-core__count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.terminal-core__milestone {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* UX3 — desktop two-region layout: sidebar 240-300px + terminal 1fr, terminal dominates */
+.terminal-core__layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 420px;
+  align-items: start;
+  min-width: 0;
+  width: 100%;
+}
+
+.terminal-core__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-core__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+  overflow: hidden;
+}
+
+.terminal-core__main .terminal-view {
+  flex: 1;
+  min-height: 600px;
+}
+
+.terminal-core__main .card--placeholder {
+  min-height: 600px;
+}
+
+/* UX4 — responsive stack at ~900px */
+@media (max-width: 900px) {
+  .terminal-core__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-core__main {
+    min-height: 520px;
+  }
+
+  .terminal-core__main .terminal-view {
+    min-height: 520px;
+  }
 }
 
 .session-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 240px;
+  max-height: 360px;
   overflow: auto;
   border: 1px solid #2a2a2e;
   border-radius: 6px;
   padding: 8px;
   background: #141416;
+  min-width: 0;
+}
+
+.session-list__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text, #e6e8ee);
 }
 
 .session-row {
@@ -95,6 +204,10 @@
   padding: 6px 8px;
   border-radius: 4px;
   background: #1e1e22;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  width: 100%;
 }
 
 .session-row--active {
@@ -105,9 +218,69 @@
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
   color: #9aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.session-row__meta {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.session-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.terminal-core__session-details,
+.terminal-core__diagnostics {
+  border: 1px solid var(--bg-card-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  font-size: 0.85rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-core__session-details summary,
+.terminal-core__diagnostics summary {
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.terminal-core__diagnostics-content {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.diagnostics-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .muted-small {
   font-size: 0.8rem;
   color: #9aa;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.button--secondary {
+  font-size: 0.85rem;
 }
