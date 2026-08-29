@@ -35,12 +35,16 @@ describe("M3 desktop usability correction — layout regression", () => {
 
   it("TERMINAL_DESKTOP_HEIGHT: viewport at least ~600px", () => {
     expect(termCss).toMatch(/\.terminal-core__main[^{]*\{[^}]*min-height:\s*600px/s);
-    expect(termCss).toMatch(/\.terminal-core__main\s+\.terminal-view[^{]*\{[^}]*min-height:\s*600px/s);
+    expect(termCss).toMatch(
+      /\.terminal-core__main\s+\.terminal-view[^{]*\{[^}]*min-height:\s*600px/s
+    );
   });
 
   it("RESPONSIVE_STACK: narrow viewport stacks via max-width 850-950", () => {
     expect(termCss).toMatch(/@media\s*\(max-width:\s*900px\)/);
-    const block = termCss.match(/@media\s*\(max-width:\s*900px\)[\s\S]*?\{[\s\S]*?\.terminal-core__layout[\s\S]*?grid-template-columns:\s*1fr/s);
+    const block = termCss.match(
+      /@media\s*\(max-width:\s*900px\)[\s\S]*?\{[\s\S]*?\.terminal-core__layout[\s\S]*?grid-template-columns:\s*1fr/s
+    );
     expect(block).not.toBeNull();
   });
 
