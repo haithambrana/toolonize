@@ -124,22 +124,11 @@ export function TerminalCore() {
 
   return (
     <div className="terminal-core">
-      <div className="terminal-core__header">
-        <h2>Terminal Core — M3</h2>
-        <span className="muted-small">
-          portable-pty 0.9.0 + ToolOnize mitigations · {sessions.length} session(s)
-        </span>
-      </div>
-
-      {profilesError && (
-        <div className="alert alert-error" role="alert">
-          Failed to load profiles: {profilesError}
-        </div>
-      )}
-
-      <div className="card" style={{ padding: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <label htmlFor="profile-select">Profile:</label>
+      <div className="terminal-core__topbar">
+        <div className="terminal-core__controls">
+          <label htmlFor="profile-select" className="terminal-core__label">
+            Profile
+          </label>
           <select
             id="profile-select"
             value={selectedProfile}
@@ -159,101 +148,117 @@ export function TerminalCore() {
           >
             {loading ? "Starting…" : "Start terminal"}
           </button>
-          <button type="button" onClick={() => void refreshList()}>
+          <button type="button" className="button--secondary" onClick={() => void refreshList()}>
             Refresh list
           </button>
+          <span className="terminal-core__count" aria-live="polite">
+            {sessions.length} session(s)
+          </span>
         </div>
-        {error && (
-          <div className="alert alert-error" role="alert" style={{ marginTop: 8 }}>
-            {error}
-          </div>
-        )}
-        <p className="muted-small" style={{ marginTop: 8 }}>
-          Frontend may only request opaque profile ids. Executable/argv construction stays
-          Rust-side. No raw exec from WebView. DSR/CPR stateful handling, writer-lifetime guard, and
-          bounded lossless transport with ack are active. Renderer reload reattaches via{" "}
-          <code>terminal_list</code> + replay.
-        </p>
+        <span className="terminal-core__milestone" aria-label="Milestone subtle">
+          M3
+        </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 12, minHeight: 380 }}>
-        <div className="session-list" aria-label="Active sessions">
-          <strong>Active sessions</strong>
-          {sessions.length === 0 && (
-            <span className="muted-small">No sessions yet. Start one above.</span>
-          )}
-          {sessions.map((s) => (
-            <button
-              key={s.session_id}
-              type="button"
-              className={`session-row ${s.session_id === selectedId ? "session-row--active" : ""}`}
-              onClick={() => setSelectedId(s.session_id)}
-              aria-pressed={s.session_id === selectedId}
-            >
-              <span className="session-row__id" title={s.session_id}>
-                {s.session_id.slice(0, 16)}
-              </span>
-              <span style={{ fontSize: "0.85rem" }}>
-                {s.profile_id} · {s.process_state.state} · {s.view_state} · gen {s.generation}
-              </span>
-            </button>
-          ))}
-          {selectedSession && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-              <button type="button" onClick={() => void handleAttach()}>
-                Attach
-              </button>
-              <button type="button" onClick={() => void handleDetach()}>
-                Detach
-              </button>
-              <button type="button" onClick={() => void handleRestart()}>
-                Restart
-              </button>
-              <button type="button" onClick={() => void handleClose()}>
-                Close
-              </button>
-            </div>
-          )}
-          {selectedSession && (
-            <dl className="details" style={{ marginTop: 8, fontSize: "0.85rem" }}>
-              <div className="detail-row">
-                <dt>Session ID</dt>
-                <dd style={{ wordBreak: "break-all" }}>{selectedSession.session_id}</dd>
-              </div>
-              <div className="detail-row">
-                <dt>Generation</dt>
-                <dd>{selectedSession.generation}</dd>
-              </div>
-              <div className="detail-row">
-                <dt>Process state</dt>
-                <dd>{JSON.stringify(selectedSession.process_state)}</dd>
-              </div>
-              <div className="detail-row">
-                <dt>View state</dt>
-                <dd>{selectedSession.view_state}</dd>
-              </div>
-              <div className="detail-row">
-                <dt>Size</dt>
-                <dd>
-                  {selectedSession.rows}×{selectedSession.cols}
-                </dd>
-              </div>
-              <div className="detail-row">
-                <dt>Transport</dt>
-                <dd>{JSON.stringify(selectedSession.transport_state)}</dd>
-              </div>
-              {selectedSession.replay_truncated && (
-                <dd style={{ color: "#ffdf5d" }}>Replay truncated</dd>
-              )}
-            </dl>
-          )}
+      {profilesError && (
+        <div className="alert alert-error" role="alert">
+          Failed to load profiles: {profilesError}
         </div>
+      )}
+      {error && (
+        <div className="alert alert-error" role="alert">
+          {error}
+        </div>
+      )}
 
-        <div style={{ minHeight: 400 }}>
+      <div className="terminal-core__layout">
+        <aside className="terminal-core__sidebar" aria-label="Sessions sidebar">
+          <div className="session-list" aria-label="Active sessions">
+            <strong className="session-list__title">Sessions</strong>
+            {sessions.length === 0 && (
+              <span className="muted-small">No sessions yet. Start one above.</span>
+            )}
+            {sessions.map((s) => (
+              <button
+                key={s.session_id}
+                type="button"
+                className={`session-row ${s.session_id === selectedId ? "session-row--active" : ""}`}
+                onClick={() => setSelectedId(s.session_id)}
+                aria-pressed={s.session_id === selectedId}
+              >
+                <span className="session-row__id" title={s.session_id}>
+                  {s.session_id.slice(0, 16)}
+                </span>
+                <span className="session-row__meta">
+                  {s.profile_id} · {s.process_state.state} · {s.view_state} · gen {s.generation}
+                </span>
+              </button>
+            ))}
+            {selectedSession && (
+              <div className="session-actions">
+                <button type="button" onClick={() => void handleAttach()}>
+                  Attach
+                </button>
+                <button type="button" onClick={() => void handleDetach()}>
+                  Detach
+                </button>
+                <button type="button" onClick={() => void handleRestart()}>
+                  Restart
+                </button>
+                <button type="button" onClick={() => void handleClose()}>
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+
+          {selectedSession && (
+            <details className="terminal-core__session-details">
+              <summary>Session details</summary>
+              <dl className="details details--compact">
+                <div className="detail-row">
+                  <dt>Session ID</dt>
+                  <dd className="detail-value--break">{selectedSession.session_id}</dd>
+                </div>
+                <div className="detail-row">
+                  <dt>Generation</dt>
+                  <dd>{selectedSession.generation}</dd>
+                </div>
+                <div className="detail-row">
+                  <dt>Process state</dt>
+                  <dd className="detail-value--mono detail-value--break">
+                    {JSON.stringify(selectedSession.process_state)}
+                  </dd>
+                </div>
+                <div className="detail-row">
+                  <dt>View state</dt>
+                  <dd>{selectedSession.view_state}</dd>
+                </div>
+                <div className="detail-row">
+                  <dt>Size</dt>
+                  <dd>
+                    {selectedSession.rows}×{selectedSession.cols}
+                  </dd>
+                </div>
+                <div className="detail-row">
+                  <dt>Transport</dt>
+                  <dd className="detail-value--mono detail-value--break">
+                    {JSON.stringify(selectedSession.transport_state)}
+                  </dd>
+                </div>
+                {selectedSession.replay_truncated && (
+                  <div className="detail-truncated">Replay truncated</div>
+                )}
+              </dl>
+            </details>
+          )}
+        </aside>
+
+        <div className="terminal-core__main">
           {selectedSession ? (
             <TerminalView key={selectedSession.session_id} session={selectedSession} />
           ) : (
-            <div className="card" style={{ padding: 24, textAlign: "center" }}>
+            <div className="card card--placeholder">
               <p className="muted">Select or start a session to view its terminal.</p>
               <p className="muted-small">
                 Renderer reload test: start a session, emit <code>BEFORE_RELOAD</code>, reload
@@ -265,32 +270,42 @@ export function TerminalCore() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 12 }}>
-        <h3 style={{ margin: 0, fontSize: "0.95rem" }}>M3 notes</h3>
-        <ul className="list" style={{ fontSize: "0.85rem" }}>
-          <li>
-            Transport: chunk 4096, capacity 65536, high 49152, low 16384, hard 65536, replay 65536 —
-            bounded lossless, backpressure, sequence-acked, no silent drop.
-          </li>
-          <li>
-            DSR/CPR: stateful detector across splits; CPR = ESC[&lt;rows&gt;;&lt;cols&gt;R (24;80
-            fallback).
-          </li>
-          <li>
-            Writer lifetime: owned by Rust session; detach/reload does not drop ConPTY input writer.
-          </li>
-          <li>
-            View vs process: attach/detach/hide/show never mutates process state or generation
-            (tested).
-          </li>
-          <li>
-            Full app exit terminates local children; renderer reload survives (reattach via list).
-          </li>
-          <li>
-            No FlexLayout yet — M4 owns docking. No launcher discovery, persistence, or workspace.
-          </li>
-        </ul>
-      </div>
+      <details className="terminal-core__diagnostics">
+        <summary>Diagnostics</summary>
+        <div className="terminal-core__diagnostics-content">
+          <p className="muted-small">
+            Frontend may only request opaque profile ids. Executable/argv construction stays
+            Rust-side. No raw exec from WebView. DSR/CPR stateful handling, writer-lifetime guard,
+            and bounded lossless transport with ack are active. Renderer reload reattaches via{" "}
+            <code>terminal_list</code> + replay.
+          </p>
+          <h3 className="diagnostics-title">M3 notes</h3>
+          <ul className="list list--compact">
+            <li>
+              Transport: chunk 4096, capacity 65536, high 49152, low 16384, hard 65536, replay 65536
+              — bounded lossless, backpressure, sequence-acked, no silent drop.
+            </li>
+            <li>
+              DSR/CPR: stateful detector across splits; CPR = ESC[&lt;rows&gt;;&lt;cols&gt;R (24;80
+              fallback).
+            </li>
+            <li>
+              Writer lifetime: owned by Rust session; detach/reload does not drop ConPTY input
+              writer.
+            </li>
+            <li>
+              View vs process: attach/detach/hide/show never mutates process state or generation
+              (tested).
+            </li>
+            <li>
+              Full app exit terminates local children; renderer reload survives (reattach via list).
+            </li>
+            <li>
+              No FlexLayout yet — M4 owns docking. No launcher discovery, persistence, or workspace.
+            </li>
+          </ul>
+        </div>
+      </details>
     </div>
   );
 }
