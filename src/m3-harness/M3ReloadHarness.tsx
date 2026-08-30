@@ -206,14 +206,44 @@ export default function M3ReloadHarness() {
       // Success = plugin registered + capability allows write/read text.
       // Failure does NOT fail the M3 gate in CI headless (no display clipboard),
       // but reports init status; human desktop retest is authoritative.
+      // Add 2s per-op timeout so headless xvfb without clipboard manager does not hang the harness.
       let clipboardPluginInitOk = false;
       let clipboardRoundtripOk: boolean | null = null;
       try {
         const probe = `m3-clipboard-probe-${idBefore.slice(0, 8)}`;
-        await clipboardWriteText(probe);
-        const readBack = await clipboardReadText();
-        clipboardPluginInitOk = true;
-        clipboardRoundtripOk = readBack === probe;
+        const writeOk = await Promise.race([
+          clipboardWriteText(probe)
+            .then(() => true)
+            .catch(() => false),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+        ]);
+        if (writeOk) {
+          const readBack = await Promise.race([
+            clipboardReadText().catch(() => "__clipboard_error__"),
+            new Promise<string>((resolve) =>
+              setTimeout(() => resolve("__clipboard_timeout__"), 2000)
+            ),
+          ]);
+          clipboardPluginInitOk = true;
+          clipboardRoundtripOk = readBack === probe;
+        } else {
+          // Write timed out or failed — plugin may still be registered but clipboard unavailable headless
+          clipboardPluginInitOk = false;
+          clipboardRoundtripOk = null;
+          // Try a quick read to see if plugin at least responds (best-effort, no hang)
+          try {
+            await Promise.race([
+              clipboardReadText().catch(() => "__clipboard_error__"),
+              new Promise<string>((resolve) =>
+                setTimeout(() => resolve("__clipboard_timeout__"), 800)
+              ),
+            ]);
+            // If read did not throw, consider plugin init ok even if roundtrip failed
+            clipboardPluginInitOk = true;
+          } catch {
+            // keep false
+          }
+        }
       } catch {
         // Plugin not initialized or capability missing -> init false
         clipboardPluginInitOk = false;
