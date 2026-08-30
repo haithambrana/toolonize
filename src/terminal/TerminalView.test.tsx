@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, cleanup } from "@testing-library/react";
 import { TerminalView } from "./TerminalView";
 import type { SessionInfo } from "./terminalTypes";
 
@@ -169,6 +169,8 @@ describe("TerminalView", () => {
   });
 
   afterEach(() => {
+    cleanup();
+    vi.clearAllTimers();
     vi.restoreAllMocks();
   });
 
