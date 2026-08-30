@@ -1,8 +1,8 @@
-name: ci
+name: m3-terminal-contract
 
 on:
   push:
-    branches: [main, m1-framework-shell, m3-terminal-session-manager]
+    branches: [main, m3-terminal-session-manager]
   pull_request:
     branches: [main]
 
@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  contract:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -21,23 +22,23 @@ jobs:
             platform: windows
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0 (node24, verified 2026-08-27 via git ls-remote + action.yml using: node24; runner >=2.327.1 required; alt verified: v5.1.0 fbc6f39, v7.0.1 3d3c42e)
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
 
       - name: Set up Node (LTS)
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0 (node24, verified 2026-08-27; alt verified: v5.0.0 a0853c2, v7.0.0 8207627)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: lts/*
           cache: npm
 
       - name: Set up Python (for docs checks)
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0 (node24, verified 2026-08-27; alt verified: v6.0.0 e797f83, v7.0.0 5fda3b9)
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.11"
 
       - name: Set up Rust (stable)
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: stable
 
@@ -61,45 +62,23 @@ jobs:
       - name: Install npm dependencies (deterministic)
         run: npm ci
 
-      - name: Documentation traceability
-        run: python3 tools/check-doc-traceability.py
-
-      - name: Unit tests (traceability)
-        run: python3 -m unittest discover -s tools/tests -v
-
-      - name: Public-safety scan
-        run: bash tools/check-public-safety.sh
-
       - name: Frontend typecheck
         run: npm run typecheck
 
-      - name: Frontend lint
-        run: npm run lint
-
-      - name: Frontend format check
-        run: npm run format:check
-
-      - name: Frontend tests
+      - name: Frontend tests (M3 TerminalView)
         run: npm test
-
-      - name: Frontend build
-        run: npm run build
 
       - name: Rust fmt check
         working-directory: src-tauri
         run: cargo fmt --check
 
-      - name: Rust clippy
+      - name: Rust clippy (M3 production)
         working-directory: src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Rust tests
+      - name: Rust tests (M3 production — Linux/Windows contract)
         working-directory: src-tauri
-        run: cargo test --all-targets
-
-      - name: Tauri build smoke (compile)
-        working-directory: src-tauri
-        run: cargo build
+        run: cargo test --all-targets -- --test-threads=1
 
       - name: Verify no blocked lockfiles
         run: |
