@@ -11,6 +11,12 @@ import {
   terminalAttach,
   terminalReplay,
 } from "../terminal/terminalClient";
+// H16I: prove clipboard manager plugin initializes in real Tauri WebView.
+// Do not fake OS clipboard contents; probe via write+read roundtrip best-effort.
+import {
+  readText as clipboardReadText,
+  writeText as clipboardWriteText,
+} from "@tauri-apps/plugin-clipboard-manager";
 
 type State =
   | { status: "idle" }
@@ -196,6 +202,24 @@ export default function M3ReloadHarness() {
 
       await terminalClose(idBefore);
 
+      // H16I: best-effort clipboard plugin init probe (real WebView).
+      // Success = plugin registered + capability allows write/read text.
+      // Failure does NOT fail the M3 gate in CI headless (no display clipboard),
+      // but reports init status; human desktop retest is authoritative.
+      let clipboardPluginInitOk = false;
+      let clipboardRoundtripOk: boolean | null = null;
+      try {
+        const probe = `m3-clipboard-probe-${idBefore.slice(0, 8)}`;
+        await clipboardWriteText(probe);
+        const readBack = await clipboardReadText();
+        clipboardPluginInitOk = true;
+        clipboardRoundtripOk = readBack === probe;
+      } catch {
+        // Plugin not initialized or capability missing -> init false
+        clipboardPluginInitOk = false;
+        clipboardRoundtripOk = null;
+      }
+
       const report = {
         tauriBootOk: true,
         terminalViewReady: true,
@@ -215,6 +239,10 @@ export default function M3ReloadHarness() {
         afterReloadResizeOk: resizeOk,
         closeOk: true,
         appExitOk: true,
+        clipboardPluginInitOk,
+        clipboardRoundtripOk,
+        // Manual clipboard retest still required for real Linux desktop
+        manualClipboardRetestRequired: true,
       };
       setState({ status: "success", report: JSON.stringify(report) });
       await invoke("m3_complete", { report });

@@ -13,6 +13,7 @@ import {
   terminalReplay,
   terminalAttach,
 } from "./terminalClient";
+import { readClipboardText, writeClipboardText } from "./clipboard";
 
 type Props = {
   session: SessionInfo;
@@ -277,20 +278,12 @@ export function TerminalView({ session }: Props) {
       return;
     }
     try {
-      await navigator.clipboard.writeText(sel);
+      // H16D: use official Tauri clipboard manager writeText (native).
+      // Only text permission granted; no image/html. No logging of contents.
+      await writeClipboardText(sel);
       setCopyFeedback("Copied");
     } catch {
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = sel;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        setCopyFeedback("Copied");
-      } catch {
-        setCopyFeedback("Copy failed");
-      }
+      setCopyFeedback("Copy failed");
     }
     setTimeout(() => setCopyFeedback(null), 1500);
   }, []);
@@ -324,7 +317,10 @@ export function TerminalView({ session }: Props) {
   const handlePaste = useCallback(async () => {
     let text = "";
     try {
-      text = await navigator.clipboard.readText();
+      // H16C: toolbar Paste uses native Tauri clipboard readText, then routes
+      // through shared pasteText policy (warning -> term.paste -> onData ->
+      // terminalWrite). Never log clipboard contents.
+      text = await readClipboardText();
     } catch {
       setCopyFeedback("Paste read failed");
       setTimeout(() => setCopyFeedback(null), 1500);
