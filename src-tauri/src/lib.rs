@@ -8,6 +8,7 @@ pub fn run() {
     #[cfg(feature = "spike")]
     {
         tauri::Builder::default()
+            .plugin(tauri_plugin_clipboard_manager::init())
             .invoke_handler(tauri::generate_handler![
                 crate::commands::ping::ping,
                 crate::commands::spike::spike_pty_stream,
@@ -43,6 +44,7 @@ pub fn run() {
     #[cfg(not(feature = "spike"))]
     {
         tauri::Builder::default()
+            .plugin(tauri_plugin_clipboard_manager::init())
             .invoke_handler(tauri::generate_handler![
                 crate::commands::ping::ping,
                 crate::commands::m3_harness::m3_complete,

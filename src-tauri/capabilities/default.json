@@ -1,8 +1,9 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "M3 production capability — main window only, local content only. Allows ping + typed terminal lifecycle (portable-pty backend). No shell, filesystem, http, process, opener, or remote capabilities. Tauri semantic mapping: terminal::* -> terminal_* invoke ids.",
+  "description": "M3 production capability — main window only, local content only. Allows ping + typed terminal lifecycle (portable-pty backend). No shell, filesystem, http, process, opener, or remote capabilities. Tauri semantic mapping: terminal::* -> terminal_* invoke ids. Clipboard: native read/write text only — added because navigator.clipboard.readText failed in real Linux WebKit/Tauri during Human M3 desktop testing; empirically required.",
   "windows": ["main"],
+  "local": true,
   "permissions": [
     "allow-ping",
     "allow-terminal-profiles",
@@ -20,6 +21,8 @@
     "allow-terminal-poll",
     "allow-terminal-replay",
     "allow-m3-complete",
-    "allow-m3-fail"
+    "allow-m3-fail",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }
