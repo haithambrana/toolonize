@@ -48,6 +48,7 @@ export function TerminalView({ session }: Props) {
   const cancelledRef = useRef<boolean>(false);
   const generationBannerRef = useRef<string | null>(null);
   const [generationBanner, setGenerationBanner] = useState<string | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     sessionIdRef.current = session.session_id;
@@ -252,6 +253,7 @@ export function TerminalView({ session }: Props) {
       cancelledRef.current = true;
       if (pollTimer) window.clearTimeout(pollTimer);
       if (resizeTimer) window.clearTimeout(resizeTimer);
+      if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current);
       // H14B: remove the paste listener during cleanup.
       containerElement.removeEventListener("paste", pasteHandler, true);
       ro.disconnect();
@@ -274,7 +276,8 @@ export function TerminalView({ session }: Props) {
     const sel = term.getSelection();
     if (!sel) {
       setCopyFeedback("No selection");
-      setTimeout(() => setCopyFeedback(null), 1500);
+      if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = window.setTimeout(() => setCopyFeedback(null), 1500);
       return;
     }
     try {
@@ -285,7 +288,8 @@ export function TerminalView({ session }: Props) {
     } catch {
       setCopyFeedback("Copy failed");
     }
-    setTimeout(() => setCopyFeedback(null), 1500);
+    if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current);
+    copyFeedbackTimerRef.current = window.setTimeout(() => setCopyFeedback(null), 1500);
   }, []);
 
   // H14: single shared paste policy. Every user paste path (toolbar button,
@@ -323,7 +327,8 @@ export function TerminalView({ session }: Props) {
       text = await readClipboardText();
     } catch {
       setCopyFeedback("Paste read failed");
-      setTimeout(() => setCopyFeedback(null), 1500);
+      if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = window.setTimeout(() => setCopyFeedback(null), 1500);
       return;
     }
     pasteText(text);
