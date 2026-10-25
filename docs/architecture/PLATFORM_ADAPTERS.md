@@ -150,8 +150,9 @@ invocations classify Needs Review.
 | Discovery sources | XDG+Flatpak/Snap + Desktop dir + custom roots | Known Folders+.lnk + custom roots | documented per §2–3 |
 | Default shells | bash/sh | PowerShell/cmd/WSL | parity of UX, not of binaries |
 | Change watching | inotify | ReadDirectoryChangesW | identical event contract |
-| Duplicate shortcut dedup | n/a (ID precedence is spec-defined) | pending M6 spike — both records kept w/ provenance until verified | explicit exception until decided |
-| Packaged apps | n/a (Flatpak/Snap covered) | pending spike | explicit exception until decided |
+| Duplicate shortcut dedup | n/a (ID precedence is spec-defined) | decided (ADR-007): both records kept with provenance, no precedence rule | documented exception |
+| Packaged apps | n/a (Flatpak/Snap covered) | decided (ADR-007): not enumerated in V1; post-V1 spike if requested | documented exception |
+| `.lnk` resolution | n/a | decided (ADR-007): stored metadata only, `Resolve` never called | — |
 | Console flash | n/a | suppressed via spawn flags | hard requirement |
 
 Any future platform behavior change lands here first, then code — the ledger

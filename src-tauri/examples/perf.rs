@@ -83,7 +83,9 @@ mod unix {
                     next += data.len() as u64;
                     max_frame = max_frame.max(data.len());
                     frames += 1;
-                    manager.ack(&info.session_id, attach.attachment_id, next).unwrap();
+                    manager
+                        .ack(&info.session_id, attach.attachment_id, next)
+                        .unwrap();
                 }
                 Err(RecvTimeoutError::Timeout) => panic!("stalled at {received}"),
                 Err(RecvTimeoutError::Disconnected) => break,

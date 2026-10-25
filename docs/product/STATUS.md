@@ -59,9 +59,12 @@ release checklist) are untouched. No release has been tagged or published.
   launches are exercised on the Windows CI runner only. Manual WebView2 smoke
   (layout continuity, renderer reload, WSL, real `.lnk` dry run with counts
   only) has not been performed.
-- **NFR budgets**: PT-1 keystroke latency and PT-5 idle memory on WebView2,
-  and the full WebView stage of PT-4 under sustained load, are not yet
-  measured (see `docs/research/perf/BASELINE.md`).
+- **NFR budgets**: PT-1 keystroke latency, PT-3 restore time, anything on
+  WebView2, and the WebView stage of PT-4 under sustained load are not yet
+  measured. Measured on Linux: core-path throughput ~70 MiB/s exact, scan of
+  2,000 entries ~35 ms; **idle RSS with two terminals ~397 MiB, above the
+  provisional 300 MB PT-5 budget** — needs PSS measurement and a decision
+  (see `docs/research/perf/BASELINE.md`).
 - **Accessibility**: automated axe-style checks and NVDA/Orca passes are not
   done; ARIA roles and keyboard paths exist but are not certified.
 - **Signing**: binaries are not code-signed; no release has been published.

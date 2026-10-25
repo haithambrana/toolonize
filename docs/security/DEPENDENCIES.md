@@ -31,6 +31,8 @@ Dev-only: `proptest` 1.12 (MIT OR Apache-2.0, property tests),
 | @xterm/xterm | 5.5.0 | MIT | Terminal renderer (ADR-002) |
 | @xterm/addon-fit | 0.10.0 | MIT | Terminal sizing |
 | @xterm/addon-search | 0.15.0 (exact) | MIT | Scrollback search (FR-034) — added in M3 |
+
+Removed in M10: `@xterm/addon-serialize`, `@xterm/addon-webgl` (unused).
 | flexlayout-react | 0.10.8 (exact) | MIT | Docking layout (ADR-003) — added in M4 |
 
 Dev-only tooling (all MIT except TypeScript, Apache-2.0): vite, vitest,
