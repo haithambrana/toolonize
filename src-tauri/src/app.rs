@@ -174,6 +174,9 @@ pub struct Core {
     scan_lock: Mutex<()>,
     load_report: LoadReport,
     restarts: Mutex<HashMap<String, Vec<Instant>>>,
+    /// Workspaces whose startup policy already ran in this app process; a
+    /// renderer reload must not run it (or ask) again.
+    opened: Mutex<std::collections::HashSet<String>>,
     me: OnceLock<Weak<Core>>,
 }
 
@@ -225,6 +228,7 @@ impl Core {
                 scan_lock: Mutex::new(()),
                 load_report,
                 restarts: Mutex::new(HashMap::new()),
+                opened: Mutex::new(std::collections::HashSet::new()),
                 me,
             }
         })
@@ -1010,6 +1014,13 @@ impl Core {
             )
         };
         self.set_active(Some(workspace_id))?;
+        let first_open = self.opened.lock().unwrap().insert(workspace_id.to_string());
+        if choice.is_none() && !first_open {
+            return Ok(OpenResult {
+                needs_choice: false,
+                outcomes: vec![],
+            });
+        }
         let choice = match (policy, choice) {
             (_, Some(c)) => c,
             (StartupPolicy::Ask, None) if !members.is_empty() && !staged => {

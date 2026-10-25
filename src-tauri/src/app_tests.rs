@@ -229,6 +229,9 @@ fn terminal_member_lifecycle_and_startup_policy() {
         )
         .unwrap();
     assert_eq!(again.outcomes[0].outcome, "running");
+    // A renderer reload re-opens without a choice: the policy does not run again.
+    let reload = c.open_workspace(&ws, None).unwrap();
+    assert!(!reload.needs_choice && reload.outcomes.is_empty());
     let restarted = c.restart_session(&info.session_id).unwrap();
     assert_eq!(restarted.generation, 2);
     c.remove_member(&ws, &member).unwrap();

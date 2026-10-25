@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Main window only, local content only. Exactly the ToolOnize command inventory (commands::ALLOWED_COMMANDS); no shell, filesystem, http, process, opener, dialog, or remote capabilities. Execution is reachable only via session_start/member_launch, which name a workspace member checked by the Rust execution policy.",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "allow-ping",
     "allow-app-startup-info",
