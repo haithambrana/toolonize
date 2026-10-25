@@ -44,6 +44,11 @@ pub struct Settings {
     /// Watch launcher roots for changes (FR-005).
     pub live_updates: bool,
     pub confirm_close_running: bool,
+    /// Copy terminal selections to the clipboard as soon as they are made.
+    pub copy_on_select: bool,
+    /// Let programs in a terminal (incl. over SSH, e.g. tmux/vim) write to
+    /// the local clipboard with OSC 52. Reading the clipboard is never allowed.
+    pub osc52_clipboard: bool,
 }
 
 impl Default for Settings {
@@ -59,6 +64,8 @@ impl Default for Settings {
             keymap: BTreeMap::new(),
             live_updates: true,
             confirm_close_running: true,
+            copy_on_select: false,
+            osc52_clipboard: true,
         }
     }
 }
@@ -77,6 +84,8 @@ const ACTIONS: &[&str] = &[
     "terminal.new",
     "member.next",
     "member.prev",
+    "member.rename",
+    "terminal.select_all",
     "focus.toggle",
     "view.launchers",
     "view.settings",

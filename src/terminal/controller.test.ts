@@ -8,9 +8,33 @@ import {
   type ControllerOptions,
 } from "./controller";
 
+const policy = { copyOnSelect: false, osc52: true };
+
 function options(confirm = vi.fn(async () => true)): ControllerOptions {
-  return { fontSize: 13, scrollback: 1000, theme: {}, confirmPaste: confirm, onDesync: vi.fn() };
+  return {
+    fontSize: 13,
+    scrollback: 1000,
+    theme: {},
+    confirmPaste: confirm,
+    onDesync: vi.fn(),
+    clipboardPolicy: () => policy,
+    onCopied: vi.fn(),
+    onContextMenu: vi.fn(),
+  };
 }
+
+const clipboard: string[] = [];
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: {
+    writeText: vi.fn(async (t: string) => {
+      clipboard.push(t);
+    }),
+    readText: vi.fn(async () => clipboard.at(-1) ?? ""),
+  },
+});
+
+const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
 async function flush() {
   await new Promise((r) => setTimeout(r, 0));
@@ -22,6 +46,9 @@ function term(): FakeTerminal {
 
 describe("TerminalController", () => {
   beforeEach(() => {
+    clipboard.length = 0;
+    policy.copyOnSelect = false;
+    policy.osc52 = true;
     resetControllers();
     resetFakeCore();
     terminals.length = 0;
@@ -200,5 +227,68 @@ describe("TerminalController", () => {
     resetControllers();
     expect(term().dispose).toHaveBeenCalledTimes(1);
     expect(calls.some((x) => x.cmd === "session_detach")).toBe(true);
+  });
+
+  it("OSC 52 from a program (e.g. tmux/vim over SSH) lands in the local clipboard", async () => {
+    const opts = options();
+    getController("s1", () => opts);
+    await flush();
+    term().osc(52, `c;${b64("copied on the server")}`);
+    await flush();
+    expect(clipboard).toEqual(["copied on the server"]);
+    expect(opts.onCopied).toHaveBeenCalledWith(20, "program");
+  });
+
+  it("OSC 52 never reads the clipboard and respects the setting", async () => {
+    getController("s1", options);
+    await flush();
+    clipboard.push("secret");
+    expect(term().osc(52, "c;?")).toBe(true);
+    expect(calls.some((x) => x.cmd === "session_write")).toBe(false);
+    policy.osc52 = false;
+    term().osc(52, `c;${b64("blocked")}`);
+    await flush();
+    expect(clipboard).toEqual(["secret"]);
+  });
+
+  it("OSC 52 in replayed history does not overwrite the clipboard", async () => {
+    core.sessions = [session({ session_id: "s1", member_id: "m1", end_offset: 100 })];
+    getController("s1", options);
+    await flush();
+    term().osc(52, `c;${b64("old")}`);
+    await flush();
+    expect(clipboard).toEqual([]);
+  });
+
+  it("copies the selection to the clipboard, and on select when enabled", async () => {
+    vi.useFakeTimers();
+    const opts = options();
+    const c = getController("s1", () => opts);
+    term().selection = "ls -la output";
+    expect(await c.copyToClipboard()).toBe(true);
+    expect(clipboard).toEqual(["ls -la output"]);
+    term().selectionHandlers.forEach((h) => h());
+    await vi.advanceTimersByTimeAsync(200);
+    expect(clipboard).toHaveLength(1);
+    policy.copyOnSelect = true;
+    term().selection = "auto copied";
+    term().selectionHandlers.forEach((h) => h());
+    await vi.advanceTimersByTimeAsync(200);
+    expect(clipboard.at(-1)).toBe("auto copied");
+    vi.useRealTimers();
+  });
+
+  it("opens the context menu instead of the WebView menu", () => {
+    const opts = options();
+    const c = getController("s1", () => opts);
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 20,
+    });
+    c.element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(opts.onContextMenu).toHaveBeenCalledWith(10, 20);
   });
 });

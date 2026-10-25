@@ -307,4 +307,70 @@ describe("ToolOnize app", () => {
     render(<App />);
     expect(await screen.findByText(/State recovered from an earlier snapshot/)).toBeInTheDocument();
   });
+
+  it("renames a terminal from its header; empty name resets (rename feature)", async () => {
+    core.workspaces = [workspace([member("a"), member("b")])];
+    core.active = "ws1";
+    core.sessions = [
+      session({ session_id: "s-a", member_id: "a" }),
+      session({ session_id: "s-b", member_id: "b" }),
+    ];
+    handlers.set("member_update", () => undefined);
+    const user = userEvent.setup();
+    render(<App />);
+    const header = await screen.findByRole("button", { name: /Shell a — double-click to rename/ });
+    await user.dblClick(header);
+    const dialog = await screen.findByRole("dialog", { name: "Rename terminal" });
+    const input = within(dialog).getByRole("textbox");
+    await user.clear(input);
+    await user.type(input, "API server logs");
+    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+    expect(calls.find((c) => c.cmd === "member_update")?.args).toEqual({
+      workspaceId: "ws1",
+      memberId: "a",
+      patch: { title: "API server logs" },
+    });
+    // No session was touched by renaming.
+    expect(
+      commandsCalled().filter((c) =>
+        ["session_start", "session_restart", "session_stop"].includes(c)
+      )
+    ).toEqual([]);
+  });
+
+  it("terminal context menu copies the selection to the local clipboard", async () => {
+    const copied: string[] = [];
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a", remote: true })];
+    const user = userEvent.setup();
+    // After setup(): user-event installs its own clipboard stub.
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (t: string) => void copied.push(t), readText: async () => "" },
+    });
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    terminals[0].selection = "uptime output from the server";
+    const host = document.querySelector(".terminal-host")!;
+    fireEvent.contextMenu(host, { clientX: 50, clientY: 60 });
+    const menu = await screen.findByRole("menu", { name: "Terminal actions" });
+    const copyItem = within(menu).getByRole("menuitem", { name: /Copy/ });
+    await user.click(copyItem);
+    await waitFor(() => expect(copied).toEqual(["uptime output from the server"]));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("Ctrl+Shift+V pastes the local clipboard via the native read (WebKitGTK-safe)", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a", remote: true })];
+    handlers.set("clipboard_read_text", () => "uname -a");
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    fireEvent.mouseDown(document.querySelector(".term-pane")!);
+    fireEvent.keyDown(window, { code: "KeyV", key: "V", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(terminals[0].pasted).toEqual(["uname -a"]));
+    expect(commandsCalled()).toContain("clipboard_read_text");
+  });
 });

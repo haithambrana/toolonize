@@ -262,7 +262,7 @@ IPC command, dependency adoption, or format support.
 | T-CFG-02 | Atomic checksummed snapshot generations, loss-window report | `persist.rs` (ADR-006) |
 | T-WEB-01 | No command accepts program/args/command text; inventory, build manifest and capability file must match | `commands/mod.rs` tests |
 | T-WEB-02 | Input ≤ 1 MiB per write, ≤ 4 MiB queued per session; output never dropped (ack-driven backpressure, explicit desync) | `session/manager_tests.rs` |
-| T-TERM-02 | Multi-line paste warning that states whether bracketed paste is active | `controller.test.ts` |
+| T-TERM-02 | Multi-line paste warning that states whether bracketed paste is active; clipboard reads only on an explicit user paste (`clipboard_read_text`, text ≤ 1 MiB); terminal programs may *write* the local clipboard via OSC 52 (toggle in Settings, toast on every write, ≤ 1 MiB, ignored during history replay) but OSC 52 *read* requests are never answered | `controller.test.ts`, `clipboard.test.ts`, `commands/clipboard.rs` |
 | T-TERM-03 | ssh/tmux synthetic launchers from validated typed fields; ssh config never read | `shells.rs` (ADR-008) |
 | T-TERM-04 | Process-group SIGHUP → SIGKILL on stop/exit; app exit terminates children | `stop_terminates_process_group_t_pty_013` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |

@@ -806,7 +806,8 @@ impl Core {
             Some(t) => Some(validate_title(Some(t))?),
             None => None,
         };
-        self.with_workspace(workspace_id, |w, _, _| {
+        let renamed = title.is_some();
+        let shown = self.with_workspace(workspace_id, |w, reg, rs| {
             let m = w.member_mut(member_id).ok_or("member not found")?;
             if let Some(t) = title {
                 m.title = t;
@@ -817,8 +818,21 @@ impl Core {
             if let Some(v) = patch.detach_expected {
                 m.detach_expected = v;
             }
-            Ok(())
-        })
+            // Title a running session should show: the member title, or the
+            // launcher's alias/name when the title was reset.
+            let launcher = reg.effective(&m.launcher_id, rs);
+            Ok(m.title.clone().unwrap_or_else(|| {
+                launcher
+                    .map(|e| e.decision.alias.unwrap_or(e.launcher.display_name))
+                    .unwrap_or_else(|| m.launcher_id.clone())
+            }))
+        })?;
+        if renamed {
+            if let Some(info) = self.sessions.find_by_member(workspace_id, member_id) {
+                let _ = self.sessions.rename(&info.session_id, &shown);
+            }
+        }
+        Ok(())
     }
 
     pub fn save_layout(

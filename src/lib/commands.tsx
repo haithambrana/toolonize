@@ -1,5 +1,7 @@
 /** Keyboard/palette action dispatcher (FR-054). */
-import { addTerminal, selectWorkspace, setMode, setView } from "./actions";
+import { addTerminal, renameMember, selectWorkspace, setMode, setView } from "./actions";
+import { readClipboard } from "./clipboard";
+import type { TerminalController } from "../terminal/controller";
 import { cycle } from "../layout/modes";
 import { addMemberDialog } from "./addMember";
 import { peekController } from "../terminal/controller";
@@ -63,28 +65,23 @@ export async function runAction(action: Action): Promise<void> {
       return;
     }
     case "terminal.copy": {
-      const text = focusedController()?.copySelection();
-      if (text) {
-        await navigator.clipboard
-          ?.writeText(text)
-          .catch(() => notify("error", "Clipboard is not available"));
+      const c = focusedController();
+      if (c?.hasSelection() && !(await c.copyToClipboard())) {
+        notify("error", "Could not copy to the clipboard");
       }
       return;
     }
     case "terminal.paste": {
       const c = focusedController();
-      if (!c) return;
-      try {
-        const text = await navigator.clipboard.readText();
-        await c.paste(text);
-      } catch {
-        notify(
-          "warning",
-          "The system blocked clipboard access. Use Shift+Insert or the middle mouse button to paste."
-        );
-      }
+      if (c) await pasteInto(c);
       return;
     }
+    case "terminal.select_all":
+      focusedController()?.selectAll();
+      return;
+    case "member.rename":
+      if (w && s.focused) await renameMember(w.id, s.focused);
+      return;
     case "terminal.new":
       await addTerminal();
       return;
@@ -134,4 +131,17 @@ export function paletteItems(): PaletteItem[] {
   }
   items.push({ id: "view:activity", label: "Open Activity", run: () => setView("activity") });
   return items;
+}
+
+/** Paste the local clipboard into a terminal (multi-line warning applies). */
+export async function pasteInto(c: TerminalController): Promise<void> {
+  const text = await readClipboard();
+  if (text === null) {
+    notify(
+      "warning",
+      "The system blocked clipboard access. Use Shift+Insert or the middle mouse button to paste."
+    );
+    return;
+  }
+  await c.paste(text);
 }

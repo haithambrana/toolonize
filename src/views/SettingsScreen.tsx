@@ -180,6 +180,26 @@ export function SettingsScreen() {
             />
             Confirm before stopping a running terminal
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.copy_on_select}
+              onChange={(e) => void update(settings, { copy_on_select: e.target.checked })}
+            />
+            Copy selected text to the clipboard automatically
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.osc52_clipboard}
+              onChange={(e) => void update(settings, { osc52_clipboard: e.target.checked })}
+            />
+            Let terminal programs copy to my clipboard (OSC 52 — works over SSH, tmux, vim)
+          </label>
+          <p className="muted small">
+            Copying always goes to this computer’s clipboard, also when the terminal is an SSH
+            session. Programs can only write to the clipboard, never read it.
+          </p>
         </fieldset>
 
         <fieldset className="card">

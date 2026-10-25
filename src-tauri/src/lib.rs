@@ -37,6 +37,7 @@ pub fn run() {
         crate::commands::app::settings_update,
         crate::commands::app::audit_recent,
         crate::commands::app::open_url,
+        crate::commands::clipboard::clipboard_read_text,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
         crate::commands::registry::registry_set_hidden,

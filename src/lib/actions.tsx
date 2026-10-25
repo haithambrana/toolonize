@@ -300,3 +300,31 @@ export async function createWorkspace(): Promise<void> {
   const id = await attempt(() => api.createWorkspace(name), "Could not create workspace");
   if (id) await selectWorkspace(id);
 }
+
+/** Rename a workspace member (and its running terminal). Empty resets. */
+export async function renameMember(workspaceId: string, memberId: string): Promise<void> {
+  const w = getState().workspaces.find((x) => x.id === workspaceId);
+  const m = w?.members.find((x) => x.id === memberId);
+  if (!w || !m) return;
+  const name = await promptDialog({
+    title: "Rename terminal",
+    label: "Name (leave empty to use the launcher's name)",
+    initial: m.title ?? memberTitle(m),
+    confirm: "Rename",
+    validate: (v) =>
+      v.trim().length > 80
+        ? "At most 80 characters"
+        : [...v].some((c) => c.charCodeAt(0) < 32)
+          ? "Single line only"
+          : null,
+  });
+  if (name === undefined) return;
+  await saveMemberTitle(workspaceId, memberId, name);
+}
+
+export async function saveMemberTitle(workspaceId: string, memberId: string, name: string) {
+  await attempt(
+    () => api.updateMember(workspaceId, memberId, { title: name.trim() }),
+    "Could not rename"
+  );
+}

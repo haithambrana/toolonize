@@ -2,7 +2,7 @@
  * status card explaining why the member cannot run yet. */
 import type { MemberView, WorkspaceView } from "../lib/ipc";
 import { reviewMember } from "../lib/review";
-import { launchMember, memberTitle, removeMember, startMember } from "../lib/actions";
+import { launchMember, memberTitle, removeMember, renameMember, startMember } from "../lib/actions";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { sessionFor, setState, useAppState } from "../state/store";
 
@@ -24,6 +24,9 @@ function StatusCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
         <button type="button" className="btn btn-primary" onClick={() => void reviewMember(w, m)}>
           Review…
         </button>
+        <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
+          Rename
+        </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
           Remove
         </button>
@@ -44,6 +47,9 @@ function ExternalCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
       <div className="row-gap">
         <button type="button" className="btn btn-primary" onClick={() => void launchMember(w, m)}>
           Launch
+        </button>
+        <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
+          Rename
         </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
           Remove
@@ -76,6 +82,9 @@ function IdleCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
           data-testid="start-member"
         >
           Start
+        </button>
+        <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
+          Rename
         </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
           Remove

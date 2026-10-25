@@ -7,6 +7,7 @@
 //! that the build manifest, capability file, and tests are checked against.
 
 pub mod app;
+pub mod clipboard;
 pub mod ping;
 pub mod registry;
 pub mod session;
@@ -28,6 +29,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "settings_update",
     "audit_recent",
     "open_url",
+    "clipboard_read_text",
     "registry_view",
     "registry_rescan",
     "registry_set_hidden",
@@ -89,6 +91,7 @@ mod tests {
 
     const SOURCES: &[&str] = &[
         include_str!("app.rs"),
+        include_str!("clipboard.rs"),
         include_str!("ping.rs"),
         include_str!("registry.rs"),
         include_str!("session.rs"),

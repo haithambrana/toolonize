@@ -709,6 +709,15 @@ impl SessionManager {
         Ok(session.info())
     }
 
+    /// Rename a session's display title (the member was renamed). Never
+    /// touches the process.
+    pub fn rename(&self, id: &str, title: &str) -> Result<SessionInfo, SessionError> {
+        let session = self.get(id)?;
+        session.lock().title = title.to_string();
+        session.publish();
+        Ok(session.info())
+    }
+
     /// Report a view transition. Only the view machine changes.
     pub fn view_event(&self, id: &str, event: ViewEvent) -> Result<SessionInfo, SessionError> {
         let session = self.get(id)?;

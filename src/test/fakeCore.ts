@@ -39,6 +39,8 @@ export const settings: Settings = {
   keymap: {},
   live_updates: true,
   confirm_close_running: false,
+  copy_on_select: false,
+  osc52_clipboard: true,
 };
 
 export function entry(partial: Partial<RegistryEntry> & { launcher_id: string }): RegistryEntry {

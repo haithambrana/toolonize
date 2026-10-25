@@ -49,7 +49,7 @@ impl OriginKind {
             OriginKind::ProgramsCommon => "Start Menu (all users)",
             OriginKind::DesktopUser => "Desktop (user)",
             OriginKind::DesktopPublic => "Desktop (public)",
-            OriginKind::Synthetic => "Built-in shell",
+            OriginKind::Synthetic => "Built-in (ToolOnize)",
         }
     }
 

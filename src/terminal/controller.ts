@@ -15,6 +15,7 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { api, type AttachInfo, type SessionEvent } from "../lib/ipc";
+import { parseOsc52, writeClipboard } from "../lib/clipboard";
 
 const ACK_BYTES = 64 * 1024;
 const ACK_DELAY_MS = 16;
@@ -27,6 +28,11 @@ export interface ControllerOptions {
   confirmPaste: (text: string, bracketed: boolean) => Promise<boolean>;
   onDesync?: (reason: string) => void;
   onKey?: (event: KeyboardEvent) => boolean;
+  /** Read live so settings changes apply to running terminals. */
+  clipboardPolicy?: () => { copyOnSelect: boolean; osc52: boolean };
+  /** Text was placed on the local clipboard (selection or OSC 52). */
+  onCopied?: (chars: number, source: "selection" | "program") => void;
+  onContextMenu?: (x: number, y: number) => void;
 }
 
 let parking: HTMLDivElement | null = null;
@@ -81,6 +87,7 @@ export class TerminalController {
   private container: HTMLElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private acceptInput = true;
+  private selectionTimer: ReturnType<typeof setTimeout> | undefined;
   /** Frames that arrived before the attach call returned its start offset. */
   private early: ArrayBuffer[] | null = null;
 
@@ -106,6 +113,31 @@ export class TerminalController {
     this.term.onData((data) => this.input(this.encoder.encode(data)));
     this.term.onBinary((data) => this.input(Uint8Array.from(data, (c) => c.charCodeAt(0) & 0xff)));
     this.term.attachCustomKeyEventHandler((event) => this.options.onKey?.(event) ?? true);
+    // OSC 52: programs (tmux, vim, … also on a remote host over SSH) copy
+    // into the LOCAL clipboard. Clipboard reads ("?") are never answered.
+    this.term.parser.registerOscHandler(52, (data) => {
+      if (this.isReplaying || !(this.options.clipboardPolicy?.().osc52 ?? true)) return true;
+      const text = parseOsc52(data);
+      if (text) {
+        void writeClipboard(text).then(
+          (ok) => ok && this.options.onCopied?.(text.length, "program")
+        );
+      }
+      return true;
+    });
+    this.term.onSelectionChange(() => {
+      if (!this.options.clipboardPolicy?.().copyOnSelect) return;
+      clearTimeout(this.selectionTimer);
+      this.selectionTimer = setTimeout(() => {
+        const text = this.term.getSelection();
+        if (text) void writeClipboard(text);
+      }, 150);
+    });
+    this.element.addEventListener("contextmenu", (event) => {
+      if (!this.options.onContextMenu) return;
+      event.preventDefault();
+      this.options.onContextMenu(event.clientX, event.clientY);
+    });
     // Paste interception for the multi-line warning (FR-033, T-TERM-02).
     this.element.addEventListener(
       "paste",
@@ -288,6 +320,27 @@ export class TerminalController {
       if (!ok) return;
     }
     this.term.paste(text);
+  }
+
+  /** Copy the current selection to the local clipboard. */
+  async copyToClipboard(): Promise<boolean> {
+    const text = this.term.getSelection();
+    if (!text) return false;
+    const ok = await writeClipboard(text);
+    if (ok) this.options.onCopied?.(text.length, "selection");
+    return ok;
+  }
+
+  hasSelection(): boolean {
+    return this.term.hasSelection();
+  }
+
+  selectAll(): void {
+    this.term.selectAll();
+  }
+
+  clearScreen(): void {
+    this.term.clear();
   }
 
   copySelection(): string {

@@ -7,12 +7,19 @@
  * touches its PTY session (FR-031).
  */
 import { useEffect, useRef } from "react";
-import { Layout, Model, type IJsonModel, type TabNode } from "flexlayout-react";
+import {
+  Actions,
+  Layout,
+  Model,
+  type Action,
+  type IJsonModel,
+  type TabNode,
+} from "flexlayout-react";
 import "flexlayout-react/style/combined.css";
 import { api, type WorkspaceView } from "../lib/ipc";
-import { layoutMembers } from "../lib/actions";
+import { layoutMembers, saveMemberTitle } from "../lib/actions";
 import { setState, useAppState } from "../state/store";
-import { layoutFor, reconcile, type ModelJson } from "./modes";
+import { GLOBAL, layoutFor, reconcile, type ModelJson } from "./modes";
 import { stableStringify } from "./stable";
 import { MemberPane } from "./MemberPane";
 
@@ -22,6 +29,8 @@ function buildModel(w: WorkspaceView): { model: Model } {
   const members = layoutMembers(w);
   const json =
     reconcile(w.layout.json, members) ?? layoutFor(w.layout.mode, members, w.layout.focused_member);
+  // Current app-wide tab behavior (e.g. rename) wins over older snapshots.
+  json.global = { ...(json.global ?? {}), ...GLOBAL };
   let model: Model;
   try {
     model = Model.fromJson(json as IJsonModel);
@@ -76,6 +85,21 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
     }, SAVE_DELAY_MS);
   };
 
+  // Tab double-click / F2 rename: persist as the member's title in the core.
+  const onAction = (action: Action): Action | undefined => {
+    if (action.type === Actions.RENAME_TAB) {
+      const data = action.data as { node: string; text: string };
+      const node = model.getNodeById(data.node) as TabNode | undefined;
+      const memberId = (node?.getConfig?.() as { memberId?: string } | undefined)?.memberId;
+      const text = data.text.trim();
+      if (!memberId || text.length > 80) return undefined;
+      void saveMemberTitle(workspace.id, memberId, text);
+      // An empty name resets to the launcher name once the core replies.
+      return text ? action : undefined;
+    }
+    return action;
+  };
+
   const factory = (node: TabNode) => {
     if (node.getComponent() !== "member") return <div className="member-card muted">Empty</div>;
     const memberId = (node.getConfig() as { memberId: string }).memberId;
@@ -91,6 +115,7 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
         model={model}
         factory={factory}
         onModelChange={onModelChange}
+        onAction={onAction}
         supportsPopout={false}
         realtimeResize
       />

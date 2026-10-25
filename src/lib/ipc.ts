@@ -228,6 +228,8 @@ export interface Settings {
   keymap: Record<string, string>;
   live_updates: boolean;
   confirm_close_running: boolean;
+  copy_on_select: boolean;
+  osc52_clipboard: boolean;
 }
 
 export interface StartupInfo {
@@ -287,6 +289,7 @@ export const api = {
   updateSettings: (settings: Settings) => invoke<void>("settings_update", { settings }),
   audit: (limit: number) => invoke<AuditEntry[]>("audit_recent", { limit }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  clipboardRead: () => invoke<string | null>("clipboard_read_text"),
 
   registry: () => invoke<RegistryView>("registry_view"),
   rescan: () => invoke<Diff>("registry_rescan"),

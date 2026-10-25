@@ -237,6 +237,40 @@ fn terminal_member_lifecycle_and_startup_policy() {
     // A renderer reload re-opens without a choice: the policy does not run again.
     let reload = c.open_workspace(&ws, None).unwrap();
     assert!(!reload.needs_choice && reload.outcomes.is_empty());
+    // Renaming a member renames its running session; process untouched.
+    c.update_member(
+        &ws,
+        &member,
+        MemberPatch {
+            title: Some("Build shell".into()),
+            auto_restart: None,
+            detach_expected: None,
+        },
+    )
+    .unwrap();
+    let renamed = c.sessions.info(&info.session_id).unwrap();
+    assert_eq!(renamed.title, "Build shell");
+    assert_eq!(renamed.generation, info.generation);
+    assert_eq!(
+        c.workspaces().0[0].members[0].member.title.as_deref(),
+        Some("Build shell")
+    );
+    // An empty title resets to the launcher's name.
+    c.update_member(
+        &ws,
+        &member,
+        MemberPatch {
+            title: Some("  ".into()),
+            auto_restart: None,
+            detach_expected: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(c.workspaces().0[0].members[0].member.title, None);
+    assert_ne!(
+        c.sessions.info(&info.session_id).unwrap().title,
+        "Build shell"
+    );
     let restarted = c.restart_session(&info.session_id).unwrap();
     assert_eq!(restarted.generation, 2);
     c.remove_member(&ws, &member).unwrap();

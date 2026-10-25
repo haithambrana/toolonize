@@ -48,6 +48,8 @@ export interface AppState {
   /** Session whose scrollback search bar is open. */
   searchOpen: string | null;
   resolvedTheme: "dark" | "light" | "high_contrast";
+  /** Open terminal context menu. */
+  termMenu: { sessionId: string; memberId: string; x: number; y: number } | null;
 }
 
 const initial: AppState = {
@@ -69,6 +71,7 @@ const initial: AppState = {
   opened: {},
   searchOpen: null,
   resolvedTheme: "dark",
+  termMenu: null,
 };
 
 let state: AppState = initial;

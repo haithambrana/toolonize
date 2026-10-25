@@ -16,6 +16,16 @@ export class FakeTerminal {
   focused = 0;
   selection = "";
   private dataHandlers: ((d: string) => void)[] = [];
+  oscHandlers = new Map<number, (data: string) => boolean>();
+  selectionHandlers: (() => void)[] = [];
+  selectedAll = 0;
+  cleared = 0;
+  parser = {
+    registerOscHandler: (id: number, handler: (data: string) => boolean) => {
+      this.oscHandlers.set(id, handler);
+      return { dispose() {} };
+    },
+  };
   private pendingCallbacks: (() => void)[] = [];
   autoFlush = true;
   dispose = vi.fn(() => {
@@ -61,6 +71,23 @@ export class FakeTerminal {
   }
   getSelection() {
     return this.selection;
+  }
+  hasSelection() {
+    return this.selection.length > 0;
+  }
+  selectAll() {
+    this.selectedAll++;
+  }
+  clear() {
+    this.cleared++;
+  }
+  onSelectionChange(handler: () => void) {
+    this.selectionHandlers.push(handler);
+    return { dispose() {} };
+  }
+  /** Simulate a program emitting an OSC sequence. */
+  osc(id: number, data: string) {
+    return this.oscHandlers.get(id)?.(data);
   }
   /** Simulate the user typing (or xterm answering a terminal query). */
   type(data: string) {

@@ -17,6 +17,8 @@ export type Action =
   | "terminal.new"
   | "member.next"
   | "member.prev"
+  | "member.rename"
+  | "terminal.select_all"
   | "focus.toggle"
   | "view.launchers"
   | "view.settings";
@@ -35,6 +37,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   "terminal.new": "Add a terminal to this workspace",
   "member.next": "Focus next member",
   "member.prev": "Focus previous member",
+  "member.rename": "Rename the focused terminal",
+  "terminal.select_all": "Select all terminal text",
   "focus.toggle": "Toggle focus on current member",
   "view.launchers": "Open the Launchers review queue",
   "view.settings": "Open Settings",
@@ -54,6 +58,8 @@ export const DEFAULT_KEYMAP: Record<Action, string> = {
   "terminal.new": "Ctrl+Shift+T",
   "member.next": "Ctrl+Shift+ArrowRight",
   "member.prev": "Ctrl+Shift+ArrowLeft",
+  "member.rename": "Ctrl+Shift+R",
+  "terminal.select_all": "Ctrl+Shift+A",
   "focus.toggle": "Ctrl+Shift+Enter",
   "view.launchers": "Ctrl+Shift+L",
   "view.settings": "Ctrl+,",

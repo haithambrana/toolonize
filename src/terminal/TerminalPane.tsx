@@ -9,6 +9,7 @@ import {
   memberTitle,
   reconnectSession,
   restartSession,
+  renameMember,
   stopSession,
 } from "../lib/actions";
 import { processLabel } from "../lib/labels";
@@ -169,7 +170,9 @@ export function TerminalPane({
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    const controller = getController(sessionId, () => controllerOptions(settings, theme));
+    const controller = getController(sessionId, () =>
+      controllerOptions(settings, theme, { sessionId, memberId: member.id })
+    );
     controller.mount(node);
     return () => controller.unmount(node);
     // Options are applied separately; remounting must not depend on them.
@@ -200,9 +203,15 @@ export function TerminalPane({
     >
       <div className="pane-header">
         <span className={`state-dot state-${session.process_state.kind}`} aria-hidden="true" />
-        <span className="pane-title" title={memberTitle(member)}>
+        <button
+          type="button"
+          className="pane-title title-button"
+          title="Double-click to rename"
+          aria-label={`${memberTitle(member)} — double-click to rename`}
+          onDoubleClick={() => void renameMember(workspace.id, member.id)}
+        >
           {memberTitle(member)}
-        </span>
+        </button>
         <span className="muted small">{processLabel(session)}</span>
         {session.detach_expected && (
           <span

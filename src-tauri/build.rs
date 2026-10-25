@@ -9,6 +9,7 @@ fn main() {
             "settings_update",
             "audit_recent",
             "open_url",
+            "clipboard_read_text",
             "registry_view",
             "registry_rescan",
             "registry_set_hidden",

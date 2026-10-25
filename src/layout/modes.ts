@@ -48,7 +48,7 @@ export interface ModelJson {
 export const GLOBAL = {
   tabEnableClose: false,
   tabEnablePopout: false,
-  tabEnableRename: false,
+  tabEnableRename: true,
   tabSetEnableMaximize: true,
   tabSetEnableTabStrip: true,
   tabSetEnableClose: false,

@@ -28,10 +28,17 @@ nix = { version = "0.28", features = ["signal", "process", "fs", "poll"], option
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Native clipboard read for terminal paste (WebKitGTK blocks the web API).
+# Already part of Tauri's dependency tree on Linux; pinned to the same version.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
   "Win32_System_Registry",
   "Win32_System_Threading",
   "Win32_UI_Shell",

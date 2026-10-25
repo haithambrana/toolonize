@@ -11,6 +11,7 @@
     "allow-settings-update",
     "allow-audit-recent",
     "allow-open-url",
+    "allow-clipboard-read-text",
     "allow-registry-view",
     "allow-registry-rescan",
     "allow-registry-set-hidden",
