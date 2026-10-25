@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Hostile Quoting
+Exec=example-tool foo;whoami "unterminated

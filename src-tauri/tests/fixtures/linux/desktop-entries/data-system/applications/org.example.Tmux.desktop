@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Main tmux session
+Exec=tmux new-session -A -s main
+Terminal=true

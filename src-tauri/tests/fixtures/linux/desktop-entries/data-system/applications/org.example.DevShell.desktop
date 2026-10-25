@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Example Dev Shell
+Exec=bash -l
+Terminal=true

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=KDE Only Example
+Exec=kde-only-example
+OnlyShowIn=KDE;
