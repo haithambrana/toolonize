@@ -1,7 +1,7 @@
 # Domain Model
 
-Status: DRAFT — pending human review. Conceptual entities and invariants;
-no code.
+Status: HUMAN APPROVED. Implemented in `src-tauri/src/{model,workspace,
+registry,session}`; invariants are covered by the tests listed in STATUS.md.
 
 ---
 

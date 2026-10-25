@@ -1,8 +1,7 @@
 # Test Strategy
 
-Status: DRAFT — designed before implementation (constitution rule 10).
-Nothing is implemented; this document defines the testing contract that
-milestones must satisfy.
+Status: HUMAN APPROVED; designed before implementation (constitution rule
+10). §12 maps the implemented suites to these test IDs.
 
 Principles:
 - Tests are specified with requirements, not retrofitted.
@@ -325,3 +324,25 @@ expanded test-ID registry; it MUST report the canonical unique test count;
 requirement coverage MUST be checked against the expanded registry. A naive
 grep/token count of explicitly written IDs is NOT authoritative and MUST NOT
 be treated as such.
+
+
+## 12. Implemented suites (2026-10-25)
+
+Where each test-ID family lives. Run Rust suites with `cargo test` in
+`src-tauri/` and frontend suites with `npm test`.
+
+| Test IDs | Implementation |
+| --- | --- |
+| T-PTY-001..013 (automated subset) | `src-tauri/src/session/manager_tests.rs` (Unix PTY and Windows ConPTY modules), `src-tauri/src/pty/dsr.rs` |
+| T-STATE-001..005 | `src-tauri/src/session/state.rs`, `manager_tests.rs` (`detach_reattach_is_view_only_t_state_002`, `dead_view_detaches_without_touching_process_fs_07`), `src/terminal/controller.test.ts` |
+| T-UI-001..006 | `src/terminal/controller.test.ts`, `src/App.test.tsx`, `src/lib/keymap.test.ts` |
+| T-LAYOUT-001..004 | `src/layout/modes.test.ts`, `src/App.test.tsx`, `src-tauri/src/workspace.rs` |
+| T-DISC-LNX-* | `src-tauri/src/discovery/{linux_tests,keyfile,exec,walk,watch}.rs` with `src-tauri/tests/fixtures/linux/` |
+| T-DISC-WIN-* | `src-tauri/src/discovery/{lnk,windows}.rs` (shortcuts generated at test time) |
+| T-POLICY-001..007 | `src-tauri/src/{policy,registry,classify,external}.rs`, `src-tauri/src/app_tests.rs`, `src/App.test.tsx` |
+| T-PERSIST-001..004 | `src-tauri/src/{persist,transfer}.rs`, `src-tauri/src/app_tests.rs` |
+| T-SEC-001..007 | `src-tauri/src/commands/mod.rs`, `exec.rs`, `policy.rs`, `external.rs`, `walk.rs`, `audit.rs`, `app_tests.rs` |
+
+Measurement harness: `cargo run --release --example perf` (results in
+`docs/research/perf/`). Manual matrices (WebView2 smoke, WSL, clean-VM
+install, screen readers) are tracked in `docs/release/RELEASE_CHECKLIST.md`.

@@ -2,88 +2,70 @@
 
 **Your existing dev tools. One persistent workspace.**
 
-ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows** (V1). It discovers the launchers and tools you already have, lets you compose them into persistent workspaces, embeds your terminal sessions, and launches your GUI tools — with explicit review before anything executes.
+ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows**. It discovers the launchers and tools you already have — without running any of them — lets you review them, and composes terminals, SSH/tmux sessions and GUI applications into persistent docking workspaces.
 
-> **Status: M1 Cross-Platform Framework Shell — in progress.** Implementation has begun; only the M1 framework shell exists/in progress. User-facing ToolOnize functionality (terminal, workspace, launcher, PTY, layout, SSH/tmux, persistence) remains planned. See [`docs/product/STATUS.md`](docs/product/STATUS.md).
+> **Status: V1 implemented, pending human review.** Milestones M3–M10 were implemented in one pass after the owner waived per-milestone review pauses. No release has been published. See [`docs/product/STATUS.md`](docs/product/STATUS.md) for evidence and the honest list of open items (notably manual Windows/WebView2 verification and some performance budgets).
 
-Former discovery-phase codename was "Dev Command Center" — see [`docs/research/NAMING_RESEARCH.md`](docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal trademark clearance.
+## What it does
 
----
+- **Launcher discovery (read-only).** Linux XDG application entries with spec precedence (incl. Flatpak/Snap exports), the user's Desktop folder via `xdg-user-dirs`, and opt-in custom folders; Windows Start Menu and Desktop shortcuts via Known Folders. `.lnk` files are read from their stored metadata — ToolOnize never calls `IShellLink::Resolve`. Discovery never executes anything, never scans `PATH`, never uses the network. Folders are watched for changes.
+- **Conservative review.** Every launcher is classified (Terminal, Local command, Remote/SSH, External app, or Needs review) with human-readable evidence. Entries from user-writable places, interpreter launchers (`sh -c`, `cmd /c`, PowerShell `-Command`, scripts) and anything ambiguous need an explicit review of the exact command before they can run.
+- **Workspaces.** Members, a docking layout (Grid / Focus / Tabs / Master + Stack) and a startup policy (Ask / layout only / start terminals / also launch apps), restored after restart.
+- **Embedded terminals.** bash/zsh/fish/sh, PowerShell, cmd, WSL distributions, your own `ssh`, tmux. Moving, maximizing, switching tabs or modes never restarts a terminal. Output delivery is lossless (acknowledged, with backpressure); terminals survive a window reload. Search, copy/paste with a multi-line paste warning, exit banner with restart, honest reconnect semantics (plain SSH starts a new remote shell; tmux/screen persist).
+- **External apps.** Authorized GUI members launch detached through the OS; ToolOnize does not manage their windows.
+- **Trust model.** Execution authorization is bound to `launcher_id + descriptor_fingerprint + workspace member`. If a launcher's command changes, its members keep their place but need re-review before the next start; running sessions are untouched. All decisions are recorded in a local, redacted audit log.
+- **Local-first.** No account, no cloud, no telemetry. Non-secret workspace export/import (imports land in review; nothing runs).
 
-## Planned V1 capabilities
+## Build and run
 
-- **Launcher discovery** — Linux XDG application entries (incl. Flatpak/Snap exports, the user's Desktop directory via `xdg-user-dirs`, and opt-in custom roots) and Windows Known Folders / `.lnk` shortcuts. Discovery is metadata-only; nothing discovered ever executes automatically.
-- **Conservative classification & review** — every discovered launcher is classified as Embedded Terminal candidate, Local Command, Remote/SSH, External GUI, or Unknown/Needs Review. Unknown is the safe default.
-- **Persistent workspaces** — members + docking layout (Grid / Focus / Tabs / Master+Stack) + startup policy, restored after restart.
-- **Embedded PTY terminal members** — bash/sh, PowerShell, cmd, WSL distros, the user's `ssh`, and tmux attach interop. Resize, drag, and mode switches never respawn the underlying PTY.
-- **Authorized external GUI launching** — external apps launch detached via the OS mechanism; ToolOnize does not manage foreign windows.
-- **SSH/tmux interoperability** — delegates to the user's own `ssh` and `tmux`/`screen`; honest reconnection semantics (plain SSH reconnects start a new remote session unless the remote itself persists).
-- **Conservative authorization** — execution is bound to `launcher_id + descriptor_fingerprint + workspace/member scope` and lives in the Rust core; the WebView never receives raw spawn power.
+Prerequisites: Node.js LTS, stable Rust, and on Linux the WebKitGTK 4.1 development packages (see `.github/workflows/ci.yml` for the exact list).
 
-**Non-goals for V1:** IDE/editor, cloud sync, collaboration, plugin system, AI assistant, password manager, macOS support, PATH-wide discovery, auto-updater. See [`docs/product/PRD.md`](docs/product/PRD.md) §3 and §15.
+```bash
+npm ci
+npm run tauri -- dev      # development window
+npm run tauri -- build    # installers: deb + AppImage (Linux), NSIS (Windows)
+```
 
-Implementation has **begun** with the M1 framework shell (Tauri 2 window + hardened IPC) on branch `m1-framework-shell`. User-facing ToolOnize functionality remains planned; only the M1 shell is in progress. The existing Python/GTK prototype in the separate repository is disposable and not part of this codebase (per `AGENTS.md`).
+Tests and checks:
 
----
+```bash
+npm test && npm run lint && npm run typecheck
+cd src-tauri && cargo test && cargo clippy --all-targets --all-features -- -D warnings
+cargo run --release --example perf    # measurement harness (Linux)
+```
+
+State lives in `$XDG_STATE_HOME/toolonize` and settings in `$XDG_CONFIG_HOME/toolonize` (Linux) or `%APPDATA%\toolonize` (Windows); `TOOLONIZE_STATE_DIR` / `TOOLONIZE_CONFIG_DIR` override them. Deleting those folders removes everything ToolOnize stored.
+
+## Architecture in one paragraph
+
+A Rust core (Tauri 2) owns all privileged work: discovery, registry, classification, execution policy, PTY sessions (portable-pty 0.9.0 with ToolOnize mitigations), persistence. The React/TypeScript frontend is treated as untrusted: it can only call a fixed inventory of typed commands — none takes a program, arguments or command text — and execution is reachable only by naming a workspace member that the Rust policy then checks. Each terminal session has one long-lived xterm.js host that layout changes merely attach or park. Details: [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) (§15 maps components to code).
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
+| [`docs/product/STATUS.md`](docs/product/STATUS.md) | Milestone status, evidence, open items |
 | [`docs/product/PRD.md`](docs/product/PRD.md) | Product requirements and V1 scope |
-| [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and component boundaries |
-| [`docs/architecture/DOMAIN_MODEL.md`](docs/architecture/DOMAIN_MODEL.md) | Domain entities, invariants, state machines |
+| [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and code map |
+| [`docs/architecture/DOMAIN_MODEL.md`](docs/architecture/DOMAIN_MODEL.md) | Entities, invariants, state machines |
 | [`docs/architecture/PLATFORM_ADAPTERS.md`](docs/architecture/PLATFORM_ADAPTERS.md) | Linux/Windows adapter contracts |
-| [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) | Assets, trust boundaries, threats, mitigations |
-| [`docs/security/PUBLIC_REPOSITORY_SAFETY.md`](docs/security/PUBLIC_REPOSITORY_SAFETY.md) | Rules that keep the repo safe for public release |
-| [`docs/product/ROADMAP.md`](docs/product/ROADMAP.md) | Phased milestones M0–M10 |
-| [`docs/product/IMPLEMENTATION_PLAN.md`](docs/product/IMPLEMENTATION_PLAN.md) | Per-milestone work units, tests, gates |
-| [`docs/product/TEST_STRATEGY.md`](docs/product/TEST_STRATEGY.md) | Test layers, fixtures, traceability matrix |
-| [`docs/product/STATUS.md`](docs/product/STATUS.md) | Current phase and gate status |
+| [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) | Threats, mitigations, implementation status |
+| [`docs/security/DEPENDENCIES.md`](docs/security/DEPENDENCIES.md) | Dependency inventory and licenses |
+| [`docs/product/TEST_STRATEGY.md`](docs/product/TEST_STRATEGY.md) | Test layers, traceability, where suites live |
+| [`docs/research/perf/BASELINE.md`](docs/research/perf/BASELINE.md) | Measured performance baseline |
+| [`docs/release/RELEASE_CHECKLIST.md`](docs/release/RELEASE_CHECKLIST.md) | Release gates and manual smoke matrix |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records |
-| [`docs/testing/FIXTURE_POLICY.md`](docs/testing/FIXTURE_POLICY.md) | Fictional-fixture rules |
 
----
+## Non-goals (V1)
 
-## Project phase
+IDE/editor, cloud sync, collaboration, plugin system, AI assistant, password manager, embedding foreign GUI windows, macOS, PATH-wide discovery, auto-updater, free-form custom commands. See [`docs/product/PRD.md`](docs/product/PRD.md) §3.
 
-`M1 — Cross-Platform Framework Shell` is in progress on branch `m1-framework-shell`. `M0 — Repository Foundation` is complete and human-approved.
+## Security
 
-```
-M0: COMPLETE / HUMAN APPROVED
-M1: IN PROGRESS — Cross-Platform Framework Shell
-Public repository: CREATED — <owner>/toolonize
-Implementation: STARTED — M1 framework shell only
-Repository safety CI: GREEN at M1 start
-```
-
-## Platforms
-
-V1 targets **Linux and Windows** via one cross-platform codebase with platform adapters. macOS is not in V1 scope.
-
-## Security model (summary)
-
-- Discovery never executes.
-- Only explicitly pinned/authorized members are executable; authorization is checked in Rust against `launcher_id + descriptor_fingerprint + scope`.
-- No generic exec IPC command exists; every WebView→Rust command is typed, validated, and capability-scoped (Tauri 2).
-- No plaintext credential storage; SSH delegates to the user's agent/config.
-- See [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) and [`SECURITY.md`](SECURITY.md).
+See [`SECURITY.md`](SECURITY.md) for reporting vulnerabilities and [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) for the model, including what V1 intentionally does not protect against.
 
 ## Licensing
 
-Dual-licensed at your option:
+Dual-licensed at your option under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE). Unless explicitly stated otherwise, contributions are licensed under either at your option. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-- [MIT License](LICENSE-MIT)
-- [Apache License 2.0](LICENSE-APACHE)
-
-Unless explicitly stated otherwise, contributions are licensed under **either** MIT **or** Apache-2.0 at your option. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Preliminary naming research is not legal trademark clearance; formal review remains a later release gate if required.
-
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). **Do not include secrets, machine-specific launchers, SSH configuration, credentials, IP addresses, usernames, tokens, or private paths** in issues, PRs, or fixtures.
-
-## Questions
-
-For product direction see the PRD and ADRs. For repository usage see `AGENTS.md`.
+Former discovery-phase codename was "Dev Command Center" — see [`docs/research/NAMING_RESEARCH.md`](docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal trademark clearance.

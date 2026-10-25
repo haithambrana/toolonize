@@ -1,6 +1,7 @@
 # Platform Adapters
 
-Status: DRAFT — pending human review. Contracts and platform facts; no code.
+Status: HUMAN APPROVED. Implemented in `src-tauri/src/discovery/` and
+`src-tauri/src/shells.rs`; the M6 Windows decisions are recorded in ADR-007.
 
 The Platform Adapter API isolates every OS difference behind three traits so
 the core engine stays platform-agnostic (constitution rule 4). Platform

@@ -1,6 +1,7 @@
 # Threat Model
 
-Status: DRAFT — pending human review. Structured as
+Status: HUMAN APPROVED; mitigations implemented (M3–M10, pending review —
+see §7). Structured as
 Assets → Trust Boundaries → Threats (STRIDE-informed) → Mitigations →
 Explicit non-goals. IDs are stable for traceability from PRD SEC-* and tests.
 
@@ -234,8 +235,8 @@ Stated plainly to keep trust honest:
 
 | Risk | Sev | Status |
 | --- | --- | --- |
-| R1 PTY backend instability on Windows (ADR-004 open) | High | spike M2 mandatory gate |
-| R2 flexlayout state preservation unproven | Med | M4 go/no-go test |
+| R1 PTY backend instability on Windows | High | ADR-004 accepted; mitigations implemented; ConPTY regression tests on Windows CI; manual WebView2 run pending |
+| R2 flexlayout state preservation | Med | Stable terminal-host architecture; automated M4 gate passes (ADR-003) |
 | R3 WebKitGTK variance across distros | Med | M1 smoke + documented min versions |
 | R4 npm/Rust supply chain | Med | CI audit gates + minimal deps |
 | R5 Packaged-app discovery gap vs user expectation | Low | M6 spike decides messaging |
@@ -244,3 +245,26 @@ Stated plainly to keep trust honest:
 
 Threat model re-reviewed at each milestone security gate and before any new
 IPC command, dependency adoption, or format support.
+
+## 7. Implementation status of mitigations (2026-10-25, pending review)
+
+| Threat | Implemented mitigation | Tests |
+| --- | --- | --- |
+| T-DISC-01/07 | Conservative origins (Desktop dir, custom roots, Windows desktops) always require review; review UI shows origin, source file, argv, evidence | `classify.rs`, `app_tests.rs` |
+| T-DISC-02 | Bounded keyfile parser (64 KiB, line/group/key caps, strict UTF-8, duplicates rejected) | `keyfile.rs` incl. property test |
+| T-DISC-03 | Spec Exec tokenizer, discrete argv, no shell anywhere; Windows argument strings passed raw; interpreter targets flagged | `exec.rs`, `policy.rs`, `external.rs` (argv probe) |
+| T-DISC-04 | `launcher_id` vs `descriptor_fingerprint`; approvals and member authorizations bound to fingerprints | `registry.rs`, `policy.rs`, `app_tests.rs` |
+| T-DISC-05 | Walker never follows symlinks leaving the root; such entries are flagged unread | `walk.rs`, `linux_tests.rs` |
+| T-DISC-06 | No PATH enumeration; PATH-resolved programs labeled in review | `linux_tests.rs` |
+| T-WIN-01/02 | Stored-metadata `.lnk` reader, never `Resolve`; 1 MiB cap; UNC never touched | `lnk.rs`, `windows.rs` (ADR-007) |
+| T-WIN-03 | ConPTY pseudoconsole (no console window); detached external launches use `DETACHED_PROCESS` | Windows CI |
+| T-CFG-01 | Layout schema validation (node types, scalar attributes, member refs, depth/size caps, no popouts); strict import schema; imports staged, unauthorized, startup policy reset to Ask | `workspace.rs`, `transfer.rs`, `app_tests.rs` |
+| T-CFG-02 | Atomic checksummed snapshot generations, loss-window report | `persist.rs` (ADR-006) |
+| T-WEB-01 | No command accepts program/args/command text; inventory, build manifest and capability file must match | `commands/mod.rs` tests |
+| T-WEB-02 | Input ≤ 1 MiB per write, ≤ 4 MiB queued per session; output never dropped (ack-driven backpressure, explicit desync) | `session/manager_tests.rs` |
+| T-TERM-02 | Multi-line paste warning that states whether bracketed paste is active | `controller.test.ts` |
+| T-TERM-03 | ssh/tmux synthetic launchers from validated typed fields; ssh config never read | `shells.rs` (ADR-008) |
+| T-TERM-04 | Process-group SIGHUP → SIGKILL on stop/exit; app exit terminates children | `stop_terminates_process_group_t_pty_013` |
+| T-EXT-01 | http/https-only URL opener | `external.rs` |
+| T-SEC-01 | Export linter (key headers, token prefixes, long tokens, home paths); audit log never records argv/env/output; repo safety checks | `transfer.rs`, `audit.rs` |
+| T-SEC-02 | Draft-only releases with SHA-256 sums and build provenance; no signing claim | `release.yml` |

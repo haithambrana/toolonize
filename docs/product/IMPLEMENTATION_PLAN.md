@@ -1,6 +1,9 @@
 # Implementation Plan
 
-Status: DRAFT — pending human review. No code exists yet.
+Status: HUMAN APPROVED plan. M0–M2 delivered and approved; M3–M10 implemented
+on 2026-10-25 (per-milestone pauses waived by the owner) and pending review.
+The per-milestone delivery record and evidence live in STATUS.md; the plan
+text below is kept as approved.
 Milestones are dependency-aware vertical slices with explicit gates. No
 calendar dates or hour estimates are stated (constitution).
 

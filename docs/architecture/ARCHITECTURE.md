@@ -1,7 +1,7 @@
 # Architecture
 
-Status: DRAFT — pending human review. No code exists; diagrams are design
-artifacts, not descriptions of built software.
+Status: HUMAN APPROVED. Implemented as described (M3–M10, pending review);
+§15 maps each component to its code.
 
 Companion documents: DOMAIN_MODEL.md (entities), PLATFORM_ADAPTERS.md
 (OS boundaries), THREAT_MODEL.md (security analysis), TECHNOLOGY_RESEARCH.md
@@ -341,3 +341,34 @@ the go/no-go criterion is written into IMPLEMENTATION_PLAN M4.
 No plugin API, no scripting engine, no abstraction over "future cloud sync",
 no generic "task runner" concept, no custom widget toolkit, no ORM — each has
 no V1 customer per PRD scope.
+
+## 15. Implementation map
+
+| Component (§4) | Code |
+| --- | --- |
+| IPC command surface | `src-tauri/src/commands/` — inventory `ALLOWED_COMMANDS`, checked against `build.rs` and `capabilities/default.json` by tests |
+| Application core (transactions, events) | `src-tauri/src/app.rs` |
+| Launcher Registry | `src-tauri/src/registry.rs` |
+| Launcher Classification | `src-tauri/src/classify.rs` |
+| Change Watch | `src-tauri/src/discovery/watch.rs` (`notify`: inotify / ReadDirectoryChangesW) |
+| Platform adapters | `src-tauri/src/discovery/{linux,keyfile,exec,walk}.rs`, `discovery/{windows,lnk}.rs`, `shells.rs` |
+| Workspace Engine | `src-tauri/src/workspace.rs` + `app.rs` |
+| Security / Execution Policy | `src-tauri/src/policy.rs`, audit in `audit.rs` |
+| External App Launcher | `src-tauri/src/external.rs` |
+| Terminal Session Manager | `src-tauri/src/session/{manager,output,state}.rs` |
+| PTY layer | `src-tauri/src/pty/` (portable-pty 0.9.0 + mitigations, ADR-004) |
+| Persistence | `src-tauri/src/persist.rs` (ADR-006), `transfer.rs` (import/export), `settings.rs` |
+| Layout UI | `src/layout/` (FlexLayout, pure mode presets) |
+| TerminalView | `src/terminal/` (long-lived controller per session; panes attach/park it) |
+| Review Queue UX | `src/views/LaunchersScreen.tsx`, `src/lib/review.tsx` |
+| UI State Store | `src/state/store.ts` (projection of core state, refreshed by core events) |
+
+Output transport as built: the PTY reader appends to a per-session log with
+absolute offsets; one pump thread sends `[u64 LE offset][bytes]` frames over
+a Tauri Channel to the attached view; the view acknowledges after xterm.js
+finished writing. The reader pauses at the high-water mark of unacknowledged
+bytes (2 MiB, resumes at 1 MiB); a view that stops acknowledging for 20 s
+while the reader is paused is detached with an explicit desync event. With no
+view attached, a bounded replay window (default 4 MiB, configurable) is kept
+so a reloaded renderer can redraw; a reattach that falls outside it is told
+`trimmed` and resets the screen with a visible notice.

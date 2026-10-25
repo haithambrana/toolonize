@@ -1,8 +1,9 @@
 # ADR-003: flexlayout-react for workspace docking layout
 
 Date: 2026-08-26
-Status: **Accepted as leading choice — conditional on M4 state-preservation
-gate (fallback: dockview)**
+Status: **Accepted with the stable-host architecture — M4 gate passed in
+automated tests; pending human review** (per-milestone review pause waived by
+the owner on 2026-10-25, see STATUS.md). Fallback dockview not needed.
 
 ## Context
 
@@ -68,6 +69,37 @@ fails for reasons we cannot work around, fall back to **dockview-react**
 
 We do not build/maintain a recursive pane engine; UI effort concentrates on
 workspace semantics instead.
+
+## M4 gate outcome (2026-10-25)
+
+The stable host/portal pattern from the Conditions section was adopted from
+the start instead of relying on FlexLayout's direct-mount behavior:
+
+- One `TerminalController` per PTY session owns the xterm.js `Terminal` and
+  its host element (`src/terminal/controller.ts`). FlexLayout tab components
+  only *attach* that element to their container and *park* it in an
+  off-screen container when FlexLayout unmounts them. `dispose()` is called
+  only when a session is closed or its member removed.
+- Mode presets are pure functions over the layout JSON
+  (`src/layout/modes.ts`); they cannot reach sessions.
+- The Rust session's process state is a separate state machine; view
+  transitions are reported as `attach`/`hide`/`detach` only.
+
+Evidence:
+
+- `src/terminal/controller.test.ts`: Terminal identity stable across
+  mount/unmount/remount, no dispose, no session start/stop/restart calls.
+- `src/App.test.tsx` ("mode switches never recreate terminals"): rendering
+  the real FlexLayout `Layout`, switching Tabs → Master+Stack → Focus → Grid
+  keeps the same two Terminal instances, never disposes them, and issues no
+  session commands.
+- `src-tauri/src/session/manager_tests.rs`
+  (`detach_reattach_is_view_only_t_state_002`): detach/hide/reattach keeps
+  pid and generation and loses no bytes.
+- Manual run (Linux, WebKitGTK under Xvfb): a live shell kept its scrollback
+  through Grid → Master+Stack → Tabs and through a renderer reload.
+
+Not yet evidenced: the same manual run on WebView2 (Windows).
 
 ## Links
 

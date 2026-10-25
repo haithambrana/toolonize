@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [main, m1-framework-shell]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -1,7 +1,7 @@
 # Product Requirements Document — ToolOnize
 
-Status: DRAFT — pending human review gate.
-Phase: Discovery. Nothing in this document is implemented.
+Status: HUMAN APPROVED. V1 implemented (M3–M10) and pending human review;
+see STATUS.md for evidence and open items per requirement area.
 Product name: **ToolOnize** (human-approved; formerly temporary codename "Dev Command Center" during discovery — see §17 Naming and docs/research/NAMING_RESEARCH.md).
 
 Related: ARCHITECTURE.md, THREAT_MODEL.md, IMPLEMENTATION_PLAN.md,
