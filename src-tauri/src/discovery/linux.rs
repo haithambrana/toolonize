@@ -529,6 +529,8 @@ pub fn scan_loose_root(
     (out, report)
 }
 
-#[cfg(test)]
+// XDG paths are `:`-separated Unix paths; the Linux adapter is only used
+// on Unix (Windows runs the `.lnk` adapter, tested in windows.rs).
+#[cfg(all(test, unix))]
 #[path = "linux_tests.rs"]
 mod tests;

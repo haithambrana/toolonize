@@ -10,6 +10,7 @@ fn core(dir: &tempfile::TempDir) -> Arc<Core> {
     core
 }
 
+#[cfg(unix)]
 fn write_entry(root: &std::path::Path, name: &str, exec: &str) {
     std::fs::write(
         root.join(name),
@@ -20,6 +21,7 @@ fn write_entry(root: &std::path::Path, name: &str, exec: &str) {
     .unwrap();
 }
 
+#[cfg(unix)]
 fn fingerprint(core: &Core, id: &str) -> String {
     core.registry_entry(id).unwrap().launcher.fingerprint
 }
@@ -76,6 +78,9 @@ fn invalid_layout_rejected_and_state_unchanged() {
     assert!(c.workspaces().0[0].layout.json.is_none());
 }
 
+/// Uses Linux `.desktop` custom roots; the Windows equivalent (`.lnk`) is
+/// covered by discovery::windows and policy tests.
+#[cfg(unix)]
 #[test]
 fn custom_root_review_pin_change_reauthorize_flow() {
     let dir = tempfile::tempdir().unwrap();
