@@ -7,7 +7,7 @@
  * classification requires it.
  */
 import { useEffect, useMemo, useState } from "react";
-import { api, type RegistryEntry, type SyntheticSpec } from "../lib/ipc";
+import { api, type HostList, type RegistryEntry, type SyntheticSpec } from "../lib/ipc";
 import { addLauncher } from "../lib/actions";
 import { Badges, LauncherDetails, TypeChip } from "../components/LauncherDetails";
 import { entryName } from "../lib/labels";
@@ -202,6 +202,73 @@ function Detail({ entry }: { entry: RegistryEntry }) {
   );
 }
 
+/** SSH connection manager: host aliases from ~/.ssh/config (ADR-011). */
+function SshHosts() {
+  const synthetic = useAppState((s) => s.registry?.synthetic ?? []);
+  const [list, setList] = useState<HostList | null>(null);
+  const [filter, setFilter] = useState("");
+  const added = useMemo(
+    () => new Set(synthetic.flatMap((s) => (s.kind === "ssh" ? [s.host] : []))),
+    [synthetic]
+  );
+  const read = async () => {
+    const result = await attempt(() => api.sshHosts(), "Could not read your ssh config");
+    if (result) setList(result);
+  };
+  const add = async (host: string) => {
+    const id = await attempt(() => api.addSynthetic({ kind: "ssh", host }), "Could not add host");
+    if (id) notify("info", `${host} added. Add it to a workspace to connect.`);
+  };
+  const q = filter.trim().toLowerCase();
+  const hosts = (list?.hosts ?? []).filter((h) => !q || h.toLowerCase().includes(q));
+  return (
+    <section className="ssh-hosts" aria-label="SSH hosts">
+      <div className="row-gap">
+        <button type="button" className="btn btn-sm" onClick={() => void read()}>
+          {list ? "Reload hosts from ssh config" : "Read hosts from ~/.ssh/config"}
+        </button>
+        {list && list.hosts.length > 8 && (
+          <input
+            className="input input-sm"
+            placeholder="Filter hosts"
+            aria-label="Filter SSH hosts"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
+      </div>
+      <p className="muted small">
+        Only the <code>Host</code> aliases are read — never host names, users, keys, proxy commands
+        or any other setting. Each host you add still needs to be added to a workspace, and connects
+        with your own <code>ssh</code>.
+      </p>
+      {list && (
+        <>
+          <p className="muted small">
+            {list.hosts.length} host{list.hosts.length === 1 ? "" : "s"} in{" "}
+            <code className="break">{list.source}</code>
+            {list.notes.length > 0 && ` — ${list.notes.join("; ")}`}
+          </p>
+          <ul className="plain-list">
+            {hosts.map((h) => (
+              <li key={h} className="row-gap">
+                <code>{h}</code>
+                {added.has(h) ? (
+                  <span className="chip chip-info">added</span>
+                ) : (
+                  <button type="button" className="btn btn-sm" onClick={() => void add(h)}>
+                    Add
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 function ConnectionForm() {
   const [kind, setKind] = useState<SyntheticSpec["kind"]>("ssh");
   const [host, setHost] = useState("");
@@ -337,6 +404,7 @@ function Sources() {
       </form>
       <h3 className="subhead">Connections</h3>
       <ConnectionForm />
+      <SshHosts />
       {registry.removed.length > 0 && (
         <>
           <h3 className="subhead">Recently removed</h3>

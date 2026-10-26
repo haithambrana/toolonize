@@ -8,9 +8,11 @@ import {
   exportWorkspace,
   openWorkspace,
   setMode,
+  setWorkspaceColor,
 } from "../lib/actions";
+import { ColorSwatches, TagDot } from "../lib/colors";
 import { addMemberDialog } from "../lib/addMember";
-import { confirmDialog, promptDialog } from "../lib/dialogs";
+import { confirmDialog, openDialog, promptDialog } from "../lib/dialogs";
 import { TYPE_LABELS, entryName } from "../lib/labels";
 import { WorkspaceLayout } from "../layout/WorkspaceLayout";
 import { activeWorkspace, attempt, getState, setState, useAppState } from "../state/store";
@@ -88,6 +90,7 @@ function Header({ w }: { w: WorkspaceView }) {
   return (
     <header className="ws-header">
       <h1 className="ws-title">
+        <TagDot color={w.color} />
         <button
           type="button"
           className="title-button"
@@ -121,6 +124,34 @@ function Header({ w }: { w: WorkspaceView }) {
         ))}
       </div>
       <div className="ws-actions">
+        <button
+          type="button"
+          className="btn btn-sm"
+          title="Color tag for this workspace"
+          onClick={() =>
+            void openDialog<void>("Workspace color", (close) => (
+              <>
+                <div className="dialog-body">
+                  <ColorSwatches
+                    label="Workspace color"
+                    value={w.color}
+                    onPick={(color) => {
+                      close(undefined);
+                      void setWorkspaceColor(w.id, color);
+                    }}
+                  />
+                </div>
+                <div className="dialog-actions">
+                  <button type="button" className="btn" onClick={() => close(undefined)}>
+                    Close
+                  </button>
+                </div>
+              </>
+            ))
+          }
+        >
+          Color
+        </button>
         <button
           type="button"
           className="btn btn-primary btn-sm"

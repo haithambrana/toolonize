@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calls, core, frame, resetFakeCore, session } from "../test/fakeCore";
 import { FakeTerminal, terminals } from "../test/fakeXterm";
 import {
+  findUrls,
   getController,
   peekController,
   resetControllers,
@@ -290,5 +291,91 @@ describe("TerminalController", () => {
     c.element.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     expect(opts.onContextMenu).toHaveBeenCalledWith(10, 20);
+  });
+});
+
+describe("links, text and search", () => {
+  beforeEach(() => {
+    resetControllers();
+    resetFakeCore();
+    terminals.length = 0;
+    core.sessions = [session({ session_id: "s1", member_id: "m1", end_offset: 0 })];
+  });
+
+  it("finds URLs without trailing punctuation, keeping balanced parentheses", () => {
+    expect(findUrls("see https://example.com/docs. and (http://example.org/a)")).toEqual([
+      { index: 4, url: "https://example.com/docs" },
+      { index: 35, url: "http://example.org/a" },
+    ]);
+    expect(findUrls("https://en.example.org/wiki/Foo_(bar)!")[0].url).toBe(
+      "https://en.example.org/wiki/Foo_(bar)"
+    );
+    expect(findUrls("ftp://example.com javascript:alert(1) https://")).toEqual([]);
+  });
+
+  it("Ctrl+click opens plain-text links, plain click does not", () => {
+    const opts = options();
+    opts.onOpenLink = vi.fn();
+    getController("s1", () => opts);
+    term().bufferRows = [{ text: "build ok: https://ci.example.com/run/42 done", wrapped: false }];
+    const [link] = term().linksAt(1) as {
+      text: string;
+      range: { start: { x: number; y: number }; end: { x: number; y: number } };
+      activate: (e: MouseEvent, t: string) => void;
+    }[];
+    expect(link.text).toBe("https://ci.example.com/run/42");
+    expect(link.range.start).toEqual({ x: 11, y: 1 });
+    link.activate(new MouseEvent("click"), link.text);
+    expect(opts.onOpenLink).not.toHaveBeenCalled();
+    link.activate(new MouseEvent("click", { ctrlKey: true }), link.text);
+    expect(opts.onOpenLink).toHaveBeenCalledWith("https://ci.example.com/run/42", false);
+  });
+
+  it("detects a URL that wraps onto the next row", () => {
+    getController("s1", options);
+    const t = term();
+    t.cols = 20;
+    t.bufferRows = [
+      { text: "x https://example.co", wrapped: false },
+      { text: "m/long/path", wrapped: true },
+    ];
+    const links = t.linksAt(2) as { text: string }[];
+    expect(links[0].text).toBe("https://example.com/long/path");
+  });
+
+  it("OSC 8 hyperlinks report their hidden target and refuse other schemes", () => {
+    const opts = options();
+    opts.onOpenLink = vi.fn();
+    getController("s1", () => opts);
+    const handler = term().options.linkHandler as {
+      allowNonHttpProtocols: boolean;
+      activate: (e: MouseEvent, uri: string) => void;
+    };
+    expect(handler.allowNonHttpProtocols).toBe(false);
+    handler.activate(new MouseEvent("click"), "https://example.com/x");
+    expect(opts.onOpenLink).not.toHaveBeenCalled();
+    handler.activate(new MouseEvent("click", { metaKey: true }), "https://example.com/x");
+    expect(opts.onOpenLink).toHaveBeenCalledWith("https://example.com/x", true);
+  });
+
+  it("exports text with wrapped rows joined and finds and reveals matches", () => {
+    const c = getController("s1", options);
+    const t = term();
+    t.cols = 10;
+    t.bufferRows = [
+      { text: "$ make", wrapped: false },
+      { text: "error: lin", wrapped: false },
+      { text: "k failed", wrapped: true },
+      { text: "", wrapped: false },
+      { text: "", wrapped: false },
+    ];
+    expect(c.textContent()).toBe("$ make\nerror: link failed\n");
+    const matches = c.find("FAILED", false, 10);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ row: 2, col: 2, length: 6 });
+    expect(c.find("FAILED", true, 10)).toEqual([]);
+    c.reveal(matches[0]);
+    expect(t.selected).toEqual([2, 2, 6]);
+    expect(t.scrolledTo).toBe(0);
   });
 });

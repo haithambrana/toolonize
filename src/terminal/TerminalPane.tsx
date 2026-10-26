@@ -13,6 +13,8 @@ import {
   stopSession,
 } from "../lib/actions";
 import { processLabel } from "../lib/labels";
+import { api } from "../lib/ipc";
+import { TagDot } from "../lib/colors";
 import { setState, useAppState } from "../state/store";
 import { getController, peekController } from "./controller";
 import { controllerOptions } from "./options";
@@ -98,10 +100,53 @@ function SearchBar({ sessionId }: { sessionId: string }) {
   );
 }
 
+/** Seconds left until `at`, refreshed every second. */
+function useCountdown(at: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (at === undefined) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [at]);
+  return at === undefined ? 0 : Math.max(0, Math.ceil((at - now) / 1000));
+}
+
 function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView }) {
   const s = info.process_state;
+  const retry = useAppState((st) => st.reconnecting[info.session_id]);
+  const seconds = useCountdown(retry?.at);
   if (!["exited", "failed", "disconnected", "closed"].includes(s.kind)) return null;
   const remote = info.remote;
+  if (retry && s.kind === "disconnected") {
+    return (
+      <div className="exit-banner exit-banner-warn" role="status">
+        <span>
+          <strong>Connection lost</strong>
+          <span className="muted">
+            {" "}
+            — reconnecting {seconds > 0 ? `in ${seconds} s` : "now"} (attempt {retry.attempt} of{" "}
+            {retry.max})
+          </span>
+        </span>
+        <span className="exit-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => void reconnectSession(info.session_id, info.detach_expected)}
+          >
+            Reconnect now
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void api.cancelReconnect(info.session_id).catch(() => undefined)}
+          >
+            Stop reconnecting
+          </button>
+        </span>
+      </div>
+    );
+  }
   return (
     <div
       className={`exit-banner ${s.kind === "exited" && s.code === 0 ? "" : "exit-banner-warn"}`}
@@ -201,8 +246,9 @@ export function TerminalPane({
       onFocusCapture={() => setState({ focused: member.id })}
       onMouseDown={() => setState({ focused: member.id })}
     >
-      <div className="pane-header">
+      <div className={member.color ? `pane-header pane-tag tag-${member.color}` : "pane-header"}>
         <span className={`state-dot state-${session.process_state.kind}`} aria-hidden="true" />
+        <TagDot color={member.color} />
         <button
           type="button"
           className="pane-title title-button"

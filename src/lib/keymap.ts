@@ -12,6 +12,7 @@ export type Action =
   | "mode.tabs"
   | "mode.master_stack"
   | "terminal.search"
+  | "terminal.search_all"
   | "terminal.copy"
   | "terminal.paste"
   | "terminal.new"
@@ -32,6 +33,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   "mode.tabs": "Tabs layout",
   "mode.master_stack": "Master + Stack layout",
   "terminal.search": "Search terminal scrollback",
+  "terminal.search_all": "Search all terminals",
   "terminal.copy": "Copy terminal selection",
   "terminal.paste": "Paste into terminal",
   "terminal.new": "Add a terminal to this workspace",
@@ -53,6 +55,7 @@ export const DEFAULT_KEYMAP: Record<Action, string> = {
   "mode.tabs": "Ctrl+Shift+3",
   "mode.master_stack": "Ctrl+Shift+4",
   "terminal.search": "Ctrl+Shift+F",
+  "terminal.search_all": "Ctrl+Shift+G",
   "terminal.copy": "Ctrl+Shift+C",
   "terminal.paste": "Ctrl+Shift+V",
   "terminal.new": "Ctrl+Shift+T",

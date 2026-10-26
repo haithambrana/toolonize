@@ -4,6 +4,7 @@
  */
 import {
   api,
+  type ColorTag,
   type LayoutMode,
   type MemberView,
   type RegistryEntry,
@@ -327,4 +328,47 @@ export async function saveMemberTitle(workspaceId: string, memberId: string, nam
     () => api.updateMember(workspaceId, memberId, { title: name.trim() }),
     "Could not rename"
   );
+}
+
+export async function setMemberColor(
+  workspaceId: string,
+  memberId: string,
+  color: ColorTag | null
+): Promise<void> {
+  await attempt(
+    () => api.updateMember(workspaceId, memberId, { color: color ?? "" }),
+    "Could not change the color"
+  );
+}
+
+export async function setWorkspaceColor(workspaceId: string, color: ColorTag | null) {
+  await attempt(() => api.setWorkspaceColor(workspaceId, color), "Could not change the color");
+}
+
+/** Save a terminal's scrollback into the Downloads folder (the core picks the path). */
+export async function saveOutput(text: string, name: string): Promise<void> {
+  if (!text.trim()) {
+    notify("info", "This terminal has no output to save yet");
+    return;
+  }
+  const path = await attempt(() => api.exportScrollback(name, text), "Could not save the output");
+  if (path) notify("info", `Saved to ${path}`);
+}
+
+/** Ctrl+click on a terminal link. OSC 8 targets are hidden, so they are shown first. */
+export async function openLink(url: string, hidden: boolean): Promise<void> {
+  if (hidden) {
+    const ok = await confirmDialog({
+      title: "Open link?",
+      body: (
+        <>
+          <p>A program in this terminal links to:</p>
+          <pre className="paste-preview">{url}</pre>
+        </>
+      ),
+      confirm: "Open in browser",
+    });
+    if (!ok) return;
+  }
+  await attempt(() => api.openUrl(url), "Could not open the link");
 }

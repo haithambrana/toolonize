@@ -1,7 +1,8 @@
 /** Right-click menu for terminals: clipboard, search, rename (ARIA menu). */
 import { useEffect, useRef } from "react";
 import { pasteInto } from "../lib/commands";
-import { renameMember } from "../lib/actions";
+import { memberTitle, renameMember, saveOutput, setMemberColor } from "../lib/actions";
+import { ColorSwatches } from "../lib/colors";
 import { peekController } from "../terminal/controller";
 import { activeWorkspace, getState, notify, setState, useAppState } from "../state/store";
 
@@ -19,6 +20,8 @@ export function TerminalMenu() {
   }, [menu]);
   if (!menu) return null;
   const controller = peekController(menu.sessionId);
+  const workspace = activeWorkspace(getState());
+  const member = workspace?.members.find((m) => m.id === menu.memberId);
   const hasSelection = controller?.hasSelection() ?? false;
   const run = (fn: () => void | Promise<void>) => () => {
     setState({ termMenu: null });
@@ -47,6 +50,19 @@ export function TerminalMenu() {
       action: run(() => setState({ searchOpen: menu.sessionId })),
     },
     {
+      label: "Search all terminals…",
+      hint: "Ctrl+Shift+G",
+      action: run(() => setState({ globalSearchOpen: true })),
+    },
+    {
+      label: "Save output to file",
+      action: run(
+        () =>
+          controller &&
+          saveOutput(controller.textContent(), member ? memberTitle(member) : "terminal")
+      ),
+    },
+    {
       label: "Rename terminal…",
       hint: "Ctrl+Shift+R",
       action: run(() => {
@@ -56,7 +72,7 @@ export function TerminalMenu() {
     },
   ];
   const x = Math.min(menu.x, window.innerWidth - 230);
-  const y = Math.min(menu.y, window.innerHeight - 260);
+  const y = Math.min(menu.y, window.innerHeight - 360);
   return (
     <div
       ref={ref}
@@ -94,6 +110,20 @@ export function TerminalMenu() {
           {item.hint && <kbd>{item.hint}</kbd>}
         </button>
       ))}
+      {workspace && member && (
+        <div className="context-colors">
+          <span className="small muted">Color</span>
+          <ColorSwatches
+            label="Terminal color"
+            value={member.color}
+            onPick={(color) => {
+              setState({ termMenu: null });
+              void setMemberColor(workspace.id, member.id, color);
+              controller?.focus();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

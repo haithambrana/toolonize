@@ -16,7 +16,7 @@ function focusedController() {
   return session ? peekController(session.session_id) : undefined;
 }
 
-function focusMember(memberId: string | null) {
+export function focusMember(memberId: string | null) {
   if (!memberId) return;
   setState({ focused: memberId });
   const s = getState();
@@ -64,6 +64,9 @@ export async function runAction(action: Action): Promise<void> {
       if (c) setState({ searchOpen: s.searchOpen === c.sessionId ? null : c.sessionId });
       return;
     }
+    case "terminal.search_all":
+      setState({ globalSearchOpen: !s.globalSearchOpen });
+      return;
     case "terminal.copy": {
       const c = focusedController();
       if (c?.hasSelection() && !(await c.copyToClipboard())) {

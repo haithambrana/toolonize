@@ -13,6 +13,7 @@ import {
   Model,
   type Action,
   type IJsonModel,
+  type ITabRenderValues,
   type TabNode,
 } from "flexlayout-react";
 import "flexlayout-react/style/combined.css";
@@ -22,6 +23,7 @@ import { setState, useAppState } from "../state/store";
 import { GLOBAL, layoutFor, reconcile, type ModelJson } from "./modes";
 import { stableStringify } from "./stable";
 import { MemberPane } from "./MemberPane";
+import { TagDot } from "../lib/colors";
 
 const SAVE_DELAY_MS = 400;
 
@@ -100,6 +102,13 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
     return action;
   };
 
+  // Color tag in front of each tab name.
+  const onRenderTab = (node: TabNode, values: ITabRenderValues) => {
+    const memberId = (node.getConfig?.() as { memberId?: string } | undefined)?.memberId;
+    const color = workspace.members.find((m) => m.id === memberId)?.color;
+    if (color) values.leading = <TagDot color={color} />;
+  };
+
   const factory = (node: TabNode) => {
     if (node.getComponent() !== "member") return <div className="member-card muted">Empty</div>;
     const memberId = (node.getConfig() as { memberId: string }).memberId;
@@ -116,6 +125,7 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
         factory={factory}
         onModelChange={onModelChange}
         onAction={onAction}
+        onRenderTab={onRenderTab}
         supportsPopout={false}
         realtimeResize
       />

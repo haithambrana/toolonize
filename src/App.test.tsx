@@ -376,4 +376,152 @@ describe("ToolOnize app", () => {
     await waitFor(() => expect(terminals[0].pasted).toEqual(["uname -a"]));
     expect(commandsCalled()).toContain("clipboard_read_text");
   });
+  it("dropped SSH sessions show the auto-reconnect countdown and can stop it", async () => {
+    core.workspaces = [workspace([member("r", { member_type: "remote_command" })])];
+    core.active = "ws1";
+    core.sessions = [
+      session({
+        session_id: "s-r",
+        member_id: "r",
+        remote: true,
+        process_state: { kind: "disconnected", code: 255 },
+      }),
+    ];
+    handlers.set("session_cancel_reconnect", () => undefined);
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("button", { name: "Reconnect" });
+    await emit({
+      type: "reconnect",
+      session_id: "s-r",
+      active: true,
+      attempt: 2,
+      max_attempts: 8,
+      delay_ms: 4000,
+    });
+    expect(await screen.findByText(/reconnecting in \d s \(attempt 2 of 8\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Stop reconnecting" }));
+    expect(calls.find((c) => c.cmd === "session_cancel_reconnect")?.args).toEqual({
+      sessionId: "s-r",
+    });
+    await emit({
+      type: "reconnect",
+      session_id: "s-r",
+      active: false,
+      attempt: 0,
+      max_attempts: 8,
+      delay_ms: 0,
+    });
+    expect(screen.queryByText(/Connection lost/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
+  });
+
+  it("searches every open terminal and jumps to a match (Ctrl+Shift+G)", async () => {
+    core.workspaces = [
+      workspace([member("a"), member("b", { title: "Build server", color: "teal" })]),
+    ];
+    core.active = "ws1";
+    core.sessions = [
+      session({ session_id: "s-a", member_id: "a" }),
+      session({ session_id: "s-b", member_id: "b" }),
+    ];
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(2));
+    terminals[0].bufferRows = [{ text: "all good", wrapped: false }];
+    terminals[1].bufferRows = [
+      { text: "compiling", wrapped: false },
+      { text: "error: disk full", wrapped: false },
+    ];
+    fireEvent.keyDown(window, { code: "KeyG", key: "G", ctrlKey: true, shiftKey: true });
+    const dialog = await screen.findByRole("dialog", { name: "Search all terminals" });
+    const input = within(dialog).getByRole("combobox");
+    fireEvent.change(input, { target: { value: "disk" } });
+    const hit = await within(dialog).findByRole("option", { name: /Build server · line 2/ });
+    expect(hit).toHaveTextContent("error: disk full");
+    expect(within(hit).getByRole("img", { name: "Teal tag" })).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(terminals[1].selected).toEqual([7, 1, 4]));
+    expect(screen.queryByRole("dialog", { name: "Search all terminals" })).not.toBeInTheDocument();
+  });
+
+  it("saves terminal output through the core and sets a color tag from the menu", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+    handlers.set("scrollback_export", () => "/fixture/Downloads/toolonize-Shell-a.txt");
+    handlers.set("member_update", () => undefined);
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    terminals[0].bufferRows = [{ text: "$ uptime", wrapped: false }];
+    const host = document.querySelector(".terminal-host")!;
+    fireEvent.contextMenu(host, { clientX: 10, clientY: 10 });
+    let menu = await screen.findByRole("menu", { name: "Terminal actions" });
+    await user.click(within(menu).getByRole("menuitem", { name: "Save output to file" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "scrollback_export")?.args).toEqual({
+        name: "Shell a",
+        text: "$ uptime\n",
+      })
+    );
+    expect(await screen.findByText(/Saved to \/fixture\/Downloads/)).toBeInTheDocument();
+    fireEvent.contextMenu(host, { clientX: 10, clientY: 10 });
+    menu = await screen.findByRole("menu", { name: "Terminal actions" });
+    await user.click(within(menu).getByRole("radio", { name: "Purple" }));
+    expect(calls.find((c) => c.cmd === "member_update")?.args).toEqual({
+      workspaceId: "ws1",
+      memberId: "a",
+      patch: { color: "purple" },
+    });
+  });
+
+  it("lists SSH host aliases from the ssh config and adds one as a connection", async () => {
+    handlers.set("ssh_hosts", () => ({
+      hosts: ["build.example.com", "staging"],
+      source: "/fixture/home/.ssh/config",
+      notes: [],
+    }));
+    handlers.set("synthetic_add", () => "sys:ssh:staging");
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Launchers/ }));
+    await user.click(await screen.findByRole("button", { name: "Read hosts from ~/.ssh/config" }));
+    const list = await screen.findByRole("region", { name: "SSH hosts" });
+    expect(within(list).getByText("build.example.com")).toBeInTheDocument();
+    const row = within(list).getByText("staging").closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Add" }));
+    expect(calls.find((c) => c.cmd === "synthetic_add")?.args).toEqual({
+      spec: { kind: "ssh", host: "staging" },
+    });
+  });
+
+  it("Ctrl+click on a terminal link opens it through the core", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+    handlers.set("open_url", () => undefined);
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    terminals[0].bufferRows = [{ text: "docs: https://example.com/guide", wrapped: false }];
+    const [link] = terminals[0].linksAt(1) as {
+      text: string;
+      activate: (e: MouseEvent, t: string) => void;
+    }[];
+    link.activate(new MouseEvent("click", { ctrlKey: true }), link.text);
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "open_url")?.args).toEqual({
+        url: "https://example.com/guide",
+      })
+    );
+    // OSC 8 targets are hidden behind text: confirm first.
+    const handler = terminals[0].options.linkHandler as {
+      activate: (e: MouseEvent, uri: string) => void;
+    };
+    handler.activate(new MouseEvent("click", { ctrlKey: true }), "https://example.org/hidden");
+    const dialog = await screen.findByRole("dialog", { name: "Open link?" });
+    expect(dialog).toHaveTextContent("https://example.org/hidden");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(calls.filter((c) => c.cmd === "open_url")).toHaveLength(1);
+  });
 });

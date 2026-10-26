@@ -1,5 +1,6 @@
 /** Controller options derived from settings + theme, and the paste warning. */
 import { confirmDialog } from "../lib/dialogs";
+import { openLink } from "../lib/actions";
 import { terminalTheme, type ResolvedTheme } from "../lib/theme";
 import type { Settings } from "../lib/ipc";
 import { getState, notify, setState } from "../state/store";
@@ -51,6 +52,7 @@ export function controllerOptions(
     scrollback: settings?.scrollback_lines ?? 10_000,
     theme: terminalTheme(theme),
     confirmPaste,
+    onOpenLink: (url, hidden) => void openLink(url, hidden),
     onDesync: (reason) => notify("warning", `Terminal view resynchronized: ${reason}`),
   };
 }

@@ -83,6 +83,7 @@ const ACTIONS: &[&str] = &[
     "mode.tabs",
     "mode.master_stack",
     "terminal.search",
+    "terminal.search_all",
     "terminal.copy",
     "terminal.paste",
     "terminal.new",

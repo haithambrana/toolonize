@@ -1,5 +1,6 @@
 /** Navigation: workspaces, Launchers review queue, Activity, Settings. */
 import { useMemo, useRef } from "react";
+import { TagDot } from "../lib/colors";
 import { api } from "../lib/ipc";
 import { createWorkspace, importWorkspaceText, selectWorkspace, setView } from "../lib/actions";
 import { attempt, notify, useAppState } from "../state/store";
@@ -80,6 +81,7 @@ export function Sidebar() {
                 aria-current={view === "workspace" && active === w.id ? "page" : undefined}
                 onClick={() => void selectWorkspace(w.id)}
               >
+                <TagDot color={w.color} />
                 <span className="nav-label">{w.name}</span>
                 {w.staged_import && <span className="chip chip-warn">review</span>}
                 {running[w.id] ? (

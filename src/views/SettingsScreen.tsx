@@ -196,6 +196,14 @@ export function SettingsScreen() {
             />
             Let terminal programs copy to my clipboard (OSC 52 — works over SSH, tmux, vim)
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.ssh_auto_reconnect}
+              onChange={(e) => void update(settings, { ssh_auto_reconnect: e.target.checked })}
+            />
+            Reconnect SSH terminals automatically when the connection drops
+          </label>
           <p className="muted small">
             Copying always goes to this computer’s clipboard, also when the terminal is an SSH
             session. Programs can only write to the clipboard, never read it.

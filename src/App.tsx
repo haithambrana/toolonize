@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from "react";
 import { CommandPalette } from "./components/CommandPalette";
 import { DialogHost } from "./components/DialogHost";
+import { GlobalSearch } from "./components/GlobalSearch";
 import { TerminalMenu } from "./components/TerminalMenu";
 import { runAction } from "./lib/commands";
 import { actionFor, effectiveKeymap } from "./lib/keymap";
@@ -127,6 +128,7 @@ function Shell() {
       </main>
       <Toasts />
       <CommandPalette />
+      <GlobalSearch />
       <TerminalMenu />
       <DialogHost />
     </div>
