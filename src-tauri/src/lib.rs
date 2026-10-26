@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod terminal;
 
 /// Run the Tauri application. Separated from `main.rs` for testability and
 /// to keep `main.rs` minimal (Tauri convention).
@@ -7,21 +8,67 @@ pub fn run() {
     #[cfg(feature = "spike")]
     {
         tauri::Builder::default()
+            .plugin(tauri_plugin_clipboard_manager::init())
             .invoke_handler(tauri::generate_handler![
                 crate::commands::ping::ping,
                 crate::commands::spike::spike_pty_stream,
                 crate::commands::spike::spike_resize,
                 crate::commands::spike::spike_input_echo,
                 crate::commands::spike::spike_complete,
-                crate::commands::spike::spike_fail
+                crate::commands::spike::spike_fail,
+                crate::commands::m3_harness::m3_complete,
+                crate::commands::m3_harness::m3_fail,
+                crate::commands::terminal::terminal_profiles,
+                crate::commands::terminal::terminal_start,
+                crate::commands::terminal::terminal_list,
+                crate::commands::terminal::terminal_attach,
+                crate::commands::terminal::terminal_detach,
+                crate::commands::terminal::terminal_hide,
+                crate::commands::terminal::terminal_show,
+                crate::commands::terminal::terminal_write,
+                crate::commands::terminal::terminal_resize,
+                crate::commands::terminal::terminal_ack,
+                crate::commands::terminal::terminal_close,
+                crate::commands::terminal::terminal_restart,
+                crate::commands::terminal::terminal_poll,
+                crate::commands::terminal::terminal_replay
             ])
+            .on_window_event(|_window, event| {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    crate::terminal::manager::global_manager().shutdown_all();
+                }
+            })
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
     }
     #[cfg(not(feature = "spike"))]
     {
         tauri::Builder::default()
-            .invoke_handler(tauri::generate_handler![crate::commands::ping::ping])
+            .plugin(tauri_plugin_clipboard_manager::init())
+            .invoke_handler(tauri::generate_handler![
+                crate::commands::ping::ping,
+                crate::commands::m3_harness::m3_complete,
+                crate::commands::m3_harness::m3_fail,
+                crate::commands::terminal::terminal_profiles,
+                crate::commands::terminal::terminal_start,
+                crate::commands::terminal::terminal_list,
+                crate::commands::terminal::terminal_attach,
+                crate::commands::terminal::terminal_detach,
+                crate::commands::terminal::terminal_hide,
+                crate::commands::terminal::terminal_show,
+                crate::commands::terminal::terminal_write,
+                crate::commands::terminal::terminal_resize,
+                crate::commands::terminal::terminal_ack,
+                crate::commands::terminal::terminal_close,
+                crate::commands::terminal::terminal_restart,
+                crate::commands::terminal::terminal_poll,
+                crate::commands::terminal::terminal_replay
+            ])
+            .on_window_event(|_window, event| {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    crate::terminal::manager::global_manager().shutdown_all();
+                }
+            })
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
     }
@@ -99,14 +146,38 @@ mod tests {
         // which is the strongest deterministic check available on Windows.
         assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"unknown_command_xyz"));
         assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"exec"));
-        // Capability file must contain only allow-ping; checked via file content
-        // in the repository, but we also assert the in-code allowlist here.
-        assert_eq!(crate::commands::ALLOWED_COMMANDS, &["ping"]);
+        assert!(crate::commands::ALLOWED_COMMANDS.contains(&"ping"));
+        assert!(crate::commands::ALLOWED_COMMANDS.contains(&"terminal_write"));
+        assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"raw_exec"));
     }
 
     #[test]
     fn registered_commands_are_only_ping() {
-        // This mirrors the explicit allowlist contract.
-        assert_eq!(crate::commands::ALLOWED_COMMANDS, &["ping"]);
+        // Updated for M3: ping + terminal lifecycle + M3 harness (no raw exec).
+        assert_eq!(
+            crate::commands::ALLOWED_COMMANDS,
+            &[
+                "ping",
+                "terminal_profiles",
+                "terminal_start",
+                "terminal_list",
+                "terminal_attach",
+                "terminal_detach",
+                "terminal_hide",
+                "terminal_show",
+                "terminal_write",
+                "terminal_resize",
+                "terminal_ack",
+                "terminal_close",
+                "terminal_restart",
+                "terminal_poll",
+                "terminal_replay",
+                "m3_complete",
+                "m3_fail",
+            ]
+        );
+        // Ensure no raw exec is registered
+        assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"exec"));
+        assert!(!crate::commands::ALLOWED_COMMANDS.contains(&"shell"));
     }
 }
