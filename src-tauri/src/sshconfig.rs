@@ -138,10 +138,16 @@ impl Reader {
     /// relative paths are under ~/.ssh, `~/` is the home folder. Wildcards
     /// are supported in the file name only; matches are sorted.
     fn expand(&mut self, pattern: &str) -> Vec<PathBuf> {
-        let home = self.root.parent().map(Path::to_path_buf);
+        // Push components one by one: the canonical root may be a Windows
+        // verbatim path (`\\?\D:\...`), where `/` is not a separator.
+        let under = |base: PathBuf, rest: &str| {
+            rest.split(['/', '\\'])
+                .filter(|c| !c.is_empty())
+                .fold(base, |p, c| p.join(c))
+        };
         let path = if let Some(rest) = pattern.strip_prefix("~/") {
-            match home {
-                Some(h) => h.join(rest),
+            match self.root.parent() {
+                Some(h) => under(h.to_path_buf(), rest),
                 None => return Vec::new(),
             }
         } else {
@@ -149,7 +155,7 @@ impl Reader {
             if p.is_absolute() {
                 p
             } else {
-                self.root.join(p)
+                under(self.root.clone(), pattern)
             }
         };
         let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
