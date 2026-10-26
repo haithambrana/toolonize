@@ -55,6 +55,13 @@ distributing ToolOnize under MIT OR Apache-2.0 as unmodified dependencies:
 Bundled installers must include third-party notices; generating an
 aggregated `THIRD_PARTY_LICENSES` file is part of the release checklist.
 
+## Setup-wizard downloads (not app dependencies)
+
+`scripts/setup/` (ADR-009) installs toolchains for contributors. It pins
+Node.js `v24.22.1` and rustup-init `1.29.2` by SHA-256 digest; system
+packages come from the distribution's package manager, Windows tools from
+winget. Nothing here is linked into or shipped with ToolOnize.
+
 ## Policy
 
 - No dependency is added without recording it here and in the commit

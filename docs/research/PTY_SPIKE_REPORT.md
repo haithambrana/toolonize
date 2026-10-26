@@ -106,7 +106,7 @@ Both Linux backends and both hosted Windows backends produce this result.
 
 ### Hosted Linux
 
-PR run [`33131442504`](https://github.com/<owner>/toolonize/actions/runs/33131442504),
+CI run `33131442504`,
 Linux job `98721662032`, passed at commit `3563af5`. It independently recorded
 the same 31-row Linux summary and exact SHA-256 for both backends.
 
@@ -166,7 +166,7 @@ The job also passed the spike-feature Tauri build check.
 `cargo check --target x86_64-pc-windows-msvc --all-targets` passes locally, but
 the runtime claim comes only from hosted Windows execution.
 
-PR run [`33131442504`](https://github.com/<owner>/toolonize/actions/runs/33131442504),
+CI run `33131442504`,
 Windows job `98721661871`, passed at commit `3563af5`:
 
 ```text
@@ -188,7 +188,7 @@ has_portable: True, has_direct_windows: True, has_unix: False
 | Hidden console | native ConPTY path | pseudoconsole attribute; no `CREATE_NEW_CONSOLE` |
 
 The independent push run
-[`33131439161`](https://github.com/<owner>/toolonize/actions/runs/33131439161),
+CI run `33131439161`,
 Windows job `98721650821`, reproduced the same all-PASS result. Failed PR run
 `33130352404` at commit `68a375c` exposed a portable ConPTY DSR request split
 across reads. Commit `49a1599` retains the partial request and responds only

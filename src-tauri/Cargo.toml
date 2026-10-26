@@ -2,7 +2,8 @@
 name = "toolonize"
 version = "0.1.0"
 description = "ToolOnize — Your existing dev tools. One persistent workspace."
-authors = ["ToolOnize"]
+authors = ["CRMonize.com", "ToolOnize contributors"]
+homepage = "https://crmonize.com"
 edition = "2021"
 rust-version = "1.77.2"
 license = "MIT OR Apache-2.0"

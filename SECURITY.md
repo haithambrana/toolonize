@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-ToolOnize is in `M0 — Repository Foundation`. No application release has been published and no version is supported yet. Once releases exist, this table will list supported lines.
+ToolOnize is a CRMonize.com open-source project. V1 is implemented but no application release has been published, so no version is supported yet. Once releases exist, this table will list supported lines.
 
 | Version | Supported |
 |---|---|

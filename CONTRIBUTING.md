@@ -1,6 +1,6 @@
 # Contributing to ToolOnize
 
-Thanks for considering a contribution. ToolOnize is currently in `M0 — Repository Foundation` (pre-implementation). Application code has not been written yet.
+Thanks for considering a contribution. ToolOnize is a [CRMonize.com](https://crmonize.com) open-source project. V1 is implemented and pending human review (see `docs/product/STATUS.md`). To prepare your computer, run `./setup.sh` (Linux/macOS) or `scripts\setup\windows.ps1` (Windows); see `docs/setup/SETUP.md`.
 
 ## Ground rules
 
@@ -11,7 +11,7 @@ Thanks for considering a contribution. ToolOnize is currently in `M0 — Reposit
 5. **Dependencies are explicit.** Do not silently add dependencies (`AGENTS.md` rule 6). Propose, justify with evidence or an ADR, and get review.
 6. **One cross-platform codebase.** Platform differences live behind the adapter traits; do not fork the product per OS (`AGENTS.md` rule 4).
 
-## Development workflow (once code exists)
+## Development workflow
 
 - Follow `docs/product/IMPLEMENTATION_PLAN.md` — milestones are vertical slices with gates.
 - Do not weaken security to simplify implementation (`AGENTS.md` rule 7).

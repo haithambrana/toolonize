@@ -12,7 +12,11 @@ checked. Nothing here may be claimed in release notes until it is true.
 - [ ] Public-safety review: `tools/check-public-safety.sh` clean, gitleaks
       history scan clean, `docs/security/PUBLIC_REPOSITORY_SAFETY.md`
       checklist passed.
-- [ ] CI green on the tagged commit (ubuntu + windows), repository-safety green.
+- [ ] CI green on the tagged commit (ubuntu + windows + setup-macos), repository-safety green.
+- [ ] Decide whether to rewrite history to drop the owner's personal account
+      name from older commits before publishing (ADR-010).
+- [ ] Setup wizard verified manually on Windows (winget + UAC) and, if claimed,
+      on Fedora/Arch/openSUSE.
 - [ ] `docs/security/DEPENDENCIES.md` refreshed; third-party notices
       aggregated into the installers / release assets.
 

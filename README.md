@@ -2,6 +2,8 @@
 
 **Your existing dev tools. One persistent workspace.**
 
+*ToolOnize is one of the [CRMonize.com](https://crmonize.com) open-source projects.*
+
 ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows**. It discovers the launchers and tools you already have — without running any of them — lets you review them, and composes terminals, SSH/tmux sessions and GUI applications into persistent docking workspaces.
 
 > **Status: V1 implemented, pending human review.** Milestones M3–M10 were implemented in one pass after the owner waived per-milestone review pauses. No release has been published. See [`docs/product/STATUS.md`](docs/product/STATUS.md) for evidence and the honest list of open items (notably manual Windows/WebView2 verification and some performance budgets).
@@ -16,9 +18,20 @@ ToolOnize is a **local-first developer workspace orchestrator** for **Linux and 
 - **Trust model.** Execution authorization is bound to `launcher_id + descriptor_fingerprint + workspace member`. If a launcher's command changes, its members keep their place but need re-review before the next start; running sessions are untouched. All decisions are recorded in a local, redacted audit log.
 - **Local-first.** No account, no cloud, no telemetry. Non-secret workspace export/import (imports land in review; nothing runs).
 
+## Set up your computer
+
+One command checks everything ToolOnize needs, shows a single plan, asks for your consent and administrator authorization **once**, then installs everything in one go:
+
+```bash
+./setup.sh              # Linux (and macOS toolchain)
+./setup.sh --check      # report only, change nothing
+```
+
+On Windows: `powershell -ExecutionPolicy Bypass -File scripts\setup\windows.ps1`. Details, flags and what is installed: [`docs/setup/SETUP.md`](docs/setup/SETUP.md).
+
 ## Build and run
 
-Prerequisites: Node.js LTS, stable Rust, and on Linux the WebKitGTK 4.1 development packages (see `.github/workflows/ci.yml` for the exact list).
+Prerequisites (installed by the setup wizard): Node.js ≥ 20, Rust ≥ 1.77.2, and on Linux the WebKitGTK 4.1 development packages.
 
 ```bash
 npm ci
@@ -54,6 +67,7 @@ A Rust core (Tauri 2) owns all privileged work: discovery, registry, classificat
 | [`docs/product/TEST_STRATEGY.md`](docs/product/TEST_STRATEGY.md) | Test layers, traceability, where suites live |
 | [`docs/research/perf/BASELINE.md`](docs/research/perf/BASELINE.md) | Measured performance baseline |
 | [`docs/release/RELEASE_CHECKLIST.md`](docs/release/RELEASE_CHECKLIST.md) | Release gates and manual smoke matrix |
+| [`docs/setup/SETUP.md`](docs/setup/SETUP.md) | Setup wizard for Linux, Windows, macOS |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records |
 
 ## Non-goals (V1)
@@ -63,6 +77,10 @@ IDE/editor, cloud sync, collaboration, plugin system, AI assistant, password man
 ## Security
 
 See [`SECURITY.md`](SECURITY.md) for reporting vulnerabilities and [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) for the model, including what V1 intentionally does not protect against.
+
+## About
+
+ToolOnize is developed as one of the [CRMonize.com](https://crmonize.com) open-source projects, together with its contributors. Copyright © 2026 CRMonize.com and the ToolOnize contributors.
 
 ## Licensing
 

@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- Setup wizard (ADR-009): `./setup.sh` checks every package and toolchain requirement, shows one plan, asks for consent and administrator authorization once, installs everything in one transaction, then verifies. Linux implemented (apt, dnf, pacman, zypper; whiptail or plain text; `--check`, `--dry-run`, `--yes`, `--profile dev|run`); Windows (`scripts/setup/windows.ps1`, winget with one UAC prompt) and macOS (toolchain only) prepared. Node.js and rustup downloads are pinned to SHA-256 digests. CI now installs the Linux build dependencies through the wizard. No new dependencies.
+
 - Rename terminals: double-click (or F2 on) a tab, double-click the pane title, the terminal right-click menu, the command palette, or Ctrl+Shift+R. The name is saved with the workspace and shown for the running session without restarting it; an empty name resets to the launcher name.
 - Clipboard that behaves like a local terminal, including over SSH: Ctrl+Shift+C / right-click → Copy puts the selection on this computer's clipboard; Ctrl+Shift+V / right-click → Paste reads it natively (works on WebKitGTK); optional copy-on-select; OSC 52 support so tmux/vim/neovim on a remote host can copy into the local clipboard (write-only, can be turned off). Terminal right-click menu with Copy, Paste, Select all, Clear screen, Find and Rename.
 - V1 implementation of M3–M10 (pending human review; per-milestone pauses waived by the owner on 2026-10-25): Rust session manager on portable-pty with lossless acknowledged output and renderer-reload reattach; Linux and Windows launcher discovery with change watching; conservative classifier, review approvals and member authorizations bound to descriptor fingerprints; execution policy, detached external launches, audit log; atomic checksummed persistence with recovery; non-secret import/export; FlexLayout workspaces with Grid/Focus/Tabs/Master+Stack; launchers review queue, settings, command palette, themes incl. high contrast; deb/AppImage/NSIS packaging and a draft-only release workflow with SHA-256 sums and build provenance. ADR-006..008 added; ADR-003 gate passed in automated tests.
@@ -19,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Architecture, PRD, threat model, implementation plan, test strategy, and roadmap marked human-approved for progression into M0/M1.
 
 ### Changed
+- ToolOnize is presented as a CRMonize.com open-source project (ADR-010): README, package and installer metadata, copyright line "CRMonize.com and the ToolOnize contributors". Tauri identifier is now `com.crmonize.toolonize` (was `com.toolonize.desktop`; no release had shipped).
 - ADR-004 accepted `portable-pty` 0.9.0 behind `PtyBackend` for Linux and Windows with mandatory split-DSR, input-writer lifetime, bounded-lossless transport, resize, integrity, Ctrl+C, UTF-8/VT, cleanup, concurrency, and explicit-timeout regressions. Direct native implementations remain non-production fallback/reference spike paths.
 - Project status and roadmap updated to record M0/M1 complete, human-approved, and merged; M2 complete and human-approved with ADR-004 accepted and PR #2 pending final merge; and M3 not started. No terminal/workspace/launcher product features are claimed as done.
 - Repository safety controls transitioned from M0 (forbid all app artifacts) to M1 (allow `src/`, `src-tauri/`, manifests, lockfiles; retain secret/path scanning).
@@ -26,3 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Notes
 - No version has been released. Only the completed M1 framework shell exists as production application code; M2 is an approved technical spike and M3 has not started. User-facing ToolOnize functionality remains planned.
 - Preliminary naming research is not legal trademark clearance; formal review remains a later release gate if required.
+
+### Security
+- Sensitive-information review of the tree and full git history: no credentials, keys, tokens, private IPs or machine-specific files found. The owner's personal account name was removed from the documentation (it remains in older commit history; see ADR-010).
+

@@ -279,6 +279,10 @@ export function SettingsScreen() {
           <p className="muted small">
             To remove ToolOnize completely, uninstall it and delete these folders.
           </p>
+          <p className="muted small">
+            ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR
+            Apache-2.0.
+          </p>
         </fieldset>
       </div>
     </section>

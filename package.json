@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ToolOnize — Your existing dev tools. One persistent workspace.",
+  "description": "ToolOnize — Your existing dev tools. One persistent workspace. A CRMonize.com open-source project.",
+  "author": "CRMonize.com",
+  "homepage": "https://crmonize.com",
+  "license": "MIT OR Apache-2.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

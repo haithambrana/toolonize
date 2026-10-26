@@ -23,11 +23,12 @@ M8:  IMPLEMENTED — pending human review (ADR-006)
 M9:  IMPLEMENTED — pending human review; NFR budgets partly measured (Linux only)
 M10: IMPLEMENTED (packaging + draft-release pipeline) — no release published
 Selected PTY backend: portable-pty 0.9.0 + ToolOnize mitigations
-Public repository: CREATED - <owner>/toolonize
+Repository: CREATED on GitHub (public release under CRMonize.com pending release gates)
 ```
 
-Tauri identifier: com.toolonize.desktop · binary: toolonize · config
-directory: toolonize.
+Steward: **CRMonize.com** — ToolOnize is a CRMonize.com open-source project
+(ADR-010). Tauri identifier: com.crmonize.toolonize · binary: toolonize ·
+config directory: toolonize.
 
 ## Gate waiver (2026-10-25)
 
@@ -50,11 +51,17 @@ release checklist) are untouched. No release has been tagged or published.
 | M7 Classification + policy | Deterministic classifier with evidence, interpreter detection, review approvals bound to fingerprints, member authorization, execution policy (the only path to a process), detached external launch, URL allowlist, startup-policy executor, audit log | `classify.rs`, `policy.rs`, `registry.rs`, `external.rs`, `app_tests.rs` (custom-root review → pin → tamper → denied → re-review flow; import executes nothing). |
 | M8 Persistence & recovery | Atomic checksummed snapshot generations, loss-window report, migrations/downgrade refusal, settings, non-secret import/export with linter and review staging | `persist.rs` tests (corruption, truncation, crash points, write failure), `transfer.rs` hostile-import corpus, `app_tests.rs` persistence across restart. |
 | M9 UX/a11y/perf | Themes (dark/light/high contrast), reduced motion, remappable shortcuts, command palette, ARIA roles/labels, focus-trapped dialogs, failure banners/badges, perf harness | `keymap.test.ts`, `App.test.tsx`; perf baseline in `docs/research/perf/BASELINE.md`. |
+| Setup wizard (ADR-009) | `./setup.sh` / `scripts/setup/{linux.sh,windows.ps1,macos.sh}`: one check, one plan, one consent, one authorization, one-shot install, verification. Linux implemented (apt verified; dnf/pacman/zypper best-effort); Windows (winget, one UAC prompt) and macOS (toolchain only) prepared | `scripts/setup/tests/linux_test.sh` (18 stub-based cases: single sudo call, positional package args, checksum refusal, cancel/decline, distro mapping, pkexec fallback); CI installs the Linux build deps through the wizard; Windows `-Check`/`-DryRun` on PowerShell 5.1 + 7 and macOS `--check` in CI; manual run on Ubuntu 24.04 (real install + real pinned-hash downloads). |
 | M10 Packaging & release | deb + AppImage + NSIS bundle config; `release.yml` builds on tags, publishes a **draft** release with SHA-256 sums and build-provenance attestations; dependency inventory; release checklist | `docs/release/RELEASE_CHECKLIST.md`, `docs/security/DEPENDENCIES.md`. |
 
 ## Open items (honest list)
 
-- **Human review** of M3–M10, ADR-003 and ADR-006..008.
+- **Human review** of M3–M10, ADR-003 and ADR-006..010.
+- **Setup wizard**: Windows installs (winget + UAC) and the dnf/pacman/zypper
+  package maps are not yet verified on real machines; macOS is preparatory.
+- **History**: the owner's GitHub account name remains in older commits
+  (removed from the tree; see ADR-010). A full-history secret scan with a
+  dedicated scanner (gitleaks) is still to be run before publication.
 - **Windows runtime**: Known Folder discovery, ConPTY sessions and external
   launches are exercised on the Windows CI runner only. Manual WebView2 smoke
   (layout continuity, renderer reload, WSL, real `.lnk` dry run with counts
@@ -73,7 +80,7 @@ release checklist) are untouched. No release has been tagged or published.
 ## History
 
 2026-08-26: HUMAN_ARCHITECTURE_GATE=APPROVED; HUMAN_NAMING_GATE=APPROVED;
-HUMAN_M0_GATE=APPROVED. Public repository created as <owner>/toolonize.
+HUMAN_M0_GATE=APPROVED. GitHub repository created.
 
 2026-08-28: M1 COMPLETE / HUMAN APPROVED / MERGED. `HUMAN_M2_GATE=APPROVED`;
 `ADR_004=ACCEPTED` (portable-pty 0.9.0 + ToolOnize mitigations).
