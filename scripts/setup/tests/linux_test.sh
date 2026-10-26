@@ -42,13 +42,14 @@ new_case() {
     ubuntu) printf 'ID=ubuntu\nID_LIKE=debian\nPRETTY_NAME="Ubuntu (test)"\n' >"$CASE/os-release" ;;
     fedora) printf 'ID=fedora\nPRETTY_NAME="Fedora (test)"\n' >"$CASE/os-release" ;;
     arch) printf 'ID=arch\nPRETTY_NAME="Arch (test)"\n' >"$CASE/os-release" ;;
+    opensuse) printf 'ID=opensuse-tumbleweed\nID_LIKE="opensuse suse"\nPRETTY_NAME="openSUSE (test)"\n' >"$CASE/os-release" ;;
     unknown) printf 'ID=exotic\nPRETTY_NAME="Exotic (test)"\n' >"$CASE/os-release" ;;
   esac
   stub id 'if [ "$1" = -u ]; then echo 1000; else echo "uid=1000"; fi'
   stub sudo 'echo "sudo $*" >>"$LOG"; exit 0'
   stub pkexec 'echo "pkexec $*" >>"$LOG"; exit 0'
   stub dpkg-query 'for a; do p="$a"; done; grep -qx "$p" "$CASE/installed" && echo "ii " || exit 1'
-  stub rpm 'grep -qx "$2" "$CASE/installed"'
+  stub rpm 'for a; do p="$a"; done; grep -qx "$p" "$CASE/installed"'
   stub pacman 'grep -qx "$2" "$CASE/installed"'
   stub curl 'out=""; while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done
 echo "curl $out" >>"$LOG"; echo "not the real file" >"$out"'
@@ -255,6 +256,19 @@ run --bogus
 rc1=$RC
 run --profile nope
 [ "$rc1" = 2 ] && [ "$RC" = 2 ] && ok "usage errors exit 2" || bad "usage errors ($rc1/$RC)"
+
+# 19. openSUSE installs development libraries by pkg-config capability and
+#     recognises capabilities that are already provided.
+new_case opensuse opensuse
+good_toolchain
+optional_tools
+install_pkgs 'pkgconfig(gtk+-3.0)'
+run --yes --no-optional
+line="$(grep '^sudo ' "$LOG" | head -n 1)"
+printf '%s' "$line" | grep -qF "zypper --non-interactive install" &&
+  printf '%s' "$line" | grep -qF "pkgconfig(webkit2gtk-4.1)" &&
+  ! printf '%s' "$line" | grep -qF "pkgconfig(gtk+-3.0)" &&
+  ok "opensuse: zypper by pkg-config capability" || bad "opensuse: zypper ($line)"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" = 0 ]

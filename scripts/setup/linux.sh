@@ -103,8 +103,9 @@ detect_pm() {
 }
 PM="$(detect_pm)"
 
-# Package names per manager. apt is verified in CI (Ubuntu); the others follow
-# the Tauri 2 prerequisites and are marked best-effort in the docs.
+# Package names per manager, each verified end to end in CI (apt on Ubuntu,
+# dnf/pacman/zypper in containers). zypper uses pkg-config capabilities for
+# the development libraries because openSUSE package names vary.
 packages_for() {
   local group="$1"
   case "$PM:$group" in
@@ -115,7 +116,7 @@ packages_for() {
     pacman:runtime) echo "webkit2gtk-4.1 xdg-utils" ;;
     pacman:build) echo "base-devel curl xz file openssl webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg patchelf" ;;
     zypper:runtime) echo "libwebkit2gtk-4_1-0 xdg-utils" ;;
-    zypper:build) echo "gcc gcc-c++ make pkgconf curl xz file libopenssl-devel webkit2gtk3-devel gtk3-devel libappindicator3-devel librsvg-devel libsoup-devel patchelf" ;;
+    zypper:build) echo "gcc gcc-c++ make pkgconf curl xz file patchelf pkgconfig(openssl) pkgconfig(webkit2gtk-4.1) pkgconfig(javascriptcoregtk-4.1) pkgconfig(gtk+-3.0) pkgconfig(ayatana-appindicator3-0.1) pkgconfig(librsvg-2.0) pkgconfig(libsoup-3.0)" ;;
     *) echo "" ;;
   esac
 }
@@ -134,7 +135,7 @@ optional_package() {
 pkg_installed() {
   case "$PM" in
     apt) dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null | grep -q '^ii' ;;
-    dnf | zypper) rpm -q "$1" >/dev/null 2>&1 ;;
+    dnf | zypper) rpm -q --whatprovides "$1" >/dev/null 2>&1 ;;
     pacman) pacman -Q "$1" >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
