@@ -52,11 +52,12 @@ release checklist) are untouched. No release has been tagged or published.
 | M8 Persistence & recovery | Atomic checksummed snapshot generations, loss-window report, migrations/downgrade refusal, settings, non-secret import/export with linter and review staging | `persist.rs` tests (corruption, truncation, crash points, write failure), `transfer.rs` hostile-import corpus, `app_tests.rs` persistence across restart. |
 | M9 UX/a11y/perf | Themes (dark/light/high contrast), reduced motion, remappable shortcuts, command palette, ARIA roles/labels, focus-trapped dialogs, failure banners/badges, perf harness | `keymap.test.ts`, `App.test.tsx`; perf baseline in `docs/research/perf/BASELINE.md`. |
 | Setup wizard (ADR-009) | `./setup.sh` / `scripts/setup/{linux.sh,windows.ps1,macos.sh}`: one check, one plan, one consent, one authorization, one-shot install, verification. Linux implemented (apt verified; dnf/pacman/zypper best-effort); Windows (winget, one UAC prompt) and macOS (toolchain only) prepared | `scripts/setup/tests/linux_test.sh` (19 stub-based cases: single sudo call, positional package args, checksum refusal, cancel/decline, distro mapping, pkexec fallback); CI installs the Linux build deps through the wizard; Windows `-Check`/`-DryRun` on PowerShell 5.1 + 7 and macOS `--check` in CI; manual run on Ubuntu 24.04 (real install + real pinned-hash downloads). |
+| Owner-selected features (ADR-011) | SSH connection manager (Host aliases only), SSH auto-reconnect with backoff, Ctrl+click links (OSC 8 confirmed), color tags, output export to Downloads, search across all terminals | Rust: `sshconfig.rs`, `export.rs`, `app_tests.rs` (backoff rules; real-PTY reconnect with a fake ssh), `transfer.rs` (colors); frontend: `controller.test.ts`, `App.test.tsx`; manual run on Linux/WebKitGTK 2026-10-26 (all five features). |
 | M10 Packaging & release | deb + AppImage + NSIS bundle config; `release.yml` builds on tags, publishes a **draft** release with SHA-256 sums and build-provenance attestations; dependency inventory; release checklist | `docs/release/RELEASE_CHECKLIST.md`, `docs/security/DEPENDENCIES.md`. |
 
 ## Open items (honest list)
 
-- **Human review** of M3–M10, ADR-003 and ADR-006..010.
+- **Human review** of M3–M10, ADR-003 and ADR-006..011.
 - **Setup wizard**: Fedora, Arch and openSUSE are verified end to end in CI
   containers (install, check, full build); Windows winget installs are
   exercised in CI, but the UAC relaunch for a standard user still needs one

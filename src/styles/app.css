@@ -1136,3 +1136,17 @@ kbd {
   flex-direction: column;
   gap: 0.4rem;
 }
+
+.ssh-hosts .plain-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.35rem 1rem;
+}
+
+.ssh-hosts .plain-list li {
+  justify-content: space-between;
+}
+
+.toast > span {
+  overflow-wrap: anywhere;
+}

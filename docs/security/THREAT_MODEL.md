@@ -179,7 +179,10 @@ graph LR
   - Mitigations: bracketed-paste aware warnings for multi-line paste
     (FR-033); copy actions user-driven only.
 - **T-TERM-03 SSH credential boundary**.
-  - Mitigations: we never read ~/.ssh beyond letting the user's ssh do so;
+  - Mitigations (amended by ADR-011): ToolOnize reads only `Host` aliases
+    from `~/.ssh/config` (and Includes inside `~/.ssh`), only when the user
+    asks; keys, `known_hosts` and every other option are never read or stored.
+    Otherwise we never read ~/.ssh beyond letting the user's ssh do so;
     no key material, prompts, or agents pass through our code; remote
     members are PTYs running the user's ssh client. Docs state explicitly:
     compromise of a remote host is outside our threat model.
@@ -264,7 +267,10 @@ IPC command, dependency adoption, or format support.
 | T-WEB-01 | No command accepts program/args/command text; inventory, build manifest and capability file must match | `commands/mod.rs` tests |
 | T-WEB-02 | Input ≤ 1 MiB per write, ≤ 4 MiB queued per session; output never dropped (ack-driven backpressure, explicit desync) | `session/manager_tests.rs` |
 | T-TERM-02 | Multi-line paste warning that states whether bracketed paste is active; clipboard reads only on an explicit user paste (`clipboard_read_text`, text ≤ 1 MiB); terminal programs may *write* the local clipboard via OSC 52 (toggle in Settings, toast on every write, ≤ 1 MiB, ignored during history replay) but OSC 52 *read* requests are never answered | `controller.test.ts`, `clipboard.test.ts`, `commands/clipboard.rs` |
-| T-TERM-03 | ssh/tmux synthetic launchers from validated typed fields; ssh config never read | `shells.rs` (ADR-008) |
+| T-TERM-03 | ssh/tmux synthetic launchers from validated typed fields; on request only `Host` aliases are read from the ssh config (inside `~/.ssh`, symlink-safe, bounded), never keys or other options | `shells.rs` (ADR-008), `sshconfig.rs` (ADR-011) |
+| Terminal links | Plain URLs open only on Ctrl+click; OSC 8 targets are confirmed first; both go through the http(s) allowlist and audit | `controller.test.ts`, `App.test.tsx`, `external.rs` |
+| Output export | Core picks Downloads folder and a sanitized unique name, never overwrites, 32 MiB cap; WebView cannot pass a path | `export.rs` |
+| SSH auto-reconnect | Only on ssh exit 255 (`Disconnected`); never after a user Stop; bounded backoff; each attempt re-checks policy | `app_tests.rs` (`ssh_reconnect_backoff_rules`, `ssh_member_reconnects_after_a_drop`) |
 | T-TERM-04 | Process-group SIGHUP → SIGKILL on stop/exit; app exit terminates children | `stop_terminates_process_group_t_pty_013` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |
 | T-SEC-01 | Export linter (key headers, token prefixes, long tokens, home paths); audit log never records argv/env/output; repo safety checks | `transfer.rs`, `audit.rs` |

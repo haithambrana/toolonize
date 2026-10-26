@@ -341,6 +341,7 @@ Where each test-ID family lives. Run Rust suites with `cargo test` in
 | T-DISC-WIN-* | `src-tauri/src/discovery/{lnk,windows}.rs` (shortcuts generated at test time) |
 | T-POLICY-001..007 | `src-tauri/src/{policy,registry,classify,external}.rs`, `src-tauri/src/app_tests.rs`, `src/App.test.tsx` |
 | T-PERSIST-001..004 | `src-tauri/src/{persist,transfer}.rs`, `src-tauri/src/app_tests.rs` |
+| ADR-011 features | `src-tauri/src/{sshconfig,export}.rs`, `app_tests.rs` (reconnect), `transfer.rs` (colors), `src/terminal/controller.test.ts` (links, find), `src/App.test.tsx` (feature flows) |
 | Setup wizard (ADR-009) | `scripts/setup/tests/linux_test.sh` (stubbed package managers, sudo, downloads); shellcheck; CI runs the Linux wizard for real and the Windows/macOS scripts in check/dry-run mode |
 | T-SEC-001..007 | `src-tauri/src/commands/mod.rs`, `exec.rs`, `policy.rs`, `external.rs`, `walk.rs`, `audit.rs`, `app_tests.rs` |
 

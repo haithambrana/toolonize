@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- SSH connection manager: Launchers › Connections reads the `Host` aliases from `~/.ssh/config` (and Includes inside `~/.ssh`) on request and adds them as SSH connections; nothing else from the ssh config is read (ADR-011).
+- SSH auto-reconnect: a dropped SSH terminal reconnects automatically with backoff (up to 8 attempts) and shows a countdown with "Reconnect now" / "Stop reconnecting"; can be turned off in Settings.
+- Ctrl+click opens links in terminal output (OSC 8 links show their target first).
+- Color tags for terminals and workspaces, shown on tabs, pane headers, the sidebar and search results.
+- "Save output to file" (to the Downloads folder) and "Search all terminals" (Ctrl+Shift+G) across every open terminal.
 - Setup wizard (ADR-009): `./setup.sh` checks every package and toolchain requirement, shows one plan, asks for consent and administrator authorization once, installs everything in one transaction, then verifies. Linux implemented (apt, dnf, pacman, zypper — each verified end to end in CI, including a full build; whiptail or plain text; `--check`, `--dry-run`, `--yes`, `--profile dev|run`); Windows (`scripts/setup/windows.ps1`, winget with one UAC prompt) and macOS (toolchain only) prepared. Node.js and rustup downloads are pinned to SHA-256 digests. CI now installs the Linux build dependencies through the wizard. No new dependencies.
 
 - Rename terminals: double-click (or F2 on) a tab, double-click the pane title, the terminal right-click menu, the command palette, or Ctrl+Shift+R. The name is saved with the workspace and shown for the running session without restarting it; an empty name resets to the launcher name.
