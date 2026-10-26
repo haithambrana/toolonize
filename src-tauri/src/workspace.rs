@@ -11,6 +11,19 @@ pub const MAX_WORKSPACES: usize = 100;
 pub const MAX_MEMBERS: usize = 64;
 pub const MAX_NAME: usize = 80;
 pub const MAX_LAYOUT_BYTES: usize = 256 * 1024;
+/// Fixed palette for color tags; the UI maps each id to theme-aware colors.
+pub const COLORS: &[&str] = &[
+    "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink",
+];
+
+/// `None` or an empty string clears the tag; anything else must be a palette id.
+pub fn validate_color(color: Option<&str>) -> Result<Option<String>, String> {
+    match color {
+        None | Some("") => Ok(None),
+        Some(c) if COLORS.contains(&c) => Ok(Some(c.to_string())),
+        Some(_) => Err(format!("color must be one of {}", COLORS.join(", "))),
+    }
+}
 const MAX_LAYOUT_DEPTH: usize = 24;
 const MAX_LAYOUT_NODES: usize = 1024;
 const MAX_ATTR_STRING: usize = 512;
@@ -88,6 +101,9 @@ pub struct Member {
     pub added_at: u64,
     #[serde(default)]
     pub portable: Option<PortableHint>,
+    /// Color tag from [`COLORS`] (UI only; never affects execution).
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -116,6 +132,9 @@ pub struct Workspace {
     /// Imported and not yet reviewed (FR-025).
     #[serde(default)]
     pub staged_import: bool,
+    /// Color tag from [`COLORS`].
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 impl Workspace {
@@ -131,6 +150,7 @@ impl Workspace {
             layout: LayoutState::default(),
             startup_policy: StartupPolicy::Ask,
             staged_import: false,
+            color: None,
         }
     }
 
@@ -388,5 +408,17 @@ mod tests {
         assert!(validate_name("").is_err());
         assert!(validate_name("a\nb").is_err());
         assert!(validate_name(&"x".repeat(MAX_NAME + 1)).is_err());
+    }
+
+    #[test]
+    fn colors_are_a_fixed_palette() {
+        assert_eq!(validate_color(None).unwrap(), None);
+        assert_eq!(validate_color(Some("")).unwrap(), None);
+        assert_eq!(
+            validate_color(Some("teal")).unwrap().as_deref(),
+            Some("teal")
+        );
+        assert!(validate_color(Some("#ff0000")).is_err());
+        assert!(validate_color(Some("red;background:url(x)")).is_err());
     }
 }

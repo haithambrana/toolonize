@@ -3,6 +3,7 @@ pub mod audit;
 pub mod classify;
 pub mod commands;
 pub mod discovery;
+pub mod export;
 pub mod external;
 pub mod model;
 pub mod persist;
@@ -12,6 +13,7 @@ pub mod registry;
 pub mod session;
 pub mod settings;
 pub mod shells;
+pub mod sshconfig;
 pub mod transfer;
 pub mod workspace;
 
@@ -38,6 +40,7 @@ pub fn run() {
         crate::commands::app::audit_recent,
         crate::commands::app::open_url,
         crate::commands::clipboard::clipboard_read_text,
+        crate::commands::app::scrollback_export,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
         crate::commands::registry::registry_set_hidden,
@@ -49,9 +52,11 @@ pub fn run() {
         crate::commands::registry::custom_root_remove,
         crate::commands::registry::synthetic_add,
         crate::commands::registry::synthetic_remove,
+        crate::commands::registry::ssh_hosts,
         crate::commands::workspace::workspace_list,
         crate::commands::workspace::workspace_create,
         crate::commands::workspace::workspace_rename,
+        crate::commands::workspace::workspace_set_color,
         crate::commands::workspace::workspace_delete,
         crate::commands::workspace::workspace_set_active,
         crate::commands::workspace::workspace_set_policy,
@@ -75,6 +80,7 @@ pub fn run() {
         crate::commands::session::session_stop,
         crate::commands::session::session_restart,
         crate::commands::session::session_reconnect,
+        crate::commands::session::session_cancel_reconnect,
         crate::commands::session::session_close,
         crate::commands::session::session_list
     ]);

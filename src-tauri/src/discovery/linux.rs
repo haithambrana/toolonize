@@ -58,7 +58,7 @@ impl LinuxEnv {
         }
     }
 
-    fn config_home(&self) -> Option<PathBuf> {
+    pub fn config_home(&self) -> Option<PathBuf> {
         match &self.xdg_config_home {
             Some(p) if Path::new(p).is_absolute() => Some(PathBuf::from(p)),
             _ => self.home.as_ref().map(|h| h.join(".config")),

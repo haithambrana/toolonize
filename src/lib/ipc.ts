@@ -163,6 +163,25 @@ export interface Diff {
   removed: string[];
 }
 
+/** Fixed palette (Rust `workspace::COLORS`). */
+export const COLOR_TAGS = [
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+] as const;
+export type ColorTag = (typeof COLOR_TAGS)[number];
+
+export interface HostList {
+  hosts: string[];
+  source: string;
+  notes: string[];
+}
+
 export type StartupPolicy = "ask" | "restore_only" | "restore_terminals" | "restore_all";
 export type LayoutMode = "grid" | "focus" | "tabs" | "master_stack";
 export type MemberType = "terminal" | "local_command" | "remote_command" | "external_app";
@@ -180,6 +199,7 @@ export interface MemberView {
   detach_expected: boolean;
   added_at: number;
   portable: { kind: string; value: string } | null;
+  color: ColorTag | null;
   status: {
     state: MemberState;
     reason: string | null;
@@ -207,6 +227,7 @@ export interface WorkspaceView {
   startup_policy: StartupPolicy;
   layout: LayoutState;
   staged_import: boolean;
+  color: ColorTag | null;
   members: MemberView[];
 }
 
@@ -230,6 +251,7 @@ export interface Settings {
   confirm_close_running: boolean;
   copy_on_select: boolean;
   osc52_clipboard: boolean;
+  ssh_auto_reconnect: boolean;
 }
 
 export interface StartupInfo {
@@ -272,7 +294,15 @@ export type AppEvent =
   | { type: "workspaces" }
   | { type: "settings" }
   | { type: "watch"; status: WatchStatus }
-  | { type: "notice"; level: string; message: string };
+  | { type: "notice"; level: string; message: string }
+  | {
+      type: "reconnect";
+      session_id: string;
+      active: boolean;
+      attempt: number;
+      max_attempts: number;
+      delay_ms: number;
+    };
 
 export function ping(): Promise<PingResponse> {
   return invoke<PingResponse>("ping");
@@ -290,6 +320,10 @@ export const api = {
   audit: (limit: number) => invoke<AuditEntry[]>("audit_recent", { limit }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   clipboardRead: () => invoke<string | null>("clipboard_read_text"),
+  /** Saves into the Downloads folder; returns the path the core chose. */
+  exportScrollback: (name: string, text: string) =>
+    invoke<string>("scrollback_export", { name, text }),
+  sshHosts: () => invoke<HostList>("ssh_hosts"),
 
   registry: () => invoke<RegistryView>("registry_view"),
   rescan: () => invoke<Diff>("registry_rescan"),
@@ -311,6 +345,8 @@ export const api = {
   createWorkspace: (name: string) => invoke<string>("workspace_create", { name }),
   renameWorkspace: (workspaceId: string, name: string) =>
     invoke<void>("workspace_rename", { workspaceId, name }),
+  setWorkspaceColor: (workspaceId: string, color: ColorTag | null) =>
+    invoke<void>("workspace_set_color", { workspaceId, color }),
   deleteWorkspace: (workspaceId: string) => invoke<void>("workspace_delete", { workspaceId }),
   setActive: (workspaceId: string | null) => invoke<void>("workspace_set_active", { workspaceId }),
   setPolicy: (workspaceId: string, policy: StartupPolicy) =>
@@ -337,7 +373,13 @@ export const api = {
   updateMember: (
     workspaceId: string,
     memberId: string,
-    patch: { title?: string | null; auto_restart?: boolean; detach_expected?: boolean }
+    patch: {
+      title?: string | null;
+      auto_restart?: boolean;
+      detach_expected?: boolean;
+      /** Palette id; "" clears the tag. */
+      color?: ColorTag | "";
+    }
   ) => invoke<void>("member_update", { workspaceId, memberId, patch }),
   authorizeMember: (workspaceId: string, memberId: string, fingerprint: string) =>
     invoke<void>("member_authorize", { workspaceId, memberId, fingerprint }),
@@ -365,6 +407,7 @@ export const api = {
   stop: (sessionId: string) => invoke<SessionInfo>("session_stop", { sessionId }),
   restart: (sessionId: string) => invoke<SessionInfo>("session_restart", { sessionId }),
   reconnect: (sessionId: string) => invoke<SessionInfo>("session_reconnect", { sessionId }),
+  cancelReconnect: (sessionId: string) => invoke<void>("session_cancel_reconnect", { sessionId }),
   close: (sessionId: string) => invoke<void>("session_close", { sessionId }),
   sessions: () => invoke<SessionInfo[]>("session_list"),
 };

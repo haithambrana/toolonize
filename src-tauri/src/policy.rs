@@ -311,6 +311,7 @@ mod tests {
             detach_expected: false,
             added_at: 0,
             portable: None,
+            color: None,
         }
     }
 

@@ -35,6 +35,18 @@ pub async fn workspace_rename(
 }
 
 #[tauri::command]
+pub async fn workspace_set_color(
+    core: CoreState<'_>,
+    workspace_id: String,
+    color: Option<String>,
+) -> Result<(), String> {
+    blocking(&core, move |c| {
+        c.set_workspace_color(&workspace_id, color.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn workspace_delete(core: CoreState<'_>, workspace_id: String) -> Result<(), String> {
     blocking(&core, move |c| c.delete_workspace(&workspace_id)).await
 }

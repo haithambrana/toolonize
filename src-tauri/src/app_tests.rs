@@ -245,6 +245,7 @@ fn terminal_member_lifecycle_and_startup_policy() {
             title: Some("Build shell".into()),
             auto_restart: None,
             detach_expected: None,
+            color: None,
         },
     )
     .unwrap();
@@ -263,6 +264,7 @@ fn terminal_member_lifecycle_and_startup_policy() {
             title: Some("  ".into()),
             auto_restart: None,
             detach_expected: None,
+            color: None,
         },
     )
     .unwrap();
@@ -292,4 +294,197 @@ fn settings_validated_and_persisted() {
     s.live_updates = false;
     c.update_settings(s).unwrap();
     assert_eq!(core(&dir).settings().font_size, 16);
+}
+
+#[test]
+fn color_tags_validate_and_persist() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = {
+        let c = core(&dir);
+        let ws = c.create_workspace("W").unwrap();
+        c.set_workspace_color(&ws, Some("teal")).unwrap();
+        assert!(c.set_workspace_color(&ws, Some("#123456")).is_err());
+        ws
+    };
+    let c = core(&dir);
+    assert_eq!(c.workspaces().0[0].color.as_deref(), Some("teal"));
+    c.set_workspace_color(&ws, None).unwrap();
+    assert_eq!(c.workspaces().0[0].color, None);
+}
+
+#[cfg(unix)]
+#[test]
+fn member_color_patch() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let ws = c.create_workspace("W").unwrap();
+    let shell = shell_id(&c);
+    let fp = fingerprint(&c, &shell);
+    let member = c.add_member(&ws, &shell, &fp, None).unwrap();
+    let patch = |color: &str| MemberPatch {
+        title: None,
+        auto_restart: None,
+        detach_expected: None,
+        color: Some(color.into()),
+    };
+    c.update_member(&ws, &member, patch("purple")).unwrap();
+    assert_eq!(
+        c.workspaces().0[0].members[0].member.color.as_deref(),
+        Some("purple")
+    );
+    assert!(c.update_member(&ws, &member, patch("url(x)")).is_err());
+    c.update_member(&ws, &member, patch("")).unwrap();
+    assert_eq!(c.workspaces().0[0].members[0].member.color, None);
+}
+
+#[derive(Default)]
+struct Events(Mutex<Vec<AppEvent>>);
+
+impl EventSink for Events {
+    fn send(&self, event: &AppEvent) -> bool {
+        self.0.lock().unwrap().push(event.clone());
+        true
+    }
+}
+
+impl Events {
+    fn reconnects(&self) -> Vec<(bool, u32, u64)> {
+        self.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                AppEvent::Reconnect {
+                    active,
+                    attempt,
+                    delay_ms,
+                    ..
+                } => Some((*active, *attempt, *delay_ms)),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+fn dropped(session_id: &str, code: u32, remote: bool) -> SessionInfo {
+    let process_state = if remote && code == 255 {
+        crate::session::ProcessState::Disconnected { code }
+    } else {
+        crate::session::ProcessState::Exited { code, signal: None }
+    };
+    SessionInfo {
+        session_id: session_id.into(),
+        workspace_id: "ws".into(),
+        member_id: "m".into(),
+        title: "Build host".into(),
+        process_state,
+        view_state: crate::session::ViewState::Detached,
+        generation: 1,
+        pid: None,
+        remote,
+        detach_expected: false,
+        rows: 24,
+        cols: 80,
+        base_offset: 0,
+        end_offset: 0,
+        attached: false,
+        backend: "test".into(),
+        started_at_ms: now_ms(),
+    }
+}
+
+#[test]
+fn ssh_reconnect_backoff_rules() {
+    assert_eq!(reconnect_delay(1), Duration::from_secs(2));
+    assert_eq!(reconnect_delay(2), Duration::from_secs(4));
+    assert_eq!(reconnect_delay(4), Duration::from_secs(16));
+    assert_eq!(reconnect_delay(5), Duration::from_secs(30));
+    assert_eq!(reconnect_delay(8), Duration::from_secs(30));
+
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let events = Arc::new(Events::default());
+    c.subscribe(events.clone());
+    // Only remote sessions that exit with ssh's connection-failure status.
+    assert!(!c.maybe_reconnect(&dropped("s_a", 0, true)));
+    assert!(!c.maybe_reconnect(&dropped("s_a", 255, false)));
+    assert!(events.reconnects().is_empty());
+    // Backoff grows per consecutive drop, then gives up.
+    for attempt in 1..=RECONNECT_MAX_ATTEMPTS {
+        assert!(c.maybe_reconnect(&dropped("s_a", 255, true)));
+        let last = *events.reconnects().last().unwrap();
+        assert_eq!(
+            last,
+            (true, attempt, reconnect_delay(attempt).as_millis() as u64)
+        );
+    }
+    assert!(c.maybe_reconnect(&dropped("s_a", 255, true)));
+    assert!(!events.reconnects().last().unwrap().0, "gave up");
+    // A stable connection restarts the backoff.
+    let mut stable = dropped("s_b", 255, true);
+    stable.started_at_ms = now_ms() - 2 * RECONNECT_STABLE_MS;
+    assert!(c.maybe_reconnect(&dropped("s_b", 255, true)));
+    assert!(c.maybe_reconnect(&dropped("s_b", 255, true)));
+    assert!(c.maybe_reconnect(&stable));
+    assert_eq!(events.reconnects().last().unwrap().1, 1);
+    // Cancel stops it.
+    assert!(c.maybe_reconnect(&dropped("s_c", 255, true)));
+    c.cancel_reconnect("s_c").unwrap();
+    assert!(!c.reconnects.lock().unwrap().contains_key("s_c"));
+    // The setting turns it off.
+    let mut settings = c.settings();
+    settings.ssh_auto_reconnect = false;
+    c.update_settings(settings).unwrap();
+    assert!(!c.maybe_reconnect(&dropped("s_d", 255, true)));
+}
+
+/// End to end through the real PTY: a fake `ssh` that fails like a dropped
+/// connection (exit 255) is restarted automatically after the first backoff.
+#[cfg(unix)]
+#[test]
+fn ssh_member_reconnects_after_a_drop() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let bin = tempfile::tempdir().unwrap();
+    let ssh = bin.path().join("ssh");
+    std::fs::write(&ssh, "#!/bin/sh\necho fake ssh to $1\nexit 255\n").unwrap();
+    std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o755)).unwrap();
+    write_entry(
+        root.path(),
+        "build.desktop",
+        &format!("{} build.example.com", ssh.display()),
+    );
+    let c = core(&dir);
+    c.add_custom_root(&root.path().to_string_lossy()).unwrap();
+    let launcher = c
+        .registry_view()
+        .entries
+        .into_iter()
+        .find(|e| e.launcher.origin == crate::model::OriginKind::CustomRoot)
+        .unwrap();
+    let id = launcher.launcher.launcher_id.clone();
+    let fp = fingerprint(&c, &id);
+    c.approve(&id, &fp).unwrap();
+    assert_eq!(
+        c.registry_entry(&id).unwrap().effective_type,
+        LauncherType::RemoteSsh
+    );
+    let ws = c.create_workspace("Remote").unwrap();
+    let member = c.add_member(&ws, &id, &fp, None).unwrap();
+    let events = Arc::new(Events::default());
+    c.subscribe(events.clone());
+    let info = c.start_session(&ws, &member, 24, 80).unwrap();
+    assert!(info.remote);
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let generation = loop {
+        let g = c.sessions.info(&info.session_id).unwrap().generation;
+        if g > info.generation || Instant::now() > deadline {
+            break g;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert!(generation > info.generation, "reconnected after the drop");
+    assert!(events.reconnects().iter().any(|r| r.0 && r.1 == 1));
+    c.close_session(&info.session_id).unwrap();
 }

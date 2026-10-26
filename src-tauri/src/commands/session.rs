@@ -134,6 +134,14 @@ pub async fn session_close(core: CoreState<'_>, session_id: String) -> Result<()
 }
 
 #[tauri::command]
+pub async fn session_cancel_reconnect(
+    core: CoreState<'_>,
+    session_id: String,
+) -> Result<(), String> {
+    core.cancel_reconnect(&session_id)
+}
+
+#[tauri::command]
 pub async fn session_list(core: CoreState<'_>) -> Result<Vec<SessionInfo>, String> {
     Ok(core.sessions.list())
 }

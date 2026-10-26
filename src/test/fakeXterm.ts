@@ -20,6 +20,45 @@ export class FakeTerminal {
   selectionHandlers: (() => void)[] = [];
   selectedAll = 0;
   cleared = 0;
+  /** Rows of the fake buffer: text plus whether the row continues the previous one. */
+  bufferRows: { text: string; wrapped: boolean }[] = [];
+  linkProviders: {
+    provideLinks: (line: number, cb: (links: unknown[] | undefined) => void) => void;
+  }[] = [];
+  scrolledTo: number | null = null;
+  selected: [number, number, number] | null = null;
+  buffer = {
+    active: {
+      get length() {
+        return 0;
+      },
+      getLine: (row: number) => {
+        const r = this.bufferRows[row];
+        if (!r) return undefined;
+        return {
+          isWrapped: r.wrapped,
+          translateToString: (trim?: boolean) =>
+            trim ? r.text.replace(/\s+$/, "") : r.text.padEnd(this.cols),
+        };
+      },
+    },
+  };
+  registerLinkProvider(provider: FakeTerminal["linkProviders"][number]) {
+    this.linkProviders.push(provider);
+    return { dispose() {} };
+  }
+  scrollToLine(line: number) {
+    this.scrolledTo = line;
+  }
+  select(col: number, row: number, length: number) {
+    this.selected = [col, row, length];
+  }
+  /** Links the registered providers report for 1-based buffer line `line`. */
+  linksAt(line: number): unknown[] {
+    let out: unknown[] = [];
+    for (const p of this.linkProviders) p.provideLinks(line, (links) => (out = links ?? []));
+    return out;
+  }
   parser = {
     registerOscHandler: (id: number, handler: (data: string) => boolean) => {
       this.oscHandlers.set(id, handler);
@@ -34,6 +73,7 @@ export class FakeTerminal {
 
   constructor(options: Record<string, unknown>) {
     this.options = { ...options };
+    Object.defineProperty(this.buffer.active, "length", { get: () => this.bufferRows.length });
     terminals.push(this);
   }
   loadAddon() {}

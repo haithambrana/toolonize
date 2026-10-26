@@ -18,8 +18,8 @@ use crate::settings::{Settings, SETTINGS_SCHEMA};
 use crate::shells::{self, SyntheticSpec};
 use crate::transfer::{self, ImportReport};
 use crate::workspace::{
-    validate_layout, validate_name, validate_title, LayoutMode, LayoutState, Member, MemberType,
-    StartupPolicy, Workspace, MAX_MEMBERS, MAX_WORKSPACES,
+    validate_color, validate_layout, validate_name, validate_title, LayoutMode, LayoutState,
+    Member, MemberType, StartupPolicy, Workspace, MAX_MEMBERS, MAX_WORKSPACES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -47,13 +47,32 @@ pub struct PersistedState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AppEvent {
-    Session { info: SessionInfo },
-    SessionClosed { session_id: String },
-    Registry { diff: Diff },
+    Session {
+        info: SessionInfo,
+    },
+    SessionClosed {
+        session_id: String,
+    },
+    Registry {
+        diff: Diff,
+    },
     Workspaces,
     Settings,
-    Watch { status: watch::WatchStatus },
-    Notice { level: String, message: String },
+    Watch {
+        status: watch::WatchStatus,
+    },
+    Notice {
+        level: String,
+        message: String,
+    },
+    /// SSH auto-reconnect progress for a session (`active: false` = stopped).
+    Reconnect {
+        session_id: String,
+        active: bool,
+        attempt: u32,
+        max_attempts: u32,
+        delay_ms: u64,
+    },
 }
 
 pub trait EventSink: Send + Sync {
@@ -113,6 +132,7 @@ pub struct WorkspaceView {
     pub startup_policy: StartupPolicy,
     pub layout: LayoutState,
     pub staged_import: bool,
+    pub color: Option<String>,
     pub members: Vec<MemberView>,
 }
 
@@ -161,6 +181,26 @@ pub struct MemberPatch {
     pub title: Option<String>,
     pub auto_restart: Option<bool>,
     pub detach_expected: Option<bool>,
+    /// Palette id; an empty string clears the tag.
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+/// SSH auto-reconnect bookkeeping per session.
+#[derive(Debug, Clone, Copy)]
+struct Reconnect {
+    attempt: u32,
+    /// Bumped on every schedule/cancel so stale timers do nothing.
+    token: u64,
+}
+
+pub const RECONNECT_MAX_ATTEMPTS: u32 = 8;
+/// A connection that stayed up this long starts the backoff from scratch.
+const RECONNECT_STABLE_MS: u64 = 60_000;
+
+/// Backoff before reconnect attempt `n` (1-based): 2, 4, 8, 16, 30, 30, ... s.
+pub fn reconnect_delay(attempt: u32) -> Duration {
+    Duration::from_secs((1u64 << attempt.min(5)).min(30))
 }
 
 pub struct Core {
@@ -174,6 +214,8 @@ pub struct Core {
     scan_lock: Mutex<()>,
     load_report: LoadReport,
     restarts: Mutex<HashMap<String, Vec<Instant>>>,
+    reconnects: Mutex<HashMap<String, Reconnect>>,
+    reconnect_token: std::sync::atomic::AtomicU64,
     /// Workspaces whose startup policy already ran in this app process; a
     /// renderer reload must not run it (or ask) again.
     opened: Mutex<std::collections::HashSet<String>>,
@@ -228,6 +270,8 @@ impl Core {
                 scan_lock: Mutex::new(()),
                 load_report,
                 restarts: Mutex::new(HashMap::new()),
+                reconnects: Mutex::new(HashMap::new()),
+                reconnect_token: std::sync::atomic::AtomicU64::new(0),
                 opened: Mutex::new(std::collections::HashSet::new()),
                 me,
             }
@@ -553,6 +597,7 @@ impl Core {
             startup_policy: w.startup_policy,
             layout: w.layout.clone(),
             staged_import: w.staged_import,
+            color: w.color.clone(),
             members,
         }
     }
@@ -613,6 +658,14 @@ impl Core {
         let name = validate_name(name)?;
         self.with_workspace(id, |w, _, _| {
             w.name = name;
+            Ok(())
+        })
+    }
+
+    pub fn set_workspace_color(&self, id: &str, color: Option<&str>) -> Result<(), String> {
+        let color = validate_color(color)?;
+        self.with_workspace(id, |w, _, _| {
+            w.color = color;
             Ok(())
         })
     }
@@ -713,6 +766,7 @@ impl Core {
                 detach_expected,
                 added_at: now_ms(),
                 portable: None,
+                color: None,
             });
             Ok(())
         });
@@ -806,6 +860,10 @@ impl Core {
             Some(t) => Some(validate_title(Some(t))?),
             None => None,
         };
+        let color = match patch.color {
+            Some(c) => Some(validate_color(Some(&c))?),
+            None => None,
+        };
         let renamed = title.is_some();
         let shown = self.with_workspace(workspace_id, |w, reg, rs| {
             let m = w.member_mut(member_id).ok_or("member not found")?;
@@ -817,6 +875,9 @@ impl Core {
             }
             if let Some(v) = patch.detach_expected {
                 m.detach_expected = v;
+            }
+            if let Some(c) = color {
+                m.color = c;
             }
             // Title a running session should show: the member title, or the
             // launcher's alias/name when the title was reset.
@@ -1098,11 +1159,19 @@ impl Core {
 
     fn on_session(&self, info: &SessionInfo) {
         self.bus.emit(AppEvent::Session { info: info.clone() });
-        if !matches!(
-            info.process_state,
-            crate::session::ProcessState::Exited { .. }
-        ) {
-            return;
+        match info.process_state {
+            crate::session::ProcessState::Disconnected { .. } => {
+                self.maybe_reconnect(info);
+                return;
+            }
+            crate::session::ProcessState::Exited { .. } => {
+                self.stop_reconnect(&info.session_id, false);
+            }
+            crate::session::ProcessState::Closed => {
+                self.stop_reconnect(&info.session_id, false);
+                return;
+            }
+            _ => return,
         }
         let auto = {
             let data = self.data.lock().unwrap();
@@ -1145,7 +1214,102 @@ impl Core {
         }
     }
 
+    /// SSH auto-reconnect. The session layer marks a remote session
+    /// `Disconnected` when ssh exits with 255 (connection failed or dropped);
+    /// a normal `exit` returns the remote shell's status and a user Stop ends
+    /// as `Closed`, so neither reconnects. Reconnects the same authorized
+    /// member with exponential backoff and bounded attempts.
+    /// Returns true when a reconnect was scheduled or abandoned here.
+    fn maybe_reconnect(&self, info: &SessionInfo) -> bool {
+        let dropped = matches!(
+            info.process_state,
+            crate::session::ProcessState::Disconnected { .. }
+        );
+        let enabled = self.data.lock().unwrap().settings.ssh_auto_reconnect;
+        if !info.remote || !dropped || !enabled {
+            self.stop_reconnect(&info.session_id, false);
+            return false;
+        }
+        let stable = now_ms().saturating_sub(info.started_at_ms) >= RECONNECT_STABLE_MS;
+        let token = self
+            .reconnect_token
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1;
+        let attempt = {
+            let mut map = self.reconnects.lock().unwrap();
+            let entry = map
+                .entry(info.session_id.clone())
+                .or_insert(Reconnect { attempt: 0, token });
+            if stable {
+                entry.attempt = 0;
+            }
+            entry.attempt += 1;
+            entry.token = token;
+            entry.attempt
+        };
+        if attempt > RECONNECT_MAX_ATTEMPTS {
+            self.stop_reconnect(&info.session_id, true);
+            self.notice(
+                "warning",
+                format!(
+                    "{}: gave up reconnecting after {RECONNECT_MAX_ATTEMPTS} attempts",
+                    info.title
+                ),
+            );
+            return true;
+        }
+        let delay = reconnect_delay(attempt);
+        self.bus.emit(AppEvent::Reconnect {
+            session_id: info.session_id.clone(),
+            active: true,
+            attempt,
+            max_attempts: RECONNECT_MAX_ATTEMPTS,
+            delay_ms: delay.as_millis() as u64,
+        });
+        if let Some(core) = self.arc() {
+            let id = info.session_id.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(delay);
+                let current = core.reconnects.lock().unwrap().get(&id).map(|r| r.token);
+                if current != Some(token) {
+                    return; // cancelled or superseded
+                }
+                let still_down = core.sessions.info(&id).is_ok_and(|i| {
+                    matches!(
+                        i.process_state,
+                        crate::session::ProcessState::Disconnected { .. }
+                    )
+                });
+                if still_down {
+                    let _ = core.reconnect_session(&id);
+                }
+            });
+        }
+        true
+    }
+
+    fn stop_reconnect(&self, session_id: &str, announce_always: bool) {
+        let removed = self.reconnects.lock().unwrap().remove(session_id).is_some();
+        if removed || announce_always {
+            self.bus.emit(AppEvent::Reconnect {
+                session_id: session_id.to_string(),
+                active: false,
+                attempt: 0,
+                max_attempts: RECONNECT_MAX_ATTEMPTS,
+                delay_ms: 0,
+            });
+        }
+    }
+
+    /// The user stopped automatic reconnection for a session.
+    pub fn cancel_reconnect(&self, session_id: &str) -> Result<(), String> {
+        check_id(session_id)?;
+        self.stop_reconnect(session_id, true);
+        Ok(())
+    }
+
     pub fn close_session(&self, session_id: &str) -> Result<(), String> {
+        self.stop_reconnect(session_id, false);
         self.sessions.close(session_id).map_err(|e| e.to_string())?;
         self.bus.emit(AppEvent::SessionClosed {
             session_id: session_id.to_string(),
@@ -1237,6 +1401,39 @@ impl Core {
 
     pub fn audit_recent(&self, limit: usize) -> Vec<AuditEntry> {
         self.audit.recent(limit.min(500))
+    }
+
+    pub fn ssh_hosts(&self) -> crate::sshconfig::HostList {
+        let list = match crate::sshconfig::ssh_dir() {
+            Some(dir) => crate::sshconfig::read_hosts(&dir),
+            None => crate::sshconfig::HostList {
+                notes: vec!["no home folder".into()],
+                ..Default::default()
+            },
+        };
+        self.audit.record(
+            "ssh.hosts.read",
+            Outcome::Recorded,
+            Record {
+                detail: Some(&format!("{} host aliases", list.hosts.len())),
+                ..Default::default()
+            },
+        );
+        list
+    }
+
+    pub fn export_scrollback(&self, name: &str, text: &str) -> Result<String, String> {
+        let dir = crate::export::downloads_dir().ok_or("no Downloads or home folder")?;
+        let path = crate::export::export_text(&dir, name, text, now_ms())?;
+        self.audit.record(
+            "scrollback.export",
+            Outcome::Recorded,
+            Record {
+                detail: Some(&format!("{} bytes", text.len())),
+                ..Default::default()
+            },
+        );
+        Ok(path.to_string_lossy().into_owned())
     }
 
     pub fn open_url(&self, url: &str) -> Result<(), String> {

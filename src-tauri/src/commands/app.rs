@@ -48,3 +48,13 @@ pub async fn audit_recent(core: CoreState<'_>, limit: u32) -> Result<Vec<AuditEn
 pub async fn open_url(core: CoreState<'_>, url: String) -> Result<(), String> {
     blocking(&core, move |c| c.open_url(&url)).await
 }
+
+/// Save terminal text into the Downloads folder; the core picks the path.
+#[tauri::command]
+pub async fn scrollback_export(
+    core: CoreState<'_>,
+    name: String,
+    text: String,
+) -> Result<String, String> {
+    blocking(&core, move |c| c.export_scrollback(&name, &text)).await
+}

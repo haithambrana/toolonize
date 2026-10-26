@@ -75,3 +75,9 @@ pub async fn synthetic_add(core: CoreState<'_>, spec: SyntheticSpec) -> Result<S
 pub async fn synthetic_remove(core: CoreState<'_>, launcher_id: String) -> Result<(), String> {
     blocking(&core, move |c| c.remove_synthetic(&launcher_id)).await
 }
+
+/// Host aliases from the user's ssh config (ADR-011). Takes no path.
+#[tauri::command]
+pub async fn ssh_hosts(core: CoreState<'_>) -> Result<crate::sshconfig::HostList, String> {
+    blocking(&core, move |c| Ok(c.ssh_hosts())).await
+}

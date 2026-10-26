@@ -11,7 +11,7 @@
  * written each chunk, which is what drives the core's lossless backpressure.
  */
 import { Channel } from "@tauri-apps/api/core";
-import { Terminal, type ITheme } from "@xterm/xterm";
+import { Terminal, type IBufferRange, type ILink, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { api, type AttachInfo, type SessionEvent } from "../lib/ipc";
@@ -33,6 +33,44 @@ export interface ControllerOptions {
   /** Text was placed on the local clipboard (selection or OSC 52). */
   onCopied?: (chars: number, source: "selection" | "program") => void;
   onContextMenu?: (x: number, y: number) => void;
+  /**
+   * Ctrl+click on a link. `hidden` is true for OSC 8 hyperlinks, whose
+   * target is not the visible text and must be shown before opening.
+   */
+  onOpenLink?: (url: string, hidden: boolean) => void;
+}
+
+/** One logical (unwrapped) line of the terminal buffer. */
+export interface BufferLine {
+  /** Buffer row where the line starts. */
+  row: number;
+  text: string;
+}
+
+export interface BufferMatch {
+  row: number;
+  col: number;
+  length: number;
+  line: string;
+  index: number;
+}
+
+const URL_RE = /\bhttps?:\/\/[^\s"'<>`]+/gi;
+
+/** URLs in a line of text, without trailing punctuation. */
+export function findUrls(text: string): { index: number; url: string }[] {
+  const out: { index: number; url: string }[] = [];
+  for (const m of text.matchAll(URL_RE)) {
+    let url = m[0];
+    while (/[.,;:!?'")\]}>]$/.test(url)) {
+      const last = url[url.length - 1];
+      const open = { ")": "(", "]": "[", "}": "{" }[last];
+      if (open && url.split(open).length > url.split(last).length - 1) break;
+      url = url.slice(0, -1);
+    }
+    if (url.length > "https://".length) out.push({ index: m.index ?? 0, url });
+  }
+  return out;
 }
 
 let parking: HTMLDivElement | null = null;
@@ -97,6 +135,16 @@ export class TerminalController {
     this.element = document.createElement("div");
     this.element.className = "terminal-host";
     this.term = new Terminal({
+      // OSC 8 hyperlinks: the target is hidden behind the text, so opening
+      // asks first (onOpenLink(url, true)); only http(s) are accepted.
+      linkHandler: {
+        allowNonHttpProtocols: false,
+        activate: (event, uri) => {
+          if (event.ctrlKey || event.metaKey) this.options.onOpenLink?.(uri, true);
+        },
+        hover: (_event, uri) => this.hint(uri),
+        leave: () => this.hint(null),
+      },
       fontSize: options.fontSize,
       scrollback: options.scrollback,
       theme: options.theme,
@@ -124,6 +172,10 @@ export class TerminalController {
         );
       }
       return true;
+    });
+    // Plain-text URLs: Ctrl+click opens them in the system browser.
+    this.term.registerLinkProvider({
+      provideLinks: (lineNumber, callback) => callback(this.linksAt(lineNumber - 1)),
     });
     this.term.onSelectionChange(() => {
       if (!this.options.clipboardPolicy?.().copyOnSelect) return;
@@ -345,6 +397,101 @@ export class TerminalController {
 
   copySelection(): string {
     return this.term.getSelection();
+  }
+
+  private hint(url: string | null): void {
+    this.element.title = url ? `Ctrl+click to open ${url}` : "";
+  }
+
+  /** Logical line containing buffer `row`, with wrapped rows joined. */
+  private logicalLineAt(row: number): BufferLine | undefined {
+    const buffer = this.term.buffer.active;
+    let start = row;
+    while (start > 0 && buffer.getLine(start)?.isWrapped) start--;
+    if (!buffer.getLine(start)) return undefined;
+    let text = "";
+    let r = start;
+    for (;;) {
+      const line = buffer.getLine(r);
+      if (!line) break;
+      const next = buffer.getLine(r + 1);
+      const continues = next?.isWrapped ?? false;
+      text += line.translateToString(!continues);
+      if (!continues) break;
+      r++;
+    }
+    return { row: start, text };
+  }
+
+  private linksAt(row: number): ILink[] | undefined {
+    const line = this.logicalLineAt(row);
+    if (!line) return undefined;
+    const cols = this.term.cols;
+    const cell = (i: number) => ({ x: (i % cols) + 1, y: line.row + Math.floor(i / cols) + 1 });
+    const links = findUrls(line.text)
+      .map(({ index, url }): ILink => {
+        const range: IBufferRange = { start: cell(index), end: cell(index + url.length - 1) };
+        return {
+          range,
+          text: url,
+          activate: (event, text) => {
+            if (event.ctrlKey || event.metaKey) this.options.onOpenLink?.(text, false);
+          },
+          hover: (_event, text) => this.hint(text),
+          leave: () => this.hint(null),
+        };
+      })
+      .filter((l) => l.range.start.y <= row + 1 && l.range.end.y >= row + 1);
+    return links.length ? links : undefined;
+  }
+
+  /** The whole buffer (scrollback + screen) as logical lines. */
+  lines(): BufferLine[] {
+    const buffer = this.term.buffer.active;
+    const out: BufferLine[] = [];
+    for (let row = 0; row < buffer.length; row++) {
+      if (buffer.getLine(row)?.isWrapped) continue;
+      const line = this.logicalLineAt(row);
+      if (line) out.push(line);
+    }
+    return out;
+  }
+
+  /** Plain text of the buffer, trailing blank lines dropped. */
+  textContent(): string {
+    const lines = this.lines().map((l) => l.text);
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    return lines.length ? lines.join("\n") + "\n" : "";
+  }
+
+  /** Matches of `query` across the buffer, up to `limit`. */
+  find(query: string, caseSensitive: boolean, limit: number): BufferMatch[] {
+    if (!query) return [];
+    const needle = caseSensitive ? query : query.toLowerCase();
+    const cols = this.term.cols;
+    const out: BufferMatch[] = [];
+    for (const line of this.lines()) {
+      const hay = caseSensitive ? line.text : line.text.toLowerCase();
+      let index = hay.indexOf(needle);
+      while (index !== -1 && out.length < limit) {
+        out.push({
+          row: line.row + Math.floor(index / cols),
+          col: index % cols,
+          length: query.length,
+          line: line.text,
+          index,
+        });
+        index = hay.indexOf(needle, index + needle.length);
+      }
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /** Scroll to a match and select it. */
+  reveal(match: Pick<BufferMatch, "row" | "col" | "length">): void {
+    this.term.scrollToLine(Math.max(0, match.row - Math.floor(this.term.rows / 2)));
+    this.term.select(match.col, match.row, match.length);
   }
 
   /** Visual separator when a fresh process starts in the same view. */

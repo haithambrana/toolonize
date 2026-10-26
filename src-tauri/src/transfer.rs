@@ -8,8 +8,8 @@
 use crate::model::{new_id, now_ms, valid_id};
 use crate::shells::SyntheticSpec;
 use crate::workspace::{
-    validate_layout, validate_name, validate_title, LayoutMode, LayoutState, Member, MemberType,
-    PortableHint, StartupPolicy, Workspace, MAX_MEMBERS,
+    validate_color, validate_layout, validate_name, validate_title, LayoutMode, LayoutState,
+    Member, MemberType, PortableHint, StartupPolicy, Workspace, MAX_MEMBERS,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -33,6 +33,8 @@ pub struct ExportedMember {
     /// Present only in machine-bound exports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launcher_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +55,8 @@ pub struct ExportedWorkspace {
     pub startup_policy: StartupPolicy,
     pub layout: ExportedLayout,
     pub members: Vec<ExportedMember>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,6 +171,7 @@ pub fn export(
                 )
             }),
             launcher_id: machine_bound.then(|| m.launcher_id.clone()),
+            color: m.color.clone(),
         })
         .collect();
     let bundle = Bundle {
@@ -183,6 +188,7 @@ pub fn export(
                 focused_member: workspace.layout.focused_member.clone(),
             },
             members,
+            color: workspace.color.clone(),
         },
     };
     let text = serde_json::to_string_pretty(&bundle).map_err(|e| vec![e.to_string()])?;
@@ -283,6 +289,15 @@ pub fn import(text: &str, resolver: &Resolver<'_>) -> Result<Imported, String> {
     if w.startup_policy != StartupPolicy::Ask {
         warnings.push("startup policy reset to Ask for review".into());
     }
+    // Color tags are cosmetic: an unknown value is dropped, not fatal.
+    let mut color = |c: Option<String>| match validate_color(c.as_deref()) {
+        Ok(c) => c,
+        Err(_) => {
+            warnings.push("unknown color tag dropped".into());
+            None
+        }
+    };
+    workspace.color = color(w.color.clone());
     let mut unresolved = Vec::new();
     let mut synthetic = Vec::new();
     let mut ids = std::collections::HashSet::new();
@@ -324,6 +339,7 @@ pub fn import(text: &str, resolver: &Resolver<'_>) -> Result<Imported, String> {
             detach_expected: m.detach_expected,
             added_at: now_ms(),
             portable: Some(m.portable),
+            color: color(m.color),
         });
     }
     let member_ids: Vec<String> = workspace.members.iter().map(|m| m.id.clone()).collect();
@@ -379,6 +395,7 @@ mod tests {
                 detach_expected: false,
                 added_at: 1,
                 portable: None,
+                color: Some("blue".into()),
             });
         }
         w.layout.json = Some(json!({"layout": {"type": "row", "children": [
@@ -435,6 +452,24 @@ mod tests {
         );
         assert_eq!(imported.report.unresolved.len(), 1);
         assert!(w.layout.json.is_some());
+        assert_eq!(
+            w.members[0].color.as_deref(),
+            Some("blue"),
+            "color tags survive"
+        );
+    }
+
+    #[test]
+    fn unknown_color_tags_are_dropped_not_fatal() {
+        let exists = |_: &str| true;
+        let mut v: Value =
+            serde_json::from_str(&export(&workspace(), &names, false).unwrap()).unwrap();
+        v["workspace"]["color"] = json!("javascript:alert(1)");
+        v["workspace"]["members"][0]["color"] = json!("#fff");
+        let imported = import(&v.to_string(), &Resolver { exists: &exists }).unwrap();
+        assert_eq!(imported.workspace.color, None);
+        assert_eq!(imported.workspace.members[0].color, None);
+        assert!(imported.report.warnings.iter().any(|w| w.contains("color")));
     }
 
     #[test]

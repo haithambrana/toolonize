@@ -49,6 +49,9 @@ pub struct Settings {
     /// Let programs in a terminal (incl. over SSH, e.g. tmux/vim) write to
     /// the local clipboard with OSC 52. Reading the clipboard is never allowed.
     pub osc52_clipboard: bool,
+    /// Reconnect SSH members automatically when the connection drops
+    /// (ssh exit status 255), with backoff and a bounded number of attempts.
+    pub ssh_auto_reconnect: bool,
 }
 
 impl Default for Settings {
@@ -66,6 +69,7 @@ impl Default for Settings {
             confirm_close_running: true,
             copy_on_select: false,
             osc52_clipboard: true,
+            ssh_auto_reconnect: true,
         }
     }
 }

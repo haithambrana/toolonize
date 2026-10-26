@@ -12,6 +12,7 @@
     "allow-audit-recent",
     "allow-open-url",
     "allow-clipboard-read-text",
+    "allow-scrollback-export",
     "allow-registry-view",
     "allow-registry-rescan",
     "allow-registry-set-hidden",
@@ -23,9 +24,11 @@
     "allow-custom-root-remove",
     "allow-synthetic-add",
     "allow-synthetic-remove",
+    "allow-ssh-hosts",
     "allow-workspace-list",
     "allow-workspace-create",
     "allow-workspace-rename",
+    "allow-workspace-set-color",
     "allow-workspace-delete",
     "allow-workspace-set-active",
     "allow-workspace-set-policy",
@@ -49,6 +52,7 @@
     "allow-session-stop",
     "allow-session-restart",
     "allow-session-reconnect",
+    "allow-session-cancel-reconnect",
     "allow-session-close",
     "allow-session-list"
   ]

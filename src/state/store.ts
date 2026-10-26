@@ -50,6 +50,10 @@ export interface AppState {
   resolvedTheme: "dark" | "light" | "high_contrast";
   /** Open terminal context menu. */
   termMenu: { sessionId: string; memberId: string; x: number; y: number } | null;
+  /** SSH auto-reconnect in progress, per session (`at`: next attempt, ms). */
+  reconnecting: Record<string, { attempt: number; max: number; at: number }>;
+  /** "Search all terminals" dialog. */
+  globalSearchOpen: boolean;
 }
 
 const initial: AppState = {
@@ -72,6 +76,8 @@ const initial: AppState = {
   searchOpen: null,
   resolvedTheme: "dark",
   termMenu: null,
+  reconnecting: {},
+  globalSearchOpen: false,
 };
 
 let state: AppState = initial;
@@ -151,7 +157,24 @@ export function handleEvent(event: AppEvent): void {
       setState((s) => {
         const sessions = { ...s.sessions };
         delete sessions[event.session_id];
-        return { sessions };
+        const reconnecting = { ...s.reconnecting };
+        delete reconnecting[event.session_id];
+        return { sessions, reconnecting };
+      });
+      break;
+    case "reconnect":
+      setState((s) => {
+        const reconnecting = { ...s.reconnecting };
+        if (event.active) {
+          reconnecting[event.session_id] = {
+            attempt: event.attempt,
+            max: event.max_attempts,
+            at: Date.now() + event.delay_ms,
+          };
+        } else {
+          delete reconnecting[event.session_id];
+        }
+        return { reconnecting };
       });
       break;
     case "registry":
