@@ -25,7 +25,7 @@ bad() {
 # Core utilities the wizard may use; everything else comes from stubs.
 SYSBIN="$WORK/sysbin"
 mkdir -p "$SYSBIN"
-for tool in bash sh sed awk grep head tr uname mktemp rm mkdir dirname cat tput \
+for tool in bash sh sed grep head tr uname mktemp rm mkdir dirname cat tput \
   sha256sum tar ln chmod sort printf env basename cut wc xz; do
   p="$(command -v "$tool" 2>/dev/null)" && ln -s "$p" "$SYSBIN/$tool"
 done
@@ -223,12 +223,12 @@ optional_tools
 run --yes --profile run
 grep -q "dnf install -y" "$LOG" && grep -q "webkit2gtk4.1" "$LOG" && ok "fedora: dnf transaction" || bad "fedora: dnf ($(cat "$LOG"))"
 
-# 15. Arch maps to pacman without a partial upgrade (-Sy).
+# 15. Arch maps to one full pacman -Syu transaction (never a partial -Sy).
 new_case arch arch
 good_toolchain
 optional_tools
 run --yes --profile run
-grep -q "pacman -S --needed --noconfirm" "$LOG" && ! grep -q -- "-Sy" "$LOG" && ok "arch: pacman transaction, no -Sy" || bad "arch: pacman"
+grep -q "pacman -Syu --needed --noconfirm" "$LOG" && ! grep -q -- "-Sy " "$LOG" && ok "arch: pacman -Syu transaction" || bad "arch: pacman"
 
 # 16. Without sudo, pkexec is used, still exactly once.
 new_case pkexec ubuntu

@@ -57,11 +57,13 @@ release checklist) are untouched. No release has been tagged or published.
 ## Open items (honest list)
 
 - **Human review** of M3–M10, ADR-003 and ADR-006..010.
-- **Setup wizard**: Windows installs (winget + UAC) and the dnf/pacman/zypper
-  package maps are not yet verified on real machines; macOS is preparatory.
-- **History**: the owner's GitHub account name remains in older commits
-  (removed from the tree; see ADR-010). A full-history secret scan with a
-  dedicated scanner (gitleaks) is still to be run before publication.
+- **Setup wizard**: Fedora, Arch and openSUSE are verified end to end in CI
+  containers (install, check, full build); Windows winget installs are
+  exercised in CI, but the UAC relaunch for a standard user still needs one
+  manual run; macOS is preparatory.
+- **Publication**: history was rewritten and gitleaks is clean (ADR-010), but
+  old PR refs on GitHub still hold the original commits; publishing from a
+  fresh CRMonize.com repository is recommended.
 - **Windows runtime**: Known Folder discovery, ConPTY sessions and external
   launches are exercised on the Windows CI runner only. Manual WebView2 smoke
   (layout continuity, renderer reload, WSL, real `.lnk` dry run with counts

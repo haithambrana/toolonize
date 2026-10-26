@@ -12,11 +12,12 @@ checked. Nothing here may be claimed in release notes until it is true.
 - [ ] Public-safety review: `tools/check-public-safety.sh` clean, gitleaks
       history scan clean, `docs/security/PUBLIC_REPOSITORY_SAFETY.md`
       checklist passed.
-- [ ] CI green on the tagged commit (ubuntu + windows + setup-macos), repository-safety green.
-- [ ] Decide whether to rewrite history to drop the owner's personal account
-      name from older commits before publishing (ADR-010).
-- [ ] Setup wizard verified manually on Windows (winget + UAC) and, if claimed,
-      on Fedora/Arch/openSUSE.
+- [ ] CI green on the tagged commit (ubuntu + windows + macOS + setup
+      distros + Windows install), repository-safety green.
+- [ ] Decide where the public repository lives (ADR-010: a fresh repository
+      under a CRMonize.com organization avoids the residual old PR refs).
+- [ ] Setup wizard: the UAC relaunch path verified once on a real Windows
+      machine with a standard user (CI runners are already elevated).
 - [ ] `docs/security/DEPENDENCIES.md` refreshed; third-party notices
       aggregated into the installers / release assets.
 

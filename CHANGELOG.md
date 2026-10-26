@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
-- Setup wizard (ADR-009): `./setup.sh` checks every package and toolchain requirement, shows one plan, asks for consent and administrator authorization once, installs everything in one transaction, then verifies. Linux implemented (apt, dnf, pacman, zypper; whiptail or plain text; `--check`, `--dry-run`, `--yes`, `--profile dev|run`); Windows (`scripts/setup/windows.ps1`, winget with one UAC prompt) and macOS (toolchain only) prepared. Node.js and rustup downloads are pinned to SHA-256 digests. CI now installs the Linux build dependencies through the wizard. No new dependencies.
+- Setup wizard (ADR-009): `./setup.sh` checks every package and toolchain requirement, shows one plan, asks for consent and administrator authorization once, installs everything in one transaction, then verifies. Linux implemented (apt, dnf, pacman, zypper — each verified end to end in CI, including a full build; whiptail or plain text; `--check`, `--dry-run`, `--yes`, `--profile dev|run`); Windows (`scripts/setup/windows.ps1`, winget with one UAC prompt) and macOS (toolchain only) prepared. Node.js and rustup downloads are pinned to SHA-256 digests. CI now installs the Linux build dependencies through the wizard. No new dependencies.
 
 - Rename terminals: double-click (or F2 on) a tab, double-click the pane title, the terminal right-click menu, the command palette, or Ctrl+Shift+R. The name is saved with the workspace and shown for the running session without restarting it; an empty name resets to the launcher name.
 - Clipboard that behaves like a local terminal, including over SSH: Ctrl+Shift+C / right-click → Copy puts the selection on this computer's clipboard; Ctrl+Shift+V / right-click → Paste reads it natively (works on WebKitGTK); optional copy-on-select; OSC 52 support so tmux/vim/neovim on a remote host can copy into the local clipboard (write-only, can be turned off). Terminal right-click menu with Copy, Paste, Select all, Clear screen, Find and Rename.
@@ -31,5 +31,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Preliminary naming research is not legal trademark clearance; formal review remains a later release gate if required.
 
 ### Security
-- Sensitive-information review of the tree and full git history: no credentials, keys, tokens, private IPs or machine-specific files found. The owner's personal account name was removed from the documentation (it remains in older commit history; see ADR-010).
+- Sensitive-information review of the tree and full git history: no credentials, keys, tokens, private IPs or machine-specific files found. With the owner's approval, all branches were rewritten to remove the owner's personal account name from file contents and commit metadata (now `CRMonize.com`), then force-pushed; gitleaks 8.30.1 reports no leaks over the full history (ADR-010).
 

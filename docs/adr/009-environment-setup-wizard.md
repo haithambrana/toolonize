@@ -57,8 +57,9 @@ Security rules:
   Homebrew is not auto-installed.
 - Nothing outside the user's home is touched without the single
   authorization; a pre-existing `~/.local/bin/node` that the wizard did not
-  create is never replaced. Arch uses `pacman -S --needed` (no partial
-  upgrade via `-Sy`).
+  create is never replaced. Arch uses one `pacman -Syu --needed`
+  transaction, because Arch does not support partial upgrades; the plan
+  says that it also updates the system.
 - Optional tools (OpenSSH client, tmux, git) are offered separately and can be
   excluded (`--no-optional`).
 

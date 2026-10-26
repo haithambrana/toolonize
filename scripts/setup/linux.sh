@@ -211,7 +211,7 @@ root_command_text() {
   case "$PM" in
     apt) echo "apt-get update && apt-get install -y $ROOT_PKGS" ;;
     dnf) echo "dnf install -y $ROOT_PKGS" ;;
-    pacman) echo "pacman -S --needed --noconfirm $ROOT_PKGS" ;;
+    pacman) echo "pacman -Syu --needed --noconfirm $ROOT_PKGS   (also updates the system: Arch does not support partial upgrades)" ;;
     zypper) echo "zypper --non-interactive install $ROOT_PKGS" ;;
   esac
 }
@@ -246,7 +246,7 @@ run_root_once() {
   case "$PM" in
     apt) script='export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y "$@"' ;;
     dnf) script='dnf install -y "$@"' ;;
-    pacman) script='pacman -S --needed --noconfirm "$@"' ;;
+    pacman) script='pacman -Syu --needed --noconfirm "$@"' ;;
     zypper) script='zypper --non-interactive install "$@"' ;;
     *) return 1 ;;
   esac

@@ -58,15 +58,21 @@ die() {
 
 # ver_ge A B: true when dotted version A >= B (first three fields, numeric).
 ver_ge() {
-  awk -v a="$1" -v b="$2" 'BEGIN {
-    split(a, x, "."); split(b, y, ".")
-    for (i = 1; i <= 3; i++) {
-      p = x[i] + 0; q = y[i] + 0
-      if (p > q) exit 0
-      if (p < q) exit 1
-    }
-    exit 0
-  }'
+  local IFS=. i x y
+  local -a a b
+  read -r -a a <<<"$1"
+  read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    x="${a[$i]:-0}"
+    y="${b[$i]:-0}"
+    x="${x%%[!0-9]*}"
+    y="${y%%[!0-9]*}"
+    x="${x:-0}"
+    y="${y:-0}"
+    [ "$x" -gt "$y" ] && return 0
+    [ "$x" -lt "$y" ] && return 1
+  done
+  return 0
 }
 
 # First dotted version number in a string ("rustc 1.97.0 (...)" -> 1.97.0).
@@ -290,9 +296,9 @@ ui_yesno() {
 
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
+    sha256sum "$1" | cut -d ' ' -f 1
   elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$1" | awk '{print $1}'
+    shasum -a 256 "$1" | cut -d ' ' -f 1
   else
     return 1
   fi

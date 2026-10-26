@@ -46,8 +46,9 @@ Exit codes: 0 ok · 1 missing or failed · 2 usage · 3 cancelled · 4 unsupport
 | Optional | `ssh`, `tmux`, `git` | `ssh` (Windows feature), Git | `tmux` (Homebrew) |
 
 Fedora (dnf), Arch (pacman) and openSUSE (zypper) use the equivalent package
-names from the Tauri 2 prerequisites; only apt (Debian/Ubuntu) is verified so
-far. On other distributions, install the equivalents of the apt list above by
+names; CI runs the wizard end to end on all four families and then builds
+ToolOnize. On Arch the transaction is `pacman -Syu --needed`, which also
+updates the system, because Arch does not support partial upgrades. On other distributions, install the equivalents of the apt list above by
 hand and rerun with `--skip packages`.
 
 ## How authorization works
