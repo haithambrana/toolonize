@@ -167,7 +167,12 @@ impl Reader {
         let Some(dir) = path.parent() else {
             return Vec::new();
         };
-        if dir.to_string_lossy().contains(['*', '?']) {
+        // Check the pattern, not the resolved path: a Windows verbatim path
+        // (`\\?\...`) contains a '?' of its own.
+        let folder_wildcard = pattern
+            .rsplit_once(['/', '\\'])
+            .is_some_and(|(folder, _)| folder.contains(['*', '?']));
+        if folder_wildcard {
             self.note("Include wildcards in folder names are not supported; skipped");
             return Vec::new();
         }
