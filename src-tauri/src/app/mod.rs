@@ -33,6 +33,8 @@ mod execution;
 mod import_export;
 mod launchers;
 mod misc;
+mod notes;
+pub use notes::{NotesView, TrashSummary};
 mod workspaces;
 
 pub const STATE_SCHEMA: u32 = 1;
@@ -222,6 +224,11 @@ pub struct Core {
     load_report: LoadReport,
     restarts: Mutex<HashMap<String, Vec<Instant>>>,
     reconnects: Mutex<HashMap<String, Reconnect>>,
+    /// Sticky notes, one file per workspace (ADR-012), loaded on first use.
+    notes_store: Store,
+    notes: Mutex<HashMap<String, crate::notes::WorkspaceNotes>>,
+    /// Serializes read-modify-write of notes files.
+    notes_write: Mutex<()>,
     reconnect_token: std::sync::atomic::AtomicU64,
     /// Workspaces whose startup policy already ran in this app process; a
     /// renderer reload must not run it (or ask) again.
@@ -292,10 +299,24 @@ impl Core {
                 load_report,
                 restarts: Mutex::new(HashMap::new()),
                 reconnects: Mutex::new(HashMap::new()),
+                notes_store: Store::new(state_dir.join("notes")),
+                notes: Mutex::new(HashMap::new()),
+                notes_write: Mutex::new(()),
                 reconnect_token: std::sync::atomic::AtomicU64::new(0),
                 opened: Mutex::new(std::collections::HashSet::new()),
                 me,
             }
+        })
+    }
+
+    /// The name a member is shown with: its title, else the launcher's
+    /// alias or name.
+    fn member_title(&self, m: &Member, data: &Data) -> String {
+        m.title.clone().unwrap_or_else(|| {
+            data.registry
+                .effective(&m.launcher_id, &data.state.registry)
+                .map(|e| e.decision.alias.unwrap_or(e.launcher.display_name))
+                .unwrap_or_else(|| m.launcher_id.clone())
         })
     }
 

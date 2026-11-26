@@ -13,6 +13,7 @@ import {
 import { layoutFor, type LayoutMember } from "../layout/modes";
 import { confirmDialog, openDialog, promptDialog } from "./dialogs";
 import { disposeController } from "../terminal/controller";
+import { flushNote, hasNote, loadNotes } from "./notes";
 import {
   activeWorkspace,
   attempt,
@@ -192,14 +193,17 @@ export async function removeMember(w: WorkspaceView, m: MemberView): Promise<voi
       <p>
         The member leaves this workspace{session ? " and its running terminal is closed" : ""}. The
         launcher itself stays in the registry.
+        {hasNote(w.id, m.id) && " Its note is kept: it moves into the project note."}
       </p>
     ),
     confirm: "Remove",
     danger: true,
   });
   if (!ok) return;
+  await flushNote(w.id, m.id);
   await attempt(() => api.removeMember(w.id, m.id), "Could not remove member");
   if (session) disposeController(session.session_id);
+  await loadNotes(w.id);
 }
 
 export async function exportWorkspace(w: WorkspaceView): Promise<void> {

@@ -176,6 +176,14 @@ export const COLOR_TAGS = [
 ] as const;
 export type ColorTag = (typeof COLOR_TAGS)[number];
 
+export interface NotesView {
+  project: string;
+  project_updated_at: number;
+  /** member id -> note text (members without a note are absent) */
+  members: Record<string, string>;
+  trash: { id: string; workspace_name: string; deleted_at: number; notes: number }[];
+}
+
 export interface HostList {
   hosts: string[];
   source: string;
@@ -354,6 +362,12 @@ export const api = {
   setPolicy: (workspaceId: string, policy: StartupPolicy) =>
     invoke<void>("workspace_set_policy", { workspaceId, policy }),
   acceptImport: (workspaceId: string) => invoke<void>("workspace_accept_import", { workspaceId }),
+  notes: (workspaceId: string) => invoke<NotesView>("notes_get", { workspaceId }),
+  /** Durable on success (fsync + atomic rename in the core). `memberId` null = project note. */
+  saveNote: (workspaceId: string, memberId: string | null, text: string) =>
+    invoke<number>("note_save", { workspaceId, memberId, text }),
+  restoreNotes: (trashId: string, workspaceId: string) =>
+    invoke<void>("notes_restore", { trashId, workspaceId }),
   saveLayout: (
     workspaceId: string,
     mode: LayoutMode,

@@ -8,6 +8,7 @@ import {
   api,
   errorMessage,
   type AppEvent,
+  type NotesView,
   type RegistryView,
   type SessionInfo,
   type Settings,
@@ -54,6 +55,13 @@ export interface AppState {
   reconnecting: Record<string, { attempt: number; max: number; at: number }>;
   /** "Search all terminals" dialog. */
   globalSearchOpen: boolean;
+  /** Sticky notes per workspace (ADR-012), as last saved or being typed. */
+  notes: Record<string, NotesView>;
+  /** Save state per note key (`<workspace>:<member>` or `<workspace>:*`). */
+  noteStatus: Record<string, "saved" | "saving" | "error">;
+  /** Members whose note panel is open. */
+  noteOpen: Record<string, boolean>;
+  projectNoteOpen: boolean;
 }
 
 const initial: AppState = {
@@ -78,6 +86,10 @@ const initial: AppState = {
   termMenu: null,
   reconnecting: {},
   globalSearchOpen: false,
+  notes: {},
+  noteStatus: {},
+  noteOpen: {},
+  projectNoteOpen: false,
 };
 
 let state: AppState = initial;

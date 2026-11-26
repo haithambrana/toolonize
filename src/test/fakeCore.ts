@@ -118,6 +118,8 @@ export const core = {
   sessions: [] as SessionInfo[],
   events: null as FakeChannel | null,
   attachments: new Map<string, { output: FakeChannel; events: FakeChannel; id: number }>(),
+  /** Notes as the core has durably saved them, per workspace. */
+  notes: {} as Record<string, { project: string; members: Record<string, string> }>,
 };
 
 let nextAttachment = 1;
@@ -131,6 +133,7 @@ export function resetFakeCore() {
   core.sessions = [];
   core.events = null;
   core.attachments.clear();
+  core.notes = {};
   const ok = () => undefined;
   handlers.set("events_subscribe", (a) => {
     core.events = a.events as FakeChannel;
@@ -189,6 +192,19 @@ export function resetFakeCore() {
     };
   });
   handlers.set("audit_recent", () => []);
+  handlers.set("notes_get", (a) => {
+    const n = core.notes[a.workspaceId as string] ?? { project: "", members: {} };
+    return { project: n.project, project_updated_at: 0, members: { ...n.members }, trash: [] };
+  });
+  handlers.set("note_save", (a) => {
+    const ws = a.workspaceId as string;
+    const n = (core.notes[ws] ??= { project: "", members: {} });
+    const text = a.text as string;
+    if (a.memberId === null) n.project = text;
+    else if (text) n.members[a.memberId as string] = text;
+    else delete n.members[a.memberId as string];
+    return Date.now();
+  });
 }
 
 /** Build an output frame like the Rust pump does. */

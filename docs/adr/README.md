@@ -15,6 +15,7 @@ Index of decisions affecting ToolOnize (formerly discovery-phase codename "Dev C
 | [009](009-environment-setup-wizard.md) | Environment setup wizard: one plan, one consent, one authorization | **Implemented (Linux) / prepared (Windows, macOS) — pending human review** |
 | [010](010-crmonize-stewardship.md) | ToolOnize is a CRMonize.com open-source project | **Implemented — pending human review** |
 | [011](011-ssh-hosts-reconnect-links-export.md) | SSH connection manager, auto-reconnect, terminal links, output export (amends T-TERM-03) | **Implemented — pending human review** |
+| [012](012-sticky-notes.md) | Sticky notes per terminal and per workspace, crash-safe | **Implemented — pending human review** |
 
 ADR-003's M4 state-preservation gate passed in automated tests (see the ADR); ADR-006..011 record decisions made while implementing M3–M10 in one pass after the owner waived per-milestone review pauses on 2026-10-25. They await human review. ADR-004 was accepted after the M2 Linux, Windows, and real-WebView evidence passed. Any portable-pty upgrade must rerun the relevant M2 matrix on both platforms before adoption; `Cargo.lock` remains authoritative.
 

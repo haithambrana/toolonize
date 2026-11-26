@@ -6,6 +6,7 @@ import { TerminalMenu } from "./components/TerminalMenu";
 import { runAction } from "./lib/commands";
 import { actionFor, effectiveKeymap } from "./lib/keymap";
 import { applyTheme } from "./lib/theme";
+import { installNoteFlush } from "./lib/notes";
 import { pruneControllers } from "./terminal/controller";
 import { dismissNotice, init, setState, useAppState } from "./state/store";
 import { Sidebar } from "./views/Sidebar";
@@ -63,6 +64,12 @@ function useGlobalShortcuts() {
       if (target?.closest?.(".kbd-capture")) return;
       const action = actionFor(event, keymap);
       if (!action) return;
+      // In a text field (a note, a dialog) the terminal clipboard and search
+      // shortcuts belong to the field; xterm.js's own input is not a field.
+      const editing =
+        !!target?.matches?.('input, textarea, [contenteditable="true"]') &&
+        !target.classList.contains("xterm-helper-textarea");
+      if (editing && action.startsWith("terminal.")) return;
       // Capture phase: handled before xterm.js sees the key.
       event.preventDefault();
       event.stopPropagation();
@@ -98,6 +105,7 @@ function Shell() {
   useTheme();
   useGlobalShortcuts();
   useEffect(() => {
+    installNoteFlush();
     void init();
   }, []);
   useEffect(() => {

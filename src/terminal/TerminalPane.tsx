@@ -15,6 +15,7 @@ import {
 import { processLabel } from "../lib/labels";
 import { api } from "../lib/ipc";
 import { TagDot } from "../lib/colors";
+import { MemberNoteButton, MemberNoteOverlay } from "../components/MemberNote";
 import { setState, useAppState } from "../state/store";
 import { getController, peekController } from "./controller";
 import { controllerOptions } from "./options";
@@ -268,6 +269,7 @@ export function TerminalPane({
           </span>
         )}
         <span className="pane-actions">
+          <MemberNoteButton workspaceId={workspace.id} memberId={member.id} />
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -289,13 +291,21 @@ export function TerminalPane({
         </span>
       </div>
       {searchOpen && <SearchBar sessionId={sessionId} />}
-      <div
-        ref={ref}
-        className="term-container"
-        data-session={sessionId}
-        data-workspace={workspace.id}
-        aria-label={`Terminal: ${memberTitle(member)}`}
-      />
+      <div className="term-stage">
+        <div
+          ref={ref}
+          className="term-container"
+          data-session={sessionId}
+          data-workspace={workspace.id}
+          aria-label={`Terminal: ${memberTitle(member)}`}
+        />
+        <MemberNoteOverlay
+          workspaceId={workspace.id}
+          memberId={member.id}
+          title={memberTitle(member)}
+          sessionId={sessionId}
+        />
+      </div>
       <ExitBanner info={session} member={member} />
     </div>
   );

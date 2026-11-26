@@ -512,3 +512,132 @@ fn diagnostics_report_has_counts_but_no_names() {
         assert!(report.contains("diagnostics marker line"));
     }
 }
+
+#[cfg(unix)]
+fn notes_fixture(dir: &tempfile::TempDir) -> (Arc<Core>, String, String) {
+    let c = core(dir);
+    let ws = c.create_workspace("Notes WS").unwrap();
+    let shell = shell_id(&c);
+    let fp = fingerprint(&c, &shell);
+    let member = c
+        .add_member(&ws, &shell, &fp, Some("Build server".into()))
+        .unwrap();
+    (c, ws, member)
+}
+
+#[cfg(unix)]
+#[test]
+fn notes_survive_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let (ws, member) = {
+        let (c, ws, member) = notes_fixture(&dir);
+        c.save_note(&ws, None, "release on Thursday\nسطر بالعربي")
+            .unwrap();
+        c.save_note(&ws, Some(&member), "tail -f /var/log/app.log")
+            .unwrap();
+        (ws, member)
+    };
+    // A new core (= the app started again) reads the notes back from disk.
+    let c = core(&dir);
+    let v = c.notes_view(&ws).unwrap();
+    assert_eq!(v.project, "release on Thursday\nسطر بالعربي");
+    assert_eq!(v.members[&member], "tail -f /var/log/app.log");
+    // Clearing a member note removes it.
+    c.save_note(&ws, Some(&member), "").unwrap();
+    assert!(core(&dir).notes_view(&ws).unwrap().members.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn notes_recover_from_a_torn_or_corrupt_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (c, ws, _) = notes_fixture(&dir);
+    c.save_note(&ws, None, "version one").unwrap();
+    c.save_note(&ws, None, "version two").unwrap();
+    drop(c);
+    let file = dir
+        .path()
+        .join("state/notes")
+        .join(format!("notes-{ws}.json"));
+    // Power cut while the newest file was half written.
+    let bytes = std::fs::read(&file).unwrap();
+    std::fs::write(&file, &bytes[..bytes.len() / 2]).unwrap();
+    // A leftover temp file from an interrupted save must not matter either.
+    std::fs::write(
+        dir.path().join(format!("state/notes/.notes-{ws}.json.tmp")),
+        b"garbage",
+    )
+    .unwrap();
+    let c = core(&dir);
+    assert_eq!(
+        c.notes_view(&ws).unwrap().project,
+        "version one",
+        "falls back to the previous complete save"
+    );
+    // And the next save writes a clean newest file again.
+    c.save_note(&ws, None, "version three").unwrap();
+    assert_eq!(core(&dir).notes_view(&ws).unwrap().project, "version three");
+}
+
+#[cfg(unix)]
+#[test]
+fn removing_a_terminal_keeps_its_note_in_the_project_note() {
+    let dir = tempfile::tempdir().unwrap();
+    let (c, ws, member) = notes_fixture(&dir);
+    c.save_note(&ws, None, "plan").unwrap();
+    c.save_note(&ws, Some(&member), "remember to rotate keys")
+        .unwrap();
+    c.remove_member(&ws, &member).unwrap();
+    let v = core(&dir).notes_view(&ws).unwrap();
+    assert!(v.members.is_empty());
+    assert!(v.project.contains("“Build server”"));
+    assert!(v.project.ends_with("remember to rotate keys"));
+}
+
+#[cfg(unix)]
+#[test]
+fn deleted_workspace_notes_can_be_restored() {
+    let dir = tempfile::tempdir().unwrap();
+    let (c, ws, member) = notes_fixture(&dir);
+    c.save_note(&ws, None, "old project plan").unwrap();
+    c.save_note(&ws, Some(&member), "old terminal note")
+        .unwrap();
+    c.delete_workspace(&ws).unwrap();
+    assert!(!dir
+        .path()
+        .join(format!("state/notes/notes-{ws}.json"))
+        .exists());
+    let other = c.create_workspace("Other").unwrap();
+    let v = c.notes_view(&other).unwrap();
+    assert_eq!(v.trash.len(), 1);
+    assert_eq!(v.trash[0].workspace_name, "Notes WS");
+    assert_eq!(v.trash[0].notes, 2);
+    c.restore_trashed_notes(&v.trash[0].id, &other).unwrap();
+    let v = core(&dir).notes_view(&other).unwrap();
+    assert!(v.trash.is_empty());
+    assert!(v.project.contains("“Notes WS”"));
+    assert!(v.project.contains("old project plan"));
+    assert!(v.project.contains("[Build server]\nold terminal note"));
+}
+
+#[cfg(unix)]
+#[test]
+fn notes_validate_targets_and_size_and_stay_private() {
+    let dir = tempfile::tempdir().unwrap();
+    let (c, ws, member) = notes_fixture(&dir);
+    assert!(c.save_note(&ws, Some("ghost"), "x").is_err());
+    assert!(c.save_note("ws_missing", None, "x").is_err());
+    assert!(c.save_note("../etc", None, "x").is_err());
+    c.save_note(&ws, Some(&member), "kept").unwrap();
+    let too_big = "x".repeat(crate::notes::MAX_NOTE_BYTES + 1);
+    assert!(c.save_note(&ws, Some(&member), &too_big).is_err());
+    assert_eq!(c.notes_view(&ws).unwrap().members[&member], "kept");
+    // Notes never leave through exports, diagnostics or the audit log.
+    c.save_note(&ws, None, "PRIVATE-NOTE-MARKER").unwrap();
+    assert!(!c
+        .export_workspace(&ws, false)
+        .unwrap()
+        .contains("PRIVATE-NOTE-MARKER"));
+    assert!(!c.diagnostics_report().contains("PRIVATE-NOTE-MARKER"));
+    assert!(!format!("{:?}", c.audit_recent(500)).contains("PRIVATE-NOTE-MARKER"));
+}

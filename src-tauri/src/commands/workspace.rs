@@ -173,3 +173,39 @@ pub async fn member_launch(
 ) -> Result<u32, String> {
     blocking(&core, move |c| c.launch_external(&workspace_id, &member_id)).await
 }
+
+/// Sticky notes of a workspace: the project note and one per member.
+#[tauri::command]
+pub async fn notes_get(
+    core: CoreState<'_>,
+    workspace_id: String,
+) -> Result<crate::app::NotesView, String> {
+    blocking(&core, move |c| c.notes_view(&workspace_id)).await
+}
+
+/// Save one note (`member_id` absent = project note). Durable on return.
+#[tauri::command]
+pub async fn note_save(
+    core: CoreState<'_>,
+    workspace_id: String,
+    member_id: Option<String>,
+    text: String,
+) -> Result<u64, String> {
+    blocking(&core, move |c| {
+        c.save_note(&workspace_id, member_id.as_deref(), &text)
+    })
+    .await
+}
+
+/// Append a deleted workspace's notes to this workspace's project note.
+#[tauri::command]
+pub async fn notes_restore(
+    core: CoreState<'_>,
+    trash_id: String,
+    workspace_id: String,
+) -> Result<(), String> {
+    blocking(&core, move |c| {
+        c.restore_trashed_notes(&trash_id, &workspace_id)
+    })
+    .await
+}

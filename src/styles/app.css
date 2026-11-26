@@ -1150,3 +1150,157 @@ kbd {
 .toast > span {
   overflow-wrap: anywhere;
 }
+
+/* Sticky notes (ADR-012). Warm paper color in light themes, muted amber in
+   dark; high contrast keeps the theme's own colors. */
+:root,
+:root[data-theme="dark"] {
+  --note-bg: #2b2616;
+  --note-border: #6b5a22;
+  --note-text: var(--text);
+}
+:root[data-theme="light"] {
+  --note-bg: #fff8d6;
+  --note-border: #e2c65a;
+  --note-text: #2b2410;
+}
+:root[data-theme="high_contrast"] {
+  --note-bg: var(--bg);
+  --note-border: var(--text);
+  --note-text: var(--text);
+}
+
+.sticky-note {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  min-height: 140px;
+  background: var(--note-bg);
+  color: var(--note-text);
+  border: 1px solid var(--note-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.sticky-note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border-bottom: 1px solid var(--note-border);
+  font-size: 12px;
+}
+
+.sticky-note-title {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-note-status {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.sticky-note-error {
+  color: var(--danger);
+  opacity: 1;
+}
+
+.sticky-note-text {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font:
+    13px/1.45 ui-monospace,
+    "JetBrains Mono",
+    "DejaVu Sans Mono",
+    Consolas,
+    monospace;
+}
+
+.sticky-note-text:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.term-stage,
+.member-pane {
+  position: relative;
+}
+
+.term-stage {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.sticky-note-overlay {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  width: min(360px, 60%);
+  height: min(260px, 70%);
+  resize: both;
+  z-index: 5;
+}
+
+.member-pane-note {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.workspace-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.workspace-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-note-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  min-width: 240px;
+  max-width: 60%;
+  padding: 8px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-2);
+  resize: horizontal;
+  overflow: auto;
+}
+
+.sticky-note-drawer {
+  flex: 1;
+}
+
+.notes-trash summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.note-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  vertical-align: middle;
+}

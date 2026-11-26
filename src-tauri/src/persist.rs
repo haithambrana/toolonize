@@ -119,6 +119,15 @@ impl Store {
         Ok(())
     }
 
+    /// Remove every generation of `name` (used after its content was moved
+    /// elsewhere and saved there).
+    pub fn remove(&self, name: &str) {
+        for g in 0..GENERATIONS {
+            let _ = std::fs::remove_file(self.path(name, g));
+        }
+        sync_dir(&self.dir);
+    }
+
     /// Load the newest valid generation, migrating forward as needed.
     pub fn load<T: DeserializeOwned>(
         &self,

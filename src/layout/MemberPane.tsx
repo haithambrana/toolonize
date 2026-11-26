@@ -4,6 +4,7 @@ import type { MemberView, WorkspaceView } from "../lib/ipc";
 import { reviewMember } from "../lib/review";
 import { launchMember, memberTitle, removeMember, renameMember, startMember } from "../lib/actions";
 import { TerminalPane } from "../terminal/TerminalPane";
+import { MemberNoteButton, MemberNoteOverlay } from "../components/MemberNote";
 import { sessionFor, setState, useAppState } from "../state/store";
 
 const STATE_TEXT: Record<string, string> = {
@@ -102,6 +103,9 @@ export function MemberPane({ workspaceId, memberId }: { workspaceId: string; mem
   if (session) return <TerminalPane workspace={w} member={m} session={session} />;
   return (
     <div className="member-pane" onMouseDown={() => setState({ focused: m.id })}>
+      <div className="member-pane-note">
+        <MemberNoteButton workspaceId={w.id} memberId={m.id} className="btn btn-sm" />
+      </div>
       {m.status.state !== "ready" ? (
         <StatusCard w={w} m={m} />
       ) : m.member_type === "external_app" ? (
@@ -109,6 +113,7 @@ export function MemberPane({ workspaceId, memberId }: { workspaceId: string; mem
       ) : (
         <IdleCard w={w} m={m} />
       )}
+      <MemberNoteOverlay workspaceId={w.id} memberId={m.id} title={memberTitle(m)} />
     </div>
   );
 }

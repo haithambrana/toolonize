@@ -11,6 +11,8 @@ import {
   setWorkspaceColor,
 } from "../lib/actions";
 import { ColorSwatches, TagDot } from "../lib/colors";
+import { flushAllNotes, loadNotes, restoreNotes } from "../lib/notes";
+import { StickyNote } from "../components/StickyNote";
 import { addMemberDialog } from "../lib/addMember";
 import { confirmDialog, openDialog, promptDialog } from "../lib/dialogs";
 import { TYPE_LABELS, entryName } from "../lib/labels";
@@ -124,6 +126,7 @@ function Header({ w }: { w: WorkspaceView }) {
         ))}
       </div>
       <div className="ws-actions">
+        <ProjectNoteButton w={w} />
         <button
           type="button"
           className="btn btn-sm"
@@ -205,13 +208,17 @@ function Header({ w }: { w: WorkspaceView }) {
                 <p>
                   The workspace, its layout and member authorizations are deleted
                   {running ? ` and ${running} running terminal(s) are closed` : ""}. Launchers stay
-                  in the registry.
+                  in the registry. Its notes are kept for 30 days and can be restored into another
+                  workspace&apos;s project note.
                 </p>
               ),
               confirm: "Delete",
               danger: true,
             });
-            if (ok) await attempt(() => api.deleteWorkspace(w.id));
+            if (ok) {
+              await flushAllNotes();
+              await attempt(() => api.deleteWorkspace(w.id));
+            }
           }}
         >
           Delete
@@ -258,8 +265,70 @@ function EmptyMembers({ w }: { w: WorkspaceView }) {
   );
 }
 
+function ProjectNoteButton({ w }: { w: WorkspaceView }) {
+  const open = useAppState((s) => s.projectNoteOpen);
+  const noted = useAppState((s) => (s.notes[w.id]?.project ?? "").trim().length > 0);
+  return (
+    <button
+      type="button"
+      className={noted ? "btn btn-sm has-note" : "btn btn-sm"}
+      aria-pressed={open}
+      title="Project note (Ctrl+Shift+M)"
+      onClick={() => setState((s) => ({ projectNoteOpen: !s.projectNoteOpen }))}
+    >
+      Notes{noted && <span className="note-dot" aria-label="has a note" />}
+    </button>
+  );
+}
+
+function ProjectNoteDrawer({ w }: { w: WorkspaceView }) {
+  const trash = useAppState((s) => s.notes[w.id]?.trash ?? []);
+  return (
+    <aside className="project-note-drawer" aria-label="Project notes">
+      <StickyNote
+        workspaceId={w.id}
+        memberId={null}
+        title={w.name}
+        className="sticky-note-drawer"
+        onClose={() => setState({ projectNoteOpen: false })}
+      />
+      {trash.length > 0 && (
+        <details className="notes-trash">
+          <summary>Notes of recently deleted workspaces ({trash.length})</summary>
+          <ul className="plain-list">
+            {trash.map((t) => (
+              <li key={t.id} className="row-gap">
+                <span className="grow">
+                  {t.workspace_name}{" "}
+                  <span className="muted small">
+                    {t.notes} note{t.notes === 1 ? "" : "s"} · deleted{" "}
+                    {new Date(t.deleted_at).toLocaleDateString()}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => void restoreNotes(t.id, w.id)}
+                >
+                  Restore here
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </aside>
+  );
+}
+
 export function WorkspaceScreen() {
   const w = useAppState(activeWorkspace);
+  const projectNoteOpen = useAppState((s) => s.projectNoteOpen);
+  const workspaceId = w?.id;
+
+  useEffect(() => {
+    if (workspaceId) void loadNotes(workspaceId);
+  }, [workspaceId]);
   const pending = useAppState((s) => (w ? s.pendingChoice[w.id] : false));
   const opened = useAppState((s) => (w ? s.opened[w.id] : true));
 
@@ -291,7 +360,12 @@ export function WorkspaceScreen() {
       <Header w={w} />
       {w.staged_import && <ImportBanner w={w} />}
       {pending && !w.staged_import && <StartupPrompt w={w} />}
-      {w.members.length === 0 ? <EmptyMembers w={w} /> : <WorkspaceLayout workspace={w} />}
+      <div className="workspace-body">
+        <div className="workspace-main">
+          {w.members.length === 0 ? <EmptyMembers w={w} /> : <WorkspaceLayout workspace={w} />}
+        </div>
+        {projectNoteOpen && <ProjectNoteDrawer w={w} />}
+      </div>
     </section>
   );
 }

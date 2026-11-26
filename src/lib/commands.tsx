@@ -4,6 +4,7 @@ import { readClipboard } from "./clipboard";
 import type { TerminalController } from "../terminal/controller";
 import { cycle } from "../layout/modes";
 import { addMemberDialog } from "./addMember";
+import { toggleMemberNote } from "./notes";
 import { peekController } from "../terminal/controller";
 import { activeWorkspace, getState, notify, sessionFor, setState } from "../state/store";
 import type { Action } from "./keymap";
@@ -64,6 +65,16 @@ export async function runAction(action: Action): Promise<void> {
       if (c) setState({ searchOpen: s.searchOpen === c.sessionId ? null : c.sessionId });
       return;
     }
+    case "notes.terminal":
+      if (!w || !s.focused) {
+        notify("info", "Click a terminal first, then press the shortcut again");
+        return;
+      }
+      toggleMemberNote(s.focused);
+      return;
+    case "notes.project":
+      setState({ projectNoteOpen: !s.projectNoteOpen, view: "workspace" });
+      return;
     case "terminal.search_all":
       setState({ globalSearchOpen: !s.globalSearchOpen });
       return;

@@ -17,6 +17,9 @@ import {
   session,
 } from "./test/fakeCore";
 import { terminals } from "./test/fakeXterm";
+import { resetNotes } from "./lib/notes";
+
+const user = () => userEvent.setup();
 
 function member(id: string, partial: Partial<MemberView> = {}): MemberView {
   return {
@@ -76,6 +79,7 @@ describe("ToolOnize app", () => {
     resetStore();
     resetDialogs();
     resetControllers();
+    resetNotes();
     terminals.length = 0;
   });
 
@@ -533,5 +537,76 @@ describe("ToolOnize app", () => {
     expect(
       await screen.findByText(/Diagnostics saved to \/fixture\/Downloads/)
     ).toBeInTheDocument();
+  });
+  it("Ctrl+Shift+N opens the focused terminal's note; typing is saved and shown as present", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    fireEvent.mouseDown(document.querySelector(".term-pane")!);
+    fireEvent.keyDown(window, { code: "KeyN", key: "N", ctrlKey: true, shiftKey: true });
+    const note = await screen.findByRole("textbox", { name: "Note for Shell a" });
+    expect(note).toHaveFocus();
+    fireEvent.change(note, { target: { value: "deploy with --dry-run first" } });
+    await waitFor(() => expect(core.notes.ws1?.members.a).toBe("deploy with --dry-run first"));
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Note( has a note)?$/ })).toHaveClass("has-note");
+    // Ctrl+Shift+V inside the note pastes into the note, not into the terminal.
+    fireEvent.keyDown(note, { code: "KeyV", key: "V", ctrlKey: true, shiftKey: true });
+    expect(calls.some((c) => c.cmd === "clipboard_read_text")).toBe(false);
+    // Escape closes the note and gives the keyboard back to the terminal.
+    const focusedBefore = terminals[0].focused;
+    fireEvent.keyDown(note, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Note for Shell a" })).not.toBeInTheDocument();
+    await waitFor(() => expect(terminals[0].focused).toBeGreaterThan(focusedBefore));
+  });
+
+  it("Ctrl+Shift+M opens the project note, and saved notes come back after a restart", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.notes.ws1 = { project: "", members: { a: "kept from last time" } };
+    const { unmount } = render(<App />);
+    await screen.findByRole("heading", { name: "Project Phoenix" });
+    fireEvent.keyDown(window, { code: "KeyM", key: "M", ctrlKey: true, shiftKey: true });
+    const project = await screen.findByRole("textbox", { name: "Project note" });
+    await waitFor(() => expect(project).not.toBeDisabled());
+    fireEvent.change(project, { target: { value: "release on Thursday" } });
+    await waitFor(() => expect(core.notes.ws1.project).toBe("release on Thursday"));
+    unmount();
+    // "Restart": a fresh UI state reads what the core saved.
+    resetStore();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Project Phoenix" });
+    await user().click(await screen.findByRole("button", { name: /^Note( has a note)?$/ }));
+    expect(await screen.findByRole("textbox", { name: "Note for Shell a" })).toHaveValue(
+      "kept from last time"
+    );
+    await user().click(screen.getByRole("button", { name: /^Notes( has a note)?$/ }));
+    expect(await screen.findByRole("textbox", { name: "Project note" })).toHaveValue(
+      "release on Thursday"
+    );
+  });
+
+  it("removing a terminal saves its note first and reloads the project note", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    handlers.set("member_remove", () => {
+      core.notes.ws1 = { project: "— Note from the removed terminal “Shell a” —\nx", members: {} };
+    });
+    const u = user();
+    render(<App />);
+    await u.click(await screen.findByRole("button", { name: /^Note( has a note)?$/ }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Note for Shell a" }), {
+      target: { value: "x" },
+    });
+    await u.click(screen.getByRole("button", { name: "Remove" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Its note is kept: it moves into the project note.");
+    await u.click(within(dialog).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(commandsCalled()).toContain("member_remove"));
+    const order = calls.map((c) => c.cmd);
+    expect(order.indexOf("note_save")).toBeLessThan(order.indexOf("member_remove"));
+    expect(order.lastIndexOf("notes_get")).toBeGreaterThan(order.indexOf("member_remove"));
   });
 });

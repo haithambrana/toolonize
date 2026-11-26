@@ -84,6 +84,8 @@ const ACTIONS: &[&str] = &[
     "mode.master_stack",
     "terminal.search",
     "terminal.search_all",
+    "notes.terminal",
+    "notes.project",
     "terminal.copy",
     "terminal.paste",
     "terminal.new",

@@ -7,6 +7,7 @@ pub mod export;
 pub mod external;
 pub mod logging;
 pub mod model;
+pub mod notes;
 pub mod persist;
 pub mod policy;
 pub mod pty;
@@ -66,6 +67,9 @@ pub fn run() {
         crate::commands::workspace::workspace_create,
         crate::commands::workspace::workspace_rename,
         crate::commands::workspace::workspace_set_color,
+        crate::commands::workspace::notes_get,
+        crate::commands::workspace::note_save,
+        crate::commands::workspace::notes_restore,
         crate::commands::workspace::workspace_delete,
         crate::commands::workspace::workspace_set_active,
         crate::commands::workspace::workspace_set_policy,

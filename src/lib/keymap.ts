@@ -13,6 +13,8 @@ export type Action =
   | "mode.master_stack"
   | "terminal.search"
   | "terminal.search_all"
+  | "notes.terminal"
+  | "notes.project"
   | "terminal.copy"
   | "terminal.paste"
   | "terminal.new"
@@ -34,6 +36,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   "mode.master_stack": "Master + Stack layout",
   "terminal.search": "Search terminal scrollback",
   "terminal.search_all": "Search all terminals",
+  "notes.terminal": "Open or close the note of the focused terminal",
+  "notes.project": "Open or close the project note",
   "terminal.copy": "Copy terminal selection",
   "terminal.paste": "Paste into terminal",
   "terminal.new": "Add a terminal to this workspace",
@@ -56,6 +60,8 @@ export const DEFAULT_KEYMAP: Record<Action, string> = {
   "mode.master_stack": "Ctrl+Shift+4",
   "terminal.search": "Ctrl+Shift+F",
   "terminal.search_all": "Ctrl+Shift+G",
+  "notes.terminal": "Ctrl+Shift+N",
+  "notes.project": "Ctrl+Shift+M",
   "terminal.copy": "Ctrl+Shift+C",
   "terminal.paste": "Ctrl+Shift+V",
   "terminal.new": "Ctrl+Shift+T",

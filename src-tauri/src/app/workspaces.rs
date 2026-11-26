@@ -108,6 +108,23 @@ impl Core {
 
     pub fn delete_workspace(&self, id: &str) -> Result<(), String> {
         check_id(id)?;
+        // Notes first: if they cannot be kept, nothing is deleted.
+        let (name, titles) = {
+            let data = self.data.locked();
+            let w = data
+                .state
+                .workspaces
+                .iter()
+                .find(|w| w.id == id)
+                .ok_or("workspace not found")?;
+            let titles: HashMap<String, String> = w
+                .members
+                .iter()
+                .map(|m| (m.id.clone(), self.member_title(m, &data)))
+                .collect();
+            (w.name.clone(), titles)
+        };
+        self.trash_workspace_notes(id, &name, &titles)?;
         self.mutate(|s, _| {
             let before = s.workspaces.len();
             s.workspaces.retain(|w| w.id != id);
@@ -269,17 +286,20 @@ impl Core {
     }
 
     pub fn remove_member(&self, workspace_id: &str, member_id: &str) -> Result<(), String> {
-        self.with_workspace(workspace_id, |w, _, _| {
-            let before = w.members.len();
+        let title = self.with_workspace(workspace_id, |w, reg, rs| {
+            let m = w.member(member_id).ok_or("member not found")?;
+            let title = m.title.clone().unwrap_or_else(|| {
+                reg.effective(&m.launcher_id, rs)
+                    .map(|e| e.decision.alias.unwrap_or(e.launcher.display_name))
+                    .unwrap_or_else(|| m.launcher_id.clone())
+            });
             w.members.retain(|m| m.id != member_id);
-            if before == w.members.len() {
-                return Err("member not found".into());
-            }
             if w.layout.focused_member.as_deref() == Some(member_id) {
                 w.layout.focused_member = None;
             }
-            Ok(())
+            Ok(title)
         })?;
+        self.keep_removed_member_note(workspace_id, member_id, &title);
         if let Some(info) = self.sessions.find_by_member(workspace_id, member_id) {
             let _ = self.sessions.close(&info.session_id);
         }
