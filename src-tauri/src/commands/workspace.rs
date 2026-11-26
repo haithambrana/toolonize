@@ -209,3 +209,16 @@ pub async fn notes_restore(
     })
     .await
 }
+
+/// Project folder for new terminals (`dir` empty/absent clears it).
+#[tauri::command]
+pub async fn workspace_set_project_dir(
+    core: CoreState<'_>,
+    workspace_id: String,
+    dir: Option<String>,
+) -> Result<(), String> {
+    blocking(&core, move |c| {
+        c.set_project_dir(&workspace_id, dir.as_deref())
+    })
+    .await
+}

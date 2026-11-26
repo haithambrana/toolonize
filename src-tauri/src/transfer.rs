@@ -340,6 +340,8 @@ pub fn import(text: &str, resolver: &Resolver<'_>) -> Result<Imported, String> {
             added_at: now_ms(),
             portable: Some(m.portable),
             color: color(m.color),
+            start_dir: None,
+            zoom: 0,
         });
     }
     let member_ids: Vec<String> = workspace.members.iter().map(|m| m.id.clone()).collect();
@@ -396,6 +398,8 @@ mod tests {
                 added_at: 1,
                 portable: None,
                 color: Some("blue".into()),
+                start_dir: None,
+                zoom: 0,
             });
         }
         w.layout.json = Some(json!({"layout": {"type": "row", "children": [

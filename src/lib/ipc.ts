@@ -208,6 +208,9 @@ export interface MemberView {
   added_at: number;
   portable: { kind: string; value: string } | null;
   color: ColorTag | null;
+  start_dir: string | null;
+  /** Font size change for this terminal (-6..12). */
+  zoom: number;
   status: {
     state: MemberState;
     reason: string | null;
@@ -236,6 +239,7 @@ export interface WorkspaceView {
   layout: LayoutState;
   staged_import: boolean;
   color: ColorTag | null;
+  project_dir: string | null;
   members: MemberView[];
 }
 
@@ -260,6 +264,29 @@ export interface Settings {
   copy_on_select: boolean;
   osc52_clipboard: boolean;
   ssh_auto_reconnect: boolean;
+  terminal_font_family: string;
+  cursor_style: "block" | "underline" | "bar";
+  cursor_blink: boolean;
+  terminal_scheme: TerminalScheme;
+  desktop_notifications: boolean;
+  snippets: Snippet[];
+}
+
+export const TERMINAL_SCHEMES = [
+  "auto",
+  "solarized_dark",
+  "solarized_light",
+  "dracula",
+  "nord",
+  "gruvbox_dark",
+  "one_dark",
+  "tango_light",
+] as const;
+export type TerminalScheme = (typeof TERMINAL_SCHEMES)[number];
+
+export interface Snippet {
+  name: string;
+  text: string;
 }
 
 export interface StartupInfo {
@@ -357,6 +384,8 @@ export const api = {
     invoke<void>("workspace_rename", { workspaceId, name }),
   setWorkspaceColor: (workspaceId: string, color: ColorTag | null) =>
     invoke<void>("workspace_set_color", { workspaceId, color }),
+  setProjectDir: (workspaceId: string, dir: string | null) =>
+    invoke<void>("workspace_set_project_dir", { workspaceId, dir }),
   deleteWorkspace: (workspaceId: string) => invoke<void>("workspace_delete", { workspaceId }),
   setActive: (workspaceId: string | null) => invoke<void>("workspace_set_active", { workspaceId }),
   setPolicy: (workspaceId: string, policy: StartupPolicy) =>
@@ -395,6 +424,9 @@ export const api = {
       detach_expected?: boolean;
       /** Palette id; "" clears the tag. */
       color?: ColorTag | "";
+      /** Existing absolute folder; "" clears it. */
+      start_dir?: string;
+      zoom?: number;
     }
   ) => invoke<void>("member_update", { workspaceId, memberId, patch }),
   authorizeMember: (workspaceId: string, memberId: string, fingerprint: string) =>
@@ -424,6 +456,11 @@ export const api = {
   restart: (sessionId: string) => invoke<SessionInfo>("session_restart", { sessionId }),
   reconnect: (sessionId: string) => invoke<SessionInfo>("session_reconnect", { sessionId }),
   cancelReconnect: (sessionId: string) => invoke<void>("session_cancel_reconnect", { sessionId }),
+  /** Local shell's current folder where the OS reports it (Linux). */
+  sessionCwd: (sessionId: string) => invoke<string | null>("session_cwd", { sessionId }),
+  /** Returns whether a notification was shown (Settings, rate limit, platform). */
+  desktopNotify: (title: string, body: string) =>
+    invoke<boolean>("desktop_notify", { title, body }),
   close: (sessionId: string) => invoke<void>("session_close", { sessionId }),
   sessions: () => invoke<SessionInfo[]>("session_list"),
 };

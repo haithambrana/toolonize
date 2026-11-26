@@ -19,8 +19,8 @@ use crate::shells::{self, SyntheticSpec};
 use crate::sync::Locked;
 use crate::transfer::{self, ImportReport};
 use crate::workspace::{
-    validate_color, validate_layout, validate_name, validate_title, LayoutMode, LayoutState,
-    Member, MemberType, StartupPolicy, Workspace, MAX_MEMBERS, MAX_WORKSPACES,
+    validate_color, validate_dir, validate_layout, validate_name, validate_title, LayoutMode,
+    LayoutState, Member, MemberType, StartupPolicy, Workspace, MAX_MEMBERS, MAX_WORKSPACES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -142,6 +142,7 @@ pub struct WorkspaceView {
     pub layout: LayoutState,
     pub staged_import: bool,
     pub color: Option<String>,
+    pub project_dir: Option<String>,
     pub members: Vec<MemberView>,
 }
 
@@ -193,6 +194,12 @@ pub struct MemberPatch {
     /// Palette id; an empty string clears the tag.
     #[serde(default)]
     pub color: Option<String>,
+    /// Existing absolute folder; an empty string clears it.
+    #[serde(default)]
+    pub start_dir: Option<String>,
+    /// Font size change for this terminal, -6..=12.
+    #[serde(default)]
+    pub zoom: Option<i8>,
 }
 
 /// SSH auto-reconnect bookkeeping per session.
@@ -229,6 +236,8 @@ pub struct Core {
     notes: Mutex<HashMap<String, crate::notes::WorkspaceNotes>>,
     /// Serializes read-modify-write of notes files.
     notes_write: Mutex<()>,
+    /// Recent desktop notifications (rate limit).
+    notified: Mutex<std::collections::VecDeque<Instant>>,
     reconnect_token: std::sync::atomic::AtomicU64,
     /// Workspaces whose startup policy already ran in this app process; a
     /// renderer reload must not run it (or ask) again.
@@ -302,6 +311,7 @@ impl Core {
                 notes_store: Store::new(state_dir.join("notes")),
                 notes: Mutex::new(HashMap::new()),
                 notes_write: Mutex::new(()),
+                notified: Mutex::new(std::collections::VecDeque::new()),
                 reconnect_token: std::sync::atomic::AtomicU64::new(0),
                 opened: Mutex::new(std::collections::HashSet::new()),
                 me,

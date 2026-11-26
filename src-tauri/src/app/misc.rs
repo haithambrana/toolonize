@@ -184,4 +184,33 @@ impl Core {
         let path = crate::export::export_text(&dir, "diagnostics", &report, now_ms())?;
         Ok(path.to_string_lossy().into_owned())
     }
+
+    /// Check and clean a desktop notification request. None = do not show
+    /// (turned off in Settings, or more than 6 in the last 30 seconds).
+    pub fn prepare_notification(&self, title: &str, body: &str) -> Option<(String, String)> {
+        if !self.data.locked().settings.desktop_notifications {
+            return None;
+        }
+        let clean = |s: &str, max: usize| -> String {
+            let s: String = s
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .collect();
+            s.trim().chars().take(max).collect()
+        };
+        let (title, body) = (clean(title, 120), clean(body, 400));
+        if title.is_empty() {
+            return None;
+        }
+        let mut recent = self.notified.locked();
+        let window = Duration::from_secs(30);
+        while recent.front().is_some_and(|t| t.elapsed() > window) {
+            recent.pop_front();
+        }
+        if recent.len() >= 6 {
+            return None;
+        }
+        recent.push_back(Instant::now());
+        Some((title, body))
+    }
 }

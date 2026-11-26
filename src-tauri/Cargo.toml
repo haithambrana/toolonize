@@ -25,6 +25,7 @@ sha2 = "0.10"
 notify = { version = "8", default-features = false }
 anyhow = "1"
 nix = { version = "0.28", features = ["signal", "process", "fs", "poll"], optional = true }
+tauri-plugin-notification = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -16,6 +16,25 @@ pub const COLORS: &[&str] = &[
     "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink",
 ];
 
+/// `None`/empty clears; otherwise an existing absolute folder (no control
+/// characters, bounded length). Stored as given.
+pub fn validate_dir(dir: Option<&str>) -> Result<Option<String>, String> {
+    let Some(dir) = dir.map(str::trim).filter(|d| !d.is_empty()) else {
+        return Ok(None);
+    };
+    if dir.len() > 4096 || dir.chars().any(char::is_control) {
+        return Err("folder path is too long or contains control characters".into());
+    }
+    let path = std::path::Path::new(dir);
+    if !path.is_absolute() {
+        return Err("use a full folder path (for example /home/me/project)".into());
+    }
+    if !path.is_dir() {
+        return Err(format!("folder does not exist: {dir}"));
+    }
+    Ok(Some(dir.to_string()))
+}
+
 /// `None` or an empty string clears the tag; anything else must be a palette id.
 pub fn validate_color(color: Option<&str>) -> Result<Option<String>, String> {
     match color {
@@ -104,6 +123,13 @@ pub struct Member {
     /// Color tag from [`COLORS`] (UI only; never affects execution).
     #[serde(default)]
     pub color: Option<String>,
+    /// Folder a new terminal of this member starts in (split / "new terminal
+    /// here"); used only when the launcher defines no working directory.
+    #[serde(default)]
+    pub start_dir: Option<String>,
+    /// Per-terminal font size change in points (-6..=12; 0 = none).
+    #[serde(default)]
+    pub zoom: i8,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -135,6 +161,10 @@ pub struct Workspace {
     /// Color tag from [`COLORS`].
     #[serde(default)]
     pub color: Option<String>,
+    /// Project folder: terminals start here unless the launcher or the member
+    /// says otherwise (machine-specific, never exported).
+    #[serde(default)]
+    pub project_dir: Option<String>,
 }
 
 impl Workspace {
@@ -151,6 +181,7 @@ impl Workspace {
             startup_policy: StartupPolicy::Ask,
             staged_import: false,
             color: None,
+            project_dir: None,
         }
     }
 
@@ -420,5 +451,19 @@ mod tests {
         );
         assert!(validate_color(Some("#ff0000")).is_err());
         assert!(validate_color(Some("red;background:url(x)")).is_err());
+    }
+
+    #[test]
+    fn folders_must_exist_and_be_absolute() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().to_string_lossy().into_owned();
+        assert_eq!(validate_dir(Some(&d)).unwrap().as_deref(), Some(d.as_str()));
+        assert_eq!(validate_dir(Some("  ")).unwrap(), None);
+        assert!(validate_dir(Some("relative/dir")).is_err());
+        assert!(validate_dir(Some(&format!("{d}/missing"))).is_err());
+        assert!(validate_dir(Some(&format!("{d}\nx"))).is_err());
+        let file = dir.path().join("f");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(validate_dir(Some(&file.to_string_lossy())).is_err());
     }
 }

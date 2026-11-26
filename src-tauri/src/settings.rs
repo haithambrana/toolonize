@@ -25,6 +25,39 @@ pub enum MotionPreference {
     Full,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CursorStyle {
+    #[default]
+    Block,
+    Underline,
+    Bar,
+}
+
+/// Terminal color schemes the UI knows ("auto" follows the app theme).
+pub const SCHEMES: &[&str] = &[
+    "auto",
+    "solarized_dark",
+    "solarized_light",
+    "dracula",
+    "nord",
+    "gruvbox_dark",
+    "one_dark",
+    "tango_light",
+];
+
+pub const MAX_SNIPPETS: usize = 100;
+pub const MAX_SNIPPET_BYTES: usize = 8 * 1024;
+
+/// A saved piece of text the user can paste into a terminal. It is pasted
+/// like clipboard text (multi-line warning applies) and never executed by
+/// ToolOnize itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Snippet {
+    pub name: String,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -52,6 +85,16 @@ pub struct Settings {
     /// Reconnect SSH members automatically when the connection drops
     /// (ssh exit status 255), with backoff and a bounded number of attempts.
     pub ssh_auto_reconnect: bool,
+    /// CSS font-family list for terminals; empty = built-in default.
+    pub terminal_font_family: String,
+    pub cursor_style: CursorStyle,
+    pub cursor_blink: bool,
+    /// One of [`SCHEMES`].
+    pub terminal_scheme: String,
+    /// Desktop notifications when a terminal you are not looking at exits,
+    /// disconnects or rings the bell.
+    pub desktop_notifications: bool,
+    pub snippets: Vec<Snippet>,
 }
 
 impl Default for Settings {
@@ -70,6 +113,12 @@ impl Default for Settings {
             copy_on_select: false,
             osc52_clipboard: true,
             ssh_auto_reconnect: true,
+            terminal_font_family: String::new(),
+            cursor_style: CursorStyle::Block,
+            cursor_blink: true,
+            terminal_scheme: "auto".into(),
+            desktop_notifications: true,
+            snippets: Vec::new(),
         }
     }
 }
@@ -140,6 +189,34 @@ impl Settings {
                 return Err(format!("{binding} is bound to more than one action"));
             }
         }
+        if self.terminal_font_family.len() > 200
+            || !self
+                .terminal_font_family
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || " ,.'\"_-".contains(c))
+        {
+            return Err(
+                "font family may contain letters, digits, spaces, commas and quotes".into(),
+            );
+        }
+        if !SCHEMES.contains(&self.terminal_scheme.as_str()) {
+            return Err(format!("unknown color scheme {}", self.terminal_scheme));
+        }
+        if self.snippets.len() > MAX_SNIPPETS {
+            return Err(format!("at most {MAX_SNIPPETS} snippets"));
+        }
+        for s in &self.snippets {
+            let name = s.name.trim();
+            if name.is_empty() || name.chars().count() > 60 || name.chars().any(char::is_control) {
+                return Err("snippet names are 1-60 characters on one line".into());
+            }
+            if s.text.is_empty() || s.text.len() > MAX_SNIPPET_BYTES || s.text.contains('\0') {
+                return Err(format!(
+                    "snippet “{name}” must hold 1 byte to {} KiB of text",
+                    MAX_SNIPPET_BYTES / 1024
+                ));
+            }
+        }
         if let Some(shell) = &self.default_shell {
             if !crate::model::valid_id(shell) {
                 return Err("invalid default shell".into());
@@ -183,5 +260,45 @@ mod tests {
         let s: Settings = serde_json::from_str("{\"font_size\": 15}").unwrap();
         assert_eq!(s.font_size, 15);
         assert!(s.paste_warning);
+    }
+
+    #[test]
+    fn appearance_and_snippets_are_validated() {
+        let ok = Settings {
+            terminal_font_family: "\"Fira Code\", monospace".into(),
+            terminal_scheme: "dracula".into(),
+            snippets: vec![Snippet {
+                name: "Tail logs".into(),
+                text: "tail -f /var/log/syslog".into(),
+            }],
+            ..Default::default()
+        };
+        assert!(ok.validate().is_ok());
+        let bad_font = Settings {
+            terminal_font_family: "x; background:url(evil)".into(),
+            ..Default::default()
+        };
+        assert!(bad_font.validate().is_err());
+        let bad_scheme = Settings {
+            terminal_scheme: "neon".into(),
+            ..Default::default()
+        };
+        assert!(bad_scheme.validate().is_err());
+        let bad_snippet = Settings {
+            snippets: vec![Snippet {
+                name: "two\nlines".into(),
+                text: "x".into(),
+            }],
+            ..Default::default()
+        };
+        assert!(bad_snippet.validate().is_err());
+        let too_long = Settings {
+            snippets: vec![Snippet {
+                name: "big".into(),
+                text: "x".repeat(MAX_SNIPPET_BYTES + 1),
+            }],
+            ..Default::default()
+        };
+        assert!(too_long.validate().is_err());
     }
 }

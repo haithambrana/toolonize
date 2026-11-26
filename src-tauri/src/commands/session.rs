@@ -145,3 +145,17 @@ pub async fn session_cancel_reconnect(
 pub async fn session_list(core: CoreState<'_>) -> Result<Vec<SessionInfo>, String> {
     Ok(core.sessions.list())
 }
+
+/// Current folder of a local terminal's shell, where the platform can tell
+/// (Linux: /proc). Remote sessions report none: their folder is on the server.
+#[tauri::command]
+pub async fn session_cwd(
+    core: CoreState<'_>,
+    session_id: String,
+) -> Result<Option<String>, String> {
+    let info = core.sessions.info(&session_id).map_err(err)?;
+    if info.remote {
+        return Ok(None);
+    }
+    Ok(info.pid.and_then(crate::session::process_cwd))
+}

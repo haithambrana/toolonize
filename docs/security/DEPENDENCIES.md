@@ -18,6 +18,7 @@ gating (cargo/npm audit as a blocking check) remains a human decision.
 | libc (unix) | 0.2.189 | MIT OR Apache-2.0 | Process-group signals for session cleanup |
 | windows-sys (windows) | 0.59.0 | MIT OR Apache-2.0 | `SHGetKnownFolderPath`, Lxss registry read, `ShellExecuteW` — added in M6 |
 | gtk (linux) | 0.18.2 | MIT | Native clipboard read for terminal paste (WebKitGTK blocks the web API); already in Tauri's tree — added with the clipboard feature |
+| tauri-plugin-notification | 2.4.0 | Apache-2.0 OR MIT | Desktop notifications (terminal exited, bell, program request), called from Rust only — no JS capability granted; pulls notify-rust (Linux D-Bus) — added 2026-11-26 |
 | nix (optional, `spike` feature only) | 0.28.0 | MIT | M2 spike harness; not in production builds |
 
 Dev-only: `proptest` 1.12 (MIT OR Apache-2.0, property tests),

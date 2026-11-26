@@ -34,6 +34,7 @@ impl Core {
             layout: w.layout.clone(),
             staged_import: w.staged_import,
             color: w.color.clone(),
+            project_dir: w.project_dir.clone(),
             members,
         }
     }
@@ -102,6 +103,14 @@ impl Core {
         let color = validate_color(color)?;
         self.with_workspace(id, |w, _, _| {
             w.color = color;
+            Ok(())
+        })
+    }
+
+    pub fn set_project_dir(&self, id: &str, dir: Option<&str>) -> Result<(), String> {
+        let dir = validate_dir(dir)?;
+        self.with_workspace(id, |w, _, _| {
+            w.project_dir = dir;
             Ok(())
         })
     }
@@ -220,6 +229,8 @@ impl Core {
                 added_at: now_ms(),
                 portable: None,
                 color: None,
+                start_dir: None,
+                zoom: 0,
             });
             Ok(())
         });
@@ -320,6 +331,15 @@ impl Core {
             Some(c) => Some(validate_color(Some(&c))?),
             None => None,
         };
+        if let Some(z) = patch.zoom {
+            if !(-6..=12).contains(&z) {
+                return Err("zoom must be between -6 and +12".into());
+            }
+        }
+        let start_dir = match patch.start_dir {
+            Some(d) => Some(validate_dir(Some(&d))?),
+            None => None,
+        };
         let renamed = title.is_some();
         let shown = self.with_workspace(workspace_id, |w, reg, rs| {
             let m = w.member_mut(member_id).ok_or("member not found")?;
@@ -334,6 +354,12 @@ impl Core {
             }
             if let Some(c) = color {
                 m.color = c;
+            }
+            if let Some(d) = start_dir {
+                m.start_dir = d;
+            }
+            if let Some(z) = patch.zoom {
+                m.zoom = z;
             }
             // Title a running session should show: the member title, or the
             // launcher's alias/name when the title was reset.

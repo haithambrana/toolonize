@@ -34,6 +34,8 @@ function member(id: string, partial: Partial<MemberView> = {}): MemberView {
     added_at: 1,
     portable: null,
     color: null,
+    start_dir: null,
+    zoom: 0,
     status: { state: "ready", reason: null, launcher_name: id, current_fingerprint: "fp" },
     effective_type: "embedded_terminal",
     origin_label: "Built-in shell",
@@ -61,6 +63,7 @@ function workspace(members: MemberView[], partial: Partial<WorkspaceView> = {}):
     },
     staged_import: false,
     color: null,
+    project_dir: null,
     members,
     ...partial,
   };

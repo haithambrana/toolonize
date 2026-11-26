@@ -42,6 +42,12 @@ export const settings: Settings = {
   copy_on_select: false,
   osc52_clipboard: true,
   ssh_auto_reconnect: true,
+  terminal_font_family: "",
+  cursor_style: "block",
+  cursor_blink: true,
+  terminal_scheme: "auto",
+  desktop_notifications: true,
+  snippets: [],
 };
 
 export function entry(partial: Partial<RegistryEntry> & { launcher_id: string }): RegistryEntry {

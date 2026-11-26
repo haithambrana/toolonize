@@ -32,6 +32,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "clipboard_read_text",
     "scrollback_export",
     "diagnostics_export",
+    "desktop_notify",
     "registry_view",
     "registry_rescan",
     "registry_set_hidden",
@@ -48,6 +49,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "workspace_create",
     "workspace_rename",
     "workspace_set_color",
+    "workspace_set_project_dir",
     "notes_get",
     "note_save",
     "notes_restore",
@@ -75,6 +77,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "session_restart",
     "session_reconnect",
     "session_cancel_reconnect",
+    "session_cwd",
     "session_close",
     "session_list",
 ];

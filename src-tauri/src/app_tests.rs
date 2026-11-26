@@ -246,6 +246,8 @@ fn terminal_member_lifecycle_and_startup_policy() {
             auto_restart: None,
             detach_expected: None,
             color: None,
+            start_dir: None,
+            zoom: None,
         },
     )
     .unwrap();
@@ -265,6 +267,8 @@ fn terminal_member_lifecycle_and_startup_policy() {
             auto_restart: None,
             detach_expected: None,
             color: None,
+            start_dir: None,
+            zoom: None,
         },
     )
     .unwrap();
@@ -326,6 +330,8 @@ fn member_color_patch() {
         auto_restart: None,
         detach_expected: None,
         color: Some(color.into()),
+        start_dir: None,
+        zoom: None,
     };
     c.update_member(&ws, &member, patch("purple")).unwrap();
     assert_eq!(
@@ -640,4 +646,80 @@ fn notes_validate_targets_and_size_and_stay_private() {
         .contains("PRIVATE-NOTE-MARKER"));
     assert!(!c.diagnostics_report().contains("PRIVATE-NOTE-MARKER"));
     assert!(!format!("{:?}", c.audit_recent(500)).contains("PRIVATE-NOTE-MARKER"));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn terminals_start_in_member_then_project_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    let here = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let ws = c.create_workspace("Folders").unwrap();
+    let shell = shell_id(&c);
+    let fp = fingerprint(&c, &shell);
+    assert!(c.set_project_dir(&ws, Some("relative")).is_err());
+    c.set_project_dir(&ws, Some(&project.path().to_string_lossy()))
+        .unwrap();
+    assert_eq!(
+        c.workspaces().0[0].project_dir.as_deref(),
+        Some(&*project.path().to_string_lossy())
+    );
+    let cwd_of = |member: &str| {
+        let info = c.start_session(&ws, member, 24, 80).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let cwd = loop {
+            let cwd = info.pid.and_then(crate::session::process_cwd);
+            if cwd.is_some() || Instant::now() > deadline {
+                break cwd;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        c.close_session(&info.session_id).unwrap();
+        cwd.map(|p| std::path::PathBuf::from(p).canonicalize().unwrap())
+    };
+    let a = c.add_member(&ws, &shell, &fp, None).unwrap();
+    assert_eq!(cwd_of(&a), Some(project.path().canonicalize().unwrap()));
+    // The member's own folder wins over the project folder.
+    let b = c.add_member(&ws, &shell, &fp, None).unwrap();
+    let patch = |d: &str| MemberPatch {
+        title: None,
+        auto_restart: None,
+        detach_expected: None,
+        color: None,
+        start_dir: Some(d.into()),
+        zoom: None,
+    };
+    c.update_member(&ws, &b, patch(&here.path().to_string_lossy()))
+        .unwrap();
+    assert_eq!(cwd_of(&b), Some(here.path().canonicalize().unwrap()));
+    // A folder that disappeared does not block the start.
+    let gone = here.path().to_path_buf();
+    drop(here);
+    assert!(!gone.exists());
+    assert!(cwd_of(&b).is_some());
+    assert!(c
+        .update_member(&ws, &b, patch("/definitely/missing"))
+        .is_err());
+}
+
+#[test]
+fn notifications_respect_settings_limits_and_rate() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let (t, b) = c
+        .prepare_notification("Build\nserver exited", &"x".repeat(1000))
+        .unwrap();
+    assert_eq!(t, "Build server exited");
+    assert_eq!(b.chars().count(), 400);
+    assert!(c.prepare_notification("   ", "empty title").is_none());
+    for _ in 0..5 {
+        assert!(c.prepare_notification("bell", "").is_some());
+    }
+    assert!(c.prepare_notification("bell", "").is_none(), "rate limited");
+    let mut s = c.settings();
+    s.desktop_notifications = false;
+    c.update_settings(s).unwrap();
+    let c2 = core(&dir);
+    assert!(c2.prepare_notification("off", "").is_none());
 }

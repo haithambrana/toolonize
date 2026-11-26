@@ -64,3 +64,24 @@ pub async fn scrollback_export(
 ) -> Result<String, String> {
     blocking(&core, move |c| c.export_scrollback(&name, &text)).await
 }
+
+/// Show a desktop notification (terminal exited, bell, program request).
+/// The core applies the Settings switch, a rate limit and length limits.
+#[tauri::command]
+pub async fn desktop_notify(
+    app: tauri::AppHandle,
+    core: CoreState<'_>,
+    title: String,
+    body: String,
+) -> Result<bool, String> {
+    use tauri_plugin_notification::NotificationExt;
+    let Some((title, body)) = core.prepare_notification(&title, &body) else {
+        return Ok(false);
+    };
+    if let Err(error) = app.notification().builder().title(title).body(body).show() {
+        // No notification service (e.g. a bare X session): not an app error.
+        crate::logging::warn("notify", &error.to_string());
+        return Ok(false);
+    }
+    Ok(true)
+}

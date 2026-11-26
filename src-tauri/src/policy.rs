@@ -207,7 +207,18 @@ pub fn plan_start(
         .clone()
         .ok_or("the launcher has no executable target")?;
     let cwd = match &d.working_dir {
-        None => None,
+        // No launcher-defined folder: the member's own start folder (split /
+        // "new terminal here"), else the workspace project folder. A folder
+        // that has since disappeared is skipped (the shell starts at home)
+        // rather than blocking the start.
+        None => [
+            member.start_dir.as_deref(),
+            workspace.project_dir.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .map(PathBuf::from)
+        .find(|p| p.is_absolute() && p.is_dir()),
         Some(dir) => {
             let path = PathBuf::from(dir);
             if !path.is_absolute() || !path.is_dir() {
@@ -312,6 +323,8 @@ mod tests {
             added_at: 0,
             portable: None,
             color: None,
+            start_dir: None,
+            zoom: 0,
         }
     }
 

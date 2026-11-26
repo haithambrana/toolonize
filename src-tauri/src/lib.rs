@@ -38,7 +38,9 @@ pub fn run() {
     core.restart_watch();
     let exit_core = core.clone();
 
-    let builder = tauri::Builder::default().manage(core);
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .manage(core);
     #[cfg(not(feature = "spike"))]
     let builder = builder.invoke_handler(tauri::generate_handler![
         crate::commands::ping::ping,
@@ -51,6 +53,7 @@ pub fn run() {
         crate::commands::clipboard::clipboard_read_text,
         crate::commands::app::scrollback_export,
         crate::commands::app::diagnostics_export,
+        crate::commands::app::desktop_notify,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
         crate::commands::registry::registry_set_hidden,
@@ -67,6 +70,7 @@ pub fn run() {
         crate::commands::workspace::workspace_create,
         crate::commands::workspace::workspace_rename,
         crate::commands::workspace::workspace_set_color,
+        crate::commands::workspace::workspace_set_project_dir,
         crate::commands::workspace::notes_get,
         crate::commands::workspace::note_save,
         crate::commands::workspace::notes_restore,
@@ -94,6 +98,7 @@ pub fn run() {
         crate::commands::session::session_restart,
         crate::commands::session::session_reconnect,
         crate::commands::session::session_cancel_reconnect,
+        crate::commands::session::session_cwd,
         crate::commands::session::session_close,
         crate::commands::session::session_list
     ]);
