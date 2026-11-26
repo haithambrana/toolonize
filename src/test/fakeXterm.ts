@@ -121,6 +121,14 @@ export class FakeTerminal {
   clear() {
     this.cleared++;
   }
+  bellHandlers: (() => void)[] = [];
+  onBell(handler: () => void) {
+    this.bellHandlers.push(handler);
+    return { dispose() {} };
+  }
+  bell() {
+    this.bellHandlers.forEach((h) => h());
+  }
   onSelectionChange(handler: () => void) {
     this.selectionHandlers.push(handler);
     return { dispose() {} };

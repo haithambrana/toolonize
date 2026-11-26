@@ -1,6 +1,6 @@
 /** Settings (FR-053/054): appearance, terminal, discovery, keyboard, data. */
 import { useMemo, useState } from "react";
-import { api, type Settings } from "../lib/ipc";
+import { api, TERMINAL_SCHEMES, type Settings, type Snippet } from "../lib/ipc";
 import {
   ACTION_LABELS,
   ACTIONS,
@@ -56,6 +56,138 @@ function KeyCapture({
         </button>
       )}
     </span>
+  );
+}
+
+const SCHEME_LABELS: Record<Settings["terminal_scheme"], string> = {
+  auto: "Follow the app theme",
+  solarized_dark: "Solarized Dark",
+  solarized_light: "Solarized Light",
+  dracula: "Dracula",
+  nord: "Nord",
+  gruvbox_dark: "Gruvbox Dark",
+  one_dark: "One Dark",
+  tango_light: "Tango Light",
+};
+
+/** Saved on Enter/blur, not per keystroke (each save re-validates in Rust). */
+function FontFamily({ settings }: { settings: Settings }) {
+  const [value, setValue] = useState(settings.terminal_font_family);
+  const save = () => {
+    if (value.trim() !== settings.terminal_font_family) {
+      void update(settings, { terminal_font_family: value.trim() });
+    }
+  };
+  return (
+    <label className="field">
+      <span className="field-label">Terminal font (leave empty for the default)</span>
+      <input
+        className="input"
+        placeholder='"Fira Code", monospace'
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === "Enter" && save()}
+      />
+    </label>
+  );
+}
+
+function Snippets({ settings }: { settings: Settings }) {
+  const [name, setName] = useState("");
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const save = async () => {
+    const entry: Snippet = { name: name.trim(), text };
+    if (!entry.name || !entry.text) return;
+    const list = [...settings.snippets];
+    if (editing === null) list.push(entry);
+    else list[editing] = entry;
+    const ok = await update(settings, { snippets: list });
+    if (ok !== undefined) {
+      setName("");
+      setText("");
+      setEditing(null);
+    }
+  };
+  return (
+    <fieldset className="card card-wide">
+      <legend>Snippets</legend>
+      <p className="muted small">
+        Saved text you insert into the focused terminal with Ctrl+Shift+S. It is pasted like
+        clipboard text (the multi-line warning applies) — ToolOnize never runs it on its own. Add a
+        line break at the end if you want it to run when inserted.
+      </p>
+      <ul className="plain-list">
+        {settings.snippets.map((s, i) => (
+          <li key={`${s.name}-${i}`} className="row-gap">
+            <strong>{s.name}</strong>
+            <code className="grow break small">{s.text.split("\n")[0].slice(0, 80)}</code>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setEditing(i);
+                setName(s.name);
+                setText(s.text);
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() =>
+                void update(settings, { snippets: settings.snippets.filter((_, j) => j !== i) })
+              }
+            >
+              Delete
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="snippet-form">
+        <input
+          className="input"
+          aria-label="Snippet name"
+          placeholder="Name, e.g. Tail app log"
+          value={name}
+          maxLength={60}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <textarea
+          className="input mono"
+          aria-label="Snippet text"
+          placeholder="tail -f /var/log/app.log"
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="row-gap">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={!name.trim() || !text}
+            onClick={() => void save()}
+          >
+            {editing === null ? "Add snippet" : "Save snippet"}
+          </button>
+          {editing !== null && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setEditing(null);
+                setName("");
+                setText("");
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+    </fieldset>
   );
 }
 
@@ -117,6 +249,57 @@ export function SettingsScreen() {
               value={settings.font_size}
               onChange={(e) => void update(settings, { font_size: Number(e.target.value) })}
             />
+          </label>
+          <FontFamily settings={settings} />
+          <label className="field">
+            <span className="field-label">Terminal colors</span>
+            <select
+              className="input"
+              value={settings.terminal_scheme}
+              onChange={(e) =>
+                void update(settings, {
+                  terminal_scheme: e.target.value as Settings["terminal_scheme"],
+                })
+              }
+            >
+              {TERMINAL_SCHEMES.map((s) => (
+                <option key={s} value={s}>
+                  {SCHEME_LABELS[s]}
+                </option>
+              ))}
+            </select>
+            <span className="muted small">High contrast theme always uses its own colors.</span>
+          </label>
+          <label className="field">
+            <span className="field-label">Cursor</span>
+            <select
+              className="input"
+              value={settings.cursor_style}
+              onChange={(e) =>
+                void update(settings, { cursor_style: e.target.value as Settings["cursor_style"] })
+              }
+            >
+              <option value="block">Block</option>
+              <option value="underline">Underline</option>
+              <option value="bar">Bar</option>
+            </select>
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.cursor_blink}
+              onChange={(e) => void update(settings, { cursor_blink: e.target.checked })}
+            />
+            Blinking cursor
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.desktop_notifications}
+              onChange={(e) => void update(settings, { desktop_notifications: e.target.checked })}
+            />
+            Desktop notifications when a terminal you are not looking at finishes, disconnects or
+            rings the bell
           </label>
         </fieldset>
 
@@ -209,6 +392,8 @@ export function SettingsScreen() {
             session. Programs can only write to the clipboard, never read it.
           </p>
         </fieldset>
+
+        <Snippets settings={settings} />
 
         <fieldset className="card">
           <legend>Discovery</legend>

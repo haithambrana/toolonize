@@ -15,6 +15,14 @@ export type Action =
   | "terminal.search_all"
   | "notes.terminal"
   | "notes.project"
+  | "terminal.split_right"
+  | "terminal.split_down"
+  | "terminal.zoom_in"
+  | "terminal.zoom_out"
+  | "terminal.zoom_reset"
+  | "terminal.broadcast"
+  | "terminal.snippets"
+  | "view.presentation"
   | "terminal.copy"
   | "terminal.paste"
   | "terminal.new"
@@ -38,6 +46,14 @@ export const ACTION_LABELS: Record<Action, string> = {
   "terminal.search_all": "Search all terminals",
   "notes.terminal": "Open or close the note of the focused terminal",
   "notes.project": "Open or close the project note",
+  "terminal.split_right": "Split: new terminal to the right",
+  "terminal.split_down": "Split: new terminal below",
+  "terminal.zoom_in": "Make the focused terminal's text larger",
+  "terminal.zoom_out": "Make the focused terminal's text smaller",
+  "terminal.zoom_reset": "Reset the focused terminal's text size",
+  "terminal.broadcast": "Type into all terminals of this workspace at once",
+  "terminal.snippets": "Insert a saved snippet",
+  "view.presentation": "Presentation mode",
   "terminal.copy": "Copy terminal selection",
   "terminal.paste": "Paste into terminal",
   "terminal.new": "Add a terminal to this workspace",
@@ -62,6 +78,14 @@ export const DEFAULT_KEYMAP: Record<Action, string> = {
   "terminal.search_all": "Ctrl+Shift+G",
   "notes.terminal": "Ctrl+Shift+N",
   "notes.project": "Ctrl+Shift+M",
+  "terminal.split_right": "Ctrl+Shift+E",
+  "terminal.split_down": "Ctrl+Shift+O",
+  "terminal.zoom_in": "Ctrl+=",
+  "terminal.zoom_out": "Ctrl+-",
+  "terminal.zoom_reset": "Ctrl+0",
+  "terminal.broadcast": "Ctrl+Shift+B",
+  "terminal.snippets": "Ctrl+Shift+S",
+  "view.presentation": "Ctrl+Shift+F11",
   "terminal.copy": "Ctrl+Shift+C",
   "terminal.paste": "Ctrl+Shift+V",
   "terminal.new": "Ctrl+Shift+T",

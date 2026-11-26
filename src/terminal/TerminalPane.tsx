@@ -231,9 +231,14 @@ export function TerminalPane({
     return () => clearTimeout(t);
   }, [sessionId, isFocused]);
 
+  const presentation = useAppState((s) => s.presentation);
+  const cwd = useAppState((s) => s.cwd[sessionId]);
+  const broadcasting = useAppState((s) => !!s.broadcast[workspace.id]);
   useEffect(() => {
-    peekController(sessionId)?.applyOptions(controllerOptions(settings, theme));
-  }, [sessionId, settings, theme]);
+    peekController(sessionId)?.applyOptions(
+      controllerOptions(settings, theme, { sessionId, memberId: member.id })
+    );
+  }, [sessionId, settings, theme, member.id, member.zoom, presentation]);
 
   useEffect(() => {
     if (session.generation > generation.current) peekController(sessionId)?.markRestart();
@@ -260,6 +265,24 @@ export function TerminalPane({
           {memberTitle(member)}
         </button>
         <span className="muted small">{processLabel(session)}</span>
+        {cwd && (
+          <span
+            className="pane-cwd muted small"
+            title={cwd.host ? `${cwd.host}:${cwd.path}` : cwd.path}
+          >
+            {cwd.path.split(/[\\/]/).filter(Boolean).pop() ?? cwd.path}
+          </span>
+        )}
+        {member.zoom !== 0 && (
+          <span className="chip chip-info" title="Ctrl+0 resets the zoom">
+            {member.zoom > 0 ? `+${member.zoom}` : member.zoom}
+          </span>
+        )}
+        {broadcasting && live && (
+          <span className="chip chip-warn" title="Typing goes to every running terminal here">
+            Broadcast
+          </span>
+        )}
         {session.detach_expected && (
           <span
             className="chip chip-info"

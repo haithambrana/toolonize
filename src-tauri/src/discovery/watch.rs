@@ -6,6 +6,7 @@
 //! Failure to watch degrades to manual rescan with a visible status (FS-01).
 
 use crate::sync::Locked;
+use notify::event::{EventKind, MetadataKind, ModifyKind};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -34,6 +35,16 @@ impl WatchHandle {
     }
 }
 
+/// Only real changes count. Reading a file or folder (open/close/access-time
+/// events) must not trigger a rescan: the scan itself reads every watched
+/// root, so counting reads would make each scan trigger the next one.
+pub fn is_change(kind: &EventKind) -> bool {
+    !matches!(
+        kind,
+        EventKind::Access(_) | EventKind::Modify(ModifyKind::Metadata(MetadataKind::AccessTime))
+    )
+}
+
 fn nearest_existing(path: &Path) -> Option<PathBuf> {
     let mut current = path.parent();
     while let Some(p) = current {
@@ -51,8 +62,10 @@ pub fn start(roots: Vec<PathBuf>, on_change: Arc<dyn Fn() + Send + Sync>) -> Wat
     let error_status = status.clone();
     let watcher =
         notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
-            Ok(_) => {
-                let _ = tx.send(true);
+            Ok(event) => {
+                if is_change(&event.kind) {
+                    let _ = tx.send(true);
+                }
             }
             Err(error) => {
                 *error_status.locked() = WatchStatus::Degraded {
@@ -203,5 +216,47 @@ mod tests {
         );
         std::fs::create_dir(&missing).unwrap();
         assert!(wait_for(&counter, 1), "root creation noticed");
+    }
+
+    #[test]
+    fn reading_files_does_not_trigger_a_rescan() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("org.example.Read.desktop");
+        std::fs::write(&file, "[Desktop Entry]\nName=Read\n").unwrap();
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c = counter.clone();
+        let _handle = start(
+            vec![dir.path().to_path_buf()],
+            Arc::new(move || {
+                c.fetch_add(1, Ordering::SeqCst);
+            }),
+        );
+        // What a scan does: list the folder and read every entry, repeatedly.
+        for _ in 0..5 {
+            for entry in std::fs::read_dir(dir.path()).unwrap() {
+                let _ = std::fs::read(entry.unwrap().path()).unwrap();
+            }
+        }
+        std::thread::sleep(DEBOUNCE * 4);
+        assert_eq!(counter.load(Ordering::SeqCst), 0, "reads are not changes");
+        // A real change still triggers exactly one debounced rescan.
+        std::fs::write(&file, "[Desktop Entry]\nName=Changed\n").unwrap();
+        assert!(wait_for(&counter, 1));
+    }
+
+    #[test]
+    fn access_events_are_not_changes() {
+        use notify::event::{AccessKind, CreateKind, RemoveKind};
+        assert!(!is_change(&EventKind::Access(AccessKind::Any)));
+        assert!(!is_change(&EventKind::Modify(ModifyKind::Metadata(
+            MetadataKind::AccessTime
+        ))));
+        assert!(is_change(&EventKind::Create(CreateKind::File)));
+        assert!(is_change(&EventKind::Remove(RemoveKind::Any)));
+        assert!(is_change(&EventKind::Modify(ModifyKind::Any)));
+        assert!(
+            is_change(&EventKind::Any),
+            "unknown events rescan to be safe"
+        );
     }
 }

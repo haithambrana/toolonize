@@ -1,7 +1,14 @@
 /** Right-click menu for terminals: clipboard, search, rename (ARIA menu). */
 import { useEffect, useRef } from "react";
 import { pasteInto } from "../lib/commands";
-import { memberTitle, renameMember, saveOutput, setMemberColor } from "../lib/actions";
+import {
+  memberTitle,
+  renameMember,
+  saveOutput,
+  setMemberColor,
+  splitTerminal,
+} from "../lib/actions";
+import { snippetPicker } from "../lib/snippets";
 import { ColorSwatches } from "../lib/colors";
 import { peekController } from "../terminal/controller";
 import { activeWorkspace, getState, notify, setState, useAppState } from "../state/store";
@@ -50,6 +57,21 @@ export function TerminalMenu() {
       action: run(() => setState({ searchOpen: menu.sessionId })),
     },
     {
+      label: "Split right",
+      hint: "Ctrl+Shift+E",
+      action: run(() => splitTerminal("right", menu.memberId)),
+    },
+    {
+      label: "Split down",
+      hint: "Ctrl+Shift+O",
+      action: run(() => splitTerminal("bottom", menu.memberId)),
+    },
+    {
+      label: "Insert snippet…",
+      hint: "Ctrl+Shift+S",
+      action: run(() => controller && snippetPicker(controller)),
+    },
+    {
       label: "Search all terminals…",
       hint: "Ctrl+Shift+G",
       action: run(() => setState({ globalSearchOpen: true })),
@@ -72,7 +94,7 @@ export function TerminalMenu() {
     },
   ];
   const x = Math.min(menu.x, window.innerWidth - 230);
-  const y = Math.min(menu.y, window.innerHeight - 360);
+  const y = Math.max(8, Math.min(menu.y, window.innerHeight - 470));
   return (
     <div
       ref={ref}

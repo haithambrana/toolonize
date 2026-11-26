@@ -222,3 +222,84 @@ export function cycle(ids: string[], current: string | null, step: 1 | -1): stri
   const next = (index + step + ids.length) % ids.length;
   return ids[index === -1 ? 0 : next];
 }
+
+export type SplitSide = "right" | "bottom";
+
+/**
+ * Put `member` in a new pane right of / below the pane that shows `target`
+ * (quick split). FlexLayout rows alternate direction by depth: the root row
+ * is horizontal, its child rows vertical, and so on. If the target pane's
+ * row already runs in the wanted direction the new pane is inserted next to
+ * it; otherwise the target pane is wrapped in a new row with both panes.
+ * Falls back to adding a tab to the first pane when `target` is not shown.
+ */
+export function placeBeside(
+  json: ModelJson,
+  target: string,
+  member: LayoutMember,
+  side: SplitSide
+): ModelJson {
+  const copy = JSON.parse(JSON.stringify(json)) as ModelJson;
+  // The new member may already have been appended somewhere by reconcile.
+  const strip = (node: RowJson | TabSetJson): void => {
+    if (node.type === "tabset") {
+      node.children = node.children.filter(
+        (c) => (c as Partial<TabJson>).config?.memberId !== member.id
+      );
+    } else node.children.forEach(strip);
+  };
+  strip(copy.layout);
+  const fresh: TabSetJson = {
+    type: "tabset",
+    id: `ts-${member.id}`,
+    weight: 50,
+    active: true,
+    children: [tab(member)],
+  };
+  const clearActive = (node: RowJson | TabSetJson): void => {
+    if (node.type === "tabset") delete node.active;
+    else node.children.forEach(clearActive);
+  };
+  const find = (
+    row: RowJson,
+    depth: number
+  ): { row: RowJson; index: number; depth: number } | null => {
+    for (let i = 0; i < row.children.length; i++) {
+      const child = row.children[i];
+      if (child.type === "tabset") {
+        const hit = child.children.some((c) => (c as Partial<TabJson>).config?.memberId === target);
+        if (hit) return { row, index: i, depth };
+      } else {
+        const found = find(child, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  const at = find(copy.layout, 0);
+  if (!at) {
+    const first = firstTabset(copy.layout);
+    if (first) first.children.push(tab(member));
+    return copy;
+  }
+  clearActive(copy.layout);
+  const horizontal = at.depth % 2 === 0;
+  const wanted = side === "right";
+  const pane = at.row.children[at.index] as TabSetJson;
+  pane.maximized = undefined;
+  if (horizontal === wanted) {
+    const weight = typeof pane.weight === "number" ? pane.weight : 50;
+    pane.weight = weight / 2;
+    fresh.weight = weight / 2;
+    at.row.children.splice(at.index + 1, 0, fresh);
+  } else {
+    const weight = typeof pane.weight === "number" ? pane.weight : 50;
+    pane.weight = 50;
+    at.row.children[at.index] = {
+      type: "row",
+      weight,
+      children: [pane, fresh],
+    };
+  }
+  return copy;
+}

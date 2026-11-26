@@ -7,6 +7,7 @@ import { runAction } from "./lib/commands";
 import { actionFor, effectiveKeymap } from "./lib/keymap";
 import { applyTheme } from "./lib/theme";
 import { installNoteFlush } from "./lib/notes";
+import { installAttention } from "./lib/attention";
 import { pruneControllers } from "./terminal/controller";
 import { dismissNotice, init, setState, useAppState } from "./state/store";
 import { Sidebar } from "./views/Sidebar";
@@ -102,10 +103,12 @@ function Shell() {
   const fatal = useAppState((s) => s.fatal);
   const view = useAppState((s) => s.view);
   const sessions = useAppState((s) => s.sessions);
+  const presentation = useAppState((s) => s.presentation);
   useTheme();
   useGlobalShortcuts();
   useEffect(() => {
     installNoteFlush();
+    installAttention();
     void init();
   }, []);
   useEffect(() => {
@@ -136,8 +139,17 @@ function Shell() {
     );
   }
   return (
-    <div className="app">
-      <Sidebar />
+    <div className={presentation ? "app presenting" : "app"}>
+      {!presentation && <Sidebar />}
+      {presentation && (
+        <button
+          type="button"
+          className="btn btn-sm presentation-exit"
+          onClick={() => setState({ presentation: false })}
+        >
+          Exit presentation (Ctrl+Shift+F11)
+        </button>
+      )}
       <main className="main" id="main">
         {view === "workspace" && <WorkspaceScreen />}
         <Suspense fallback={<div className="muted small screen-loading">Loading…</div>}>

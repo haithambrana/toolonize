@@ -4,6 +4,7 @@ import { FakeTerminal, terminals } from "../test/fakeXterm";
 import {
   findUrls,
   getController,
+  parseOsc7,
   peekController,
   resetControllers,
   type ControllerOptions,
@@ -377,5 +378,99 @@ describe("links, text and search", () => {
     c.reveal(matches[0]);
     expect(t.selected).toEqual([2, 2, 6]);
     expect(t.scrolledTo).toBe(0);
+  });
+});
+
+describe("folders, notifications, broadcast, appearance", () => {
+  beforeEach(() => {
+    resetControllers();
+    resetFakeCore();
+    terminals.length = 0;
+    core.sessions = [
+      session({ session_id: "s1", member_id: "m1", end_offset: 0 }),
+      session({ session_id: "s2", member_id: "m2", end_offset: 0 }),
+    ];
+  });
+
+  it("parses OSC 7 folder reports", () => {
+    expect(parseOsc7("file:///home/me/my%20project")).toEqual({
+      host: "",
+      path: "/home/me/my project",
+    });
+    expect(parseOsc7("file://build01/srv/app")).toEqual({ host: "build01", path: "/srv/app" });
+    expect(parseOsc7("file:///C:/Users/me")).toEqual({ host: "", path: "C:/Users/me" });
+    expect(parseOsc7("http://example.com/x")).toBeNull();
+    expect(parseOsc7("file:///tmp/%0Aevil")).toBeNull();
+    expect(parseOsc7("file:///bad%E0%A4%A")).toBeNull();
+  });
+
+  it("reports the folder, the bell and program notifications — but not while replaying", async () => {
+    const opts = options();
+    opts.onCwd = vi.fn();
+    opts.onAttention = vi.fn();
+    getController("s1", () => opts);
+    await flush();
+    term().osc(7, "file:///srv/app");
+    expect(opts.onCwd).toHaveBeenCalledWith("/srv/app", "");
+    term().bell();
+    term().osc(9, "build finished");
+    term().osc(9, "4;1;50"); // progress report, not a message
+    term().osc(777, "notify;Deploy;done on staging");
+    expect(opts.onAttention).toHaveBeenNthCalledWith(1, "bell", "");
+    expect(opts.onAttention).toHaveBeenNthCalledWith(2, "program", "build finished");
+    expect(opts.onAttention).toHaveBeenNthCalledWith(3, "program", "Deploy: done on staging");
+    expect(opts.onAttention).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores folder and bell sequences in replayed history", async () => {
+    core.sessions = [session({ session_id: "s1", member_id: "m1", end_offset: 100 })];
+    const opts = options();
+    opts.onCwd = vi.fn();
+    opts.onAttention = vi.fn();
+    getController("s1", () => opts);
+    await flush();
+    term().osc(7, "file:///old");
+    term().bell();
+    expect(opts.onCwd).not.toHaveBeenCalled();
+    expect(opts.onAttention).not.toHaveBeenCalled();
+  });
+
+  it("broadcast sends the same keystrokes to the other chosen terminals", async () => {
+    const opts = options();
+    opts.broadcastTargets = () => ["s1", "s2"];
+    getController("s1", () => opts);
+    await flush();
+    term().type("uptime\r");
+    await flush();
+    const writes = calls
+      .filter((c) => c.cmd === "session_write")
+      .map((c) => [
+        c.args?.sessionId,
+        new TextDecoder().decode(Uint8Array.from(c.args?.data as number[])),
+      ]);
+    expect(writes).toEqual([
+      ["s1", "uptime\r"],
+      ["s2", "uptime\r"],
+    ]);
+  });
+
+  it("applies font, cursor and scheme options to a running terminal", () => {
+    const c = getController("s1", options);
+    c.applyOptions({
+      fontSize: 16,
+      scrollback: 1000,
+      theme: { background: "#282a36" },
+      fontFamily: "Fira Code",
+      cursorStyle: "bar",
+      cursorBlink: false,
+    });
+    expect(term().options).toMatchObject({
+      fontSize: 16,
+      fontFamily: "Fira Code",
+      cursorStyle: "bar",
+      cursorBlink: false,
+    });
+    c.applyOptions({ fontSize: 13, scrollback: 1000, theme: {} });
+    expect(String(term().options.fontFamily)).toContain("monospace");
   });
 });

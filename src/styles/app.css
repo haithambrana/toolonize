@@ -1304,3 +1304,36 @@ kbd {
   background: var(--warn);
   vertical-align: middle;
 }
+
+/* Presentation mode: only the terminals, larger text. */
+.presenting .ws-header,
+.presenting .project-note-drawer {
+  display: none;
+}
+
+.presentation-exit {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 40;
+  opacity: 0.6;
+}
+
+.presentation-exit:hover,
+.presentation-exit:focus-visible {
+  opacity: 1;
+}
+
+.pane-cwd {
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snippet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}

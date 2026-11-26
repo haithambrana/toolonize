@@ -1,5 +1,15 @@
 /** Keyboard/palette action dispatcher (FR-054). */
-import { addTerminal, renameMember, selectWorkspace, setMode, setView } from "./actions";
+import {
+  addTerminal,
+  renameMember,
+  selectWorkspace,
+  setMode,
+  setView,
+  splitTerminal,
+  toggleBroadcast,
+  zoomTerminal,
+} from "./actions";
+import { snippetPicker } from "./snippets";
 import { readClipboard } from "./clipboard";
 import type { TerminalController } from "../terminal/controller";
 import { cycle } from "../layout/modes";
@@ -74,6 +84,36 @@ export async function runAction(action: Action): Promise<void> {
       return;
     case "notes.project":
       setState({ projectNoteOpen: !s.projectNoteOpen, view: "workspace" });
+      return;
+    case "terminal.split_right":
+      await splitTerminal("right");
+      return;
+    case "terminal.split_down":
+      await splitTerminal("bottom");
+      return;
+    case "terminal.zoom_in":
+      await zoomTerminal(1);
+      return;
+    case "terminal.zoom_out":
+      await zoomTerminal(-1);
+      return;
+    case "terminal.zoom_reset":
+      await zoomTerminal("reset");
+      return;
+    case "terminal.broadcast":
+      toggleBroadcast();
+      return;
+    case "terminal.snippets": {
+      const c = focusedController();
+      if (!c) {
+        notify("info", "Click a terminal first, then insert a snippet");
+        return;
+      }
+      await snippetPicker(c);
+      return;
+    }
+    case "view.presentation":
+      setState({ presentation: !s.presentation });
       return;
     case "terminal.search_all":
       setState({ globalSearchOpen: !s.globalSearchOpen });

@@ -10,7 +10,13 @@ import {
   type RegistryEntry,
   type WorkspaceView,
 } from "./ipc";
-import { layoutFor, type LayoutMember } from "../layout/modes";
+import {
+  layoutFor,
+  placeBeside,
+  reconcile,
+  type LayoutMember,
+  type SplitSide,
+} from "../layout/modes";
 import { confirmDialog, openDialog, promptDialog } from "./dialogs";
 import { disposeController } from "../terminal/controller";
 import { flushNote, hasNote, loadNotes } from "./notes";
@@ -38,6 +44,8 @@ export function setView(view: View): void {
 }
 
 export async function selectWorkspace(id: string): Promise<void> {
+  // Broadcast never follows the user into another workspace.
+  setState({ broadcast: {} });
   setState({ view: "workspace", active: id });
   await attempt(() => api.setActive(id));
 }
@@ -139,10 +147,18 @@ export function defaultShell(): RegistryEntry | undefined {
   return shells.find((e) => e.launcher_id === preferred) ?? shells[0];
 }
 
+export interface AddOptions {
+  /** Folder the new terminal starts in. */
+  startDir?: string | null;
+  /** Quick split: place the new pane next to this member. */
+  beside?: { target: string; side: SplitSide };
+}
+
 export async function addLauncher(
   w: WorkspaceView,
   entry: RegistryEntry,
-  start: boolean
+  start: boolean,
+  opts: AddOptions = {}
 ): Promise<void> {
   // Distinguish repeated members of the same launcher ("bash 2", "bash 3").
   const same = w.members.filter((m) => m.launcher_id === entry.launcher_id).length;
@@ -153,21 +169,46 @@ export async function addLauncher(
     `Could not add ${entry.display_name}`
   );
   if (!memberId) return;
+  if (opts.startDir) {
+    await attempt(
+      () => api.updateMember(w.id, memberId, { start_dir: opts.startDir ?? "" }),
+      "Could not use that folder"
+    );
+  }
   await refreshWorkspaces();
   const updated = getState().workspaces.find((x) => x.id === w.id);
   const member = updated?.members.find((m) => m.id === memberId);
   if (!updated || !member) return;
-  // Re-generate the preset for the current mode so the new member shows up.
   const focus = memberId;
   setState({ focused: focus });
-  await attempt(() =>
-    api.saveLayout(
-      updated.id,
-      updated.layout.mode,
-      layoutFor(updated.layout.mode, layoutMembers(updated), focus),
-      focus
-    )
-  );
+  if (opts.beside) {
+    // Quick split: keep the user's arrangement and add a pane beside the
+    // target. Tabs/Focus become Grid, since two panes are now visible.
+    const members = layoutMembers(updated);
+    const base =
+      reconcile(updated.layout.json, members) ??
+      layoutFor(updated.layout.mode, members, opts.beside.target);
+    const self = members.find((m) => m.id === memberId)!;
+    const mode = ["tabs", "focus"].includes(updated.layout.mode) ? "grid" : updated.layout.mode;
+    await attempt(() =>
+      api.saveLayout(
+        updated.id,
+        mode,
+        placeBeside(base, opts.beside!.target, self, opts.beside!.side),
+        focus
+      )
+    );
+  } else {
+    // Re-generate the preset for the current mode so the new member shows up.
+    await attempt(() =>
+      api.saveLayout(
+        updated.id,
+        updated.layout.mode,
+        layoutFor(updated.layout.mode, layoutMembers(updated), focus),
+        focus
+      )
+    );
+  }
   if (start && member.member_type !== "external_app") await startMember(updated, member);
 }
 
@@ -375,4 +416,116 @@ export async function openLink(url: string, hidden: boolean): Promise<void> {
     if (!ok) return;
   }
   await attempt(() => api.openUrl(url), "Could not open the link");
+}
+
+/** Folder a terminal is in now: its shell's report (OSC 7, or the OS on
+ * Linux) for local terminals, else the member's start folder, else the
+ * workspace project folder. */
+export async function currentFolder(w: WorkspaceView, memberId: string): Promise<string | null> {
+  const s = getState();
+  const m = w.members.find((x) => x.id === memberId);
+  const session = sessionFor(s, w.id, memberId);
+  if (session && !session.remote) {
+    const reported = s.cwd[session.session_id]?.path;
+    if (reported) return reported;
+    const fromOs = await api.sessionCwd(session.session_id).catch(() => null);
+    if (fromOs) return fromOs;
+  }
+  return m?.start_dir ?? w.project_dir ?? null;
+}
+
+/** Quick split: a new terminal right of / below the focused one, in the
+ * same folder. */
+export async function splitTerminal(side: SplitSide, targetId?: string): Promise<void> {
+  const s = getState();
+  const w = activeWorkspace(s);
+  if (!w) {
+    notify("info", "Create a workspace first.");
+    return;
+  }
+  const shell = defaultShell();
+  if (!shell) {
+    notify("error", "No shell was found on this machine.");
+    return;
+  }
+  const target = targetId ?? s.focused;
+  const valid = target && w.members.some((m) => m.id === target) ? target : null;
+  const startDir = valid ? await currentFolder(w, valid) : w.project_dir;
+  await addLauncher(w, shell, true, {
+    startDir,
+    beside: valid ? { target: valid, side } : undefined,
+  });
+}
+
+/** Zoom the user asked for but the core has not confirmed yet: quick
+ * repeated presses build on it even if a refresh lands in between. */
+const desiredZoom = new Map<string, number>();
+
+export function pendingZoom(memberId: string): number | undefined {
+  return desiredZoom.get(memberId);
+}
+
+/** Change (or reset) the font size of the focused terminal. */
+export async function zoomTerminal(delta: number | "reset"): Promise<void> {
+  const s = getState();
+  const w = activeWorkspace(s);
+  const m = w?.members.find((x) => x.id === s.focused);
+  if (!w || !m) return;
+  const current = desiredZoom.get(m.id) ?? m.zoom;
+  const zoom = delta === "reset" ? 0 : Math.max(-6, Math.min(12, current + delta));
+  if (zoom === current) return;
+  desiredZoom.set(m.id, zoom);
+  // Show it at once (and let the next key press build on it); the core's
+  // refresh confirms or corrects it.
+  setState((st) => ({
+    workspaces: st.workspaces.map((x) =>
+      x.id !== w.id
+        ? x
+        : { ...x, members: x.members.map((y) => (y.id === m.id ? { ...y, zoom } : y)) }
+    ),
+  }));
+  const ok = await attempt(
+    () => api.updateMember(w.id, m.id, { zoom }),
+    "Could not change the size"
+  );
+  if (desiredZoom.get(m.id) === zoom) desiredZoom.delete(m.id);
+  if (ok === undefined) await refreshWorkspaces();
+}
+
+/** Typing in one terminal goes to every running terminal of the workspace. */
+export function toggleBroadcast(): void {
+  const s = getState();
+  const w = activeWorkspace(s);
+  if (!w) return;
+  const on = !s.broadcast[w.id];
+  setState({ broadcast: { ...s.broadcast, [w.id]: on } });
+  const running = Object.values(s.sessions).filter(
+    (x) => x.workspace_id === w.id && x.process_state.kind === "running"
+  ).length;
+  notify(
+    on ? "warning" : "info",
+    on
+      ? `Broadcast on: typing goes to all ${running} running terminals in ${w.name}`
+      : "Broadcast off"
+  );
+}
+
+export async function setProjectFolder(w: WorkspaceView): Promise<void> {
+  const dir = await promptDialog({
+    title: "Project folder",
+    label: "New terminals in this workspace start in this folder (leave empty for your home)",
+    initial: w.project_dir ?? "",
+    confirm: "Save",
+    validate: (v) =>
+      v.trim() === "" || /^(\/|[A-Za-z]:[\\/])/.test(v.trim())
+        ? null
+        : "Use a full path, for example /home/me/project",
+  });
+  if (dir === undefined) return;
+  const ok = await attempt(
+    () => api.setProjectDir(w.id, dir.trim() || null),
+    "Could not set the folder"
+  );
+  if (ok !== undefined)
+    notify("info", dir.trim() ? `Project folder: ${dir.trim()}` : "Project folder cleared");
 }

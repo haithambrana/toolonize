@@ -24,6 +24,15 @@ export interface ControllerOptions {
   fontSize: number;
   scrollback: number;
   theme: ITheme;
+  fontFamily?: string;
+  cursorStyle?: "block" | "underline" | "bar";
+  cursorBlink?: boolean;
+  /** The shell reported its folder (OSC 7). `host` is empty for local. */
+  onCwd?: (path: string, host: string) => void;
+  /** Bell, or a program asking for a notification (OSC 9 / OSC 777). */
+  onAttention?: (kind: "bell" | "program", message: string) => void;
+  /** Other sessions that should receive this terminal's input (broadcast). */
+  broadcastTargets?: () => string[];
   /** Decide whether a paste may proceed (multi-line warning, FR-033). */
   confirmPaste: (text: string, bracketed: boolean) => Promise<boolean>;
   onDesync?: (reason: string) => void;
@@ -53,6 +62,23 @@ export interface BufferMatch {
   length: number;
   line: string;
   index: number;
+}
+
+const DEFAULT_FONT =
+  '"JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", "Ubuntu Mono", Menlo, Consolas, monospace';
+
+/** OSC 7 payload `file://host/path` -> { host, path }, or null. */
+export function parseOsc7(data: string): { host: string; path: string } | null {
+  const m = /^file:\/\/([^/]*)(\/.*)$/.exec(data.trim());
+  if (!m) return null;
+  try {
+    const path = decodeURIComponent(m[2]);
+    if (!path.startsWith("/") || [...path].some((ch) => ch.charCodeAt(0) < 0x20)) return null;
+    // Windows shells report /C:/Users/...; show it as C:/Users/...
+    return { host: m[1], path: /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path };
+  } catch {
+    return null;
+  }
 }
 
 const URL_RE = /\bhttps?:\/\/[^\s"'<>`]+/gi;
@@ -126,6 +152,8 @@ export class TerminalController {
   private resizeObserver: ResizeObserver | null = null;
   private acceptInput = true;
   private selectionTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Last folder reported by the shell (OSC 7). */
+  cwd: { host: string; path: string } | null = null;
   /** Frames that arrived before the attach call returned its start offset. */
   private early: ArrayBuffer[] | null = null;
 
@@ -149,9 +177,9 @@ export class TerminalController {
       scrollback: options.scrollback,
       theme: options.theme,
       allowProposedApi: true,
-      cursorBlink: true,
-      fontFamily:
-        '"JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", "Ubuntu Mono", Menlo, Consolas, monospace',
+      cursorBlink: options.cursorBlink ?? true,
+      cursorStyle: options.cursorStyle ?? "block",
+      fontFamily: options.fontFamily || DEFAULT_FONT,
       screenReaderMode: false,
     });
     this.fit = new FitAddon();
@@ -172,6 +200,34 @@ export class TerminalController {
         );
       }
       return true;
+    });
+    // OSC 7: the shell reports its folder (used for "new terminal here").
+    this.term.parser.registerOscHandler(7, (data) => {
+      if (this.isReplaying) return true;
+      const cwd = parseOsc7(data);
+      if (cwd) {
+        this.cwd = cwd;
+        this.options.onCwd?.(cwd.path, cwd.host);
+      }
+      return true;
+    });
+    // Notification requests from programs: OSC 9 (iTerm2; "9;4;…" is a
+    // progress report, not a message) and OSC 777 "notify;title;body".
+    this.term.parser.registerOscHandler(9, (data) => {
+      if (!this.isReplaying && data && !/^4;/.test(data)) {
+        this.options.onAttention?.("program", data.slice(0, 400));
+      }
+      return true;
+    });
+    this.term.parser.registerOscHandler(777, (data) => {
+      const [kind, title = "", body = ""] = data.split(";");
+      if (!this.isReplaying && kind === "notify") {
+        this.options.onAttention?.("program", [title, body].filter(Boolean).join(": "));
+      }
+      return true;
+    });
+    this.term.onBell(() => {
+      if (!this.isReplaying) this.options.onAttention?.("bell", "");
     });
     // Plain-text URLs: Ctrl+click opens them in the system browser.
     this.term.registerLinkProvider({
@@ -210,6 +266,11 @@ export class TerminalController {
 
   get deliveredOffset(): number {
     return this.written;
+  }
+
+  /** Shown in the layout right now (not parked off-screen). */
+  get isMounted(): boolean {
+    return this.container !== null;
   }
 
   get isReplaying(): boolean {
@@ -362,6 +423,10 @@ export class TerminalController {
     // answers must not reach the new process.
     if (this.isReplaying || !this.acceptInput || this.disposed) return;
     void api.write(this.sessionId, bytes).catch(() => undefined);
+    // Broadcast: the same keystrokes go to the other chosen terminals.
+    for (const target of this.options.broadcastTargets?.() ?? []) {
+      if (target !== this.sessionId) void api.write(target, bytes).catch(() => undefined);
+    }
   }
 
   async paste(text: string): Promise<void> {
@@ -500,10 +565,18 @@ export class TerminalController {
     this.term.write(`\x1b[0m\r\n${"\r\n".repeat(Math.max(0, rows - 1))}\x1b[H\x1b[2J`);
   }
 
-  applyOptions(options: Pick<ControllerOptions, "fontSize" | "scrollback" | "theme">): void {
+  applyOptions(
+    options: Pick<
+      ControllerOptions,
+      "fontSize" | "scrollback" | "theme" | "fontFamily" | "cursorStyle" | "cursorBlink"
+    >
+  ): void {
     this.term.options.fontSize = options.fontSize;
     this.term.options.scrollback = options.scrollback;
     this.term.options.theme = options.theme;
+    this.term.options.fontFamily = options.fontFamily || DEFAULT_FONT;
+    this.term.options.cursorStyle = options.cursorStyle ?? "block";
+    this.term.options.cursorBlink = options.cursorBlink ?? true;
     this.scheduleFit();
   }
 

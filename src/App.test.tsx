@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { MemberView, WorkspaceView } from "./lib/ipc";
-import { layoutFor } from "./layout/modes";
+import { layoutFor, membersIn } from "./layout/modes";
 import { resetDialogs } from "./lib/dialogs";
 import { resetStore } from "./state/store";
 import { resetControllers } from "./terminal/controller";
@@ -15,6 +15,7 @@ import {
   handlers,
   resetFakeCore,
   session,
+  settings,
 } from "./test/fakeCore";
 import { terminals } from "./test/fakeXterm";
 import { resetNotes } from "./lib/notes";
@@ -611,5 +612,206 @@ describe("ToolOnize app", () => {
     const order = calls.map((c) => c.cmd);
     expect(order.indexOf("note_save")).toBeLessThan(order.indexOf("member_remove"));
     expect(order.lastIndexOf("notes_get")).toBeGreaterThan(order.indexOf("member_remove"));
+  });
+  describe("terminal power features", () => {
+    const shell = () =>
+      entry({
+        launcher_id: "sys:shell:bash",
+        display_name: "bash",
+        origin: "synthetic",
+        origin_label: "Built-in (ToolOnize)",
+        executable: true,
+        effective_type: "embedded_terminal",
+      });
+
+    function setupSplit() {
+      core.entries = [shell()];
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      handlers.set("session_cwd", () => "/srv/app");
+      handlers.set("member_add", () => {
+        const w = core.workspaces[0];
+        core.workspaces = [{ ...w, members: [...w.members, member("b")] }];
+        return "b";
+      });
+      handlers.set("member_update", () => undefined);
+      handlers.set("session_start", (a) => {
+        const info = session({ session_id: "s-b", member_id: a.memberId as string });
+        core.sessions = [...core.sessions, info];
+        return info;
+      });
+    }
+
+    it("Ctrl+Shift+E splits right: new shell in the same folder, beside the focused pane", async () => {
+      setupSplit();
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      fireEvent.mouseDown(document.querySelector(".term-pane")!);
+      fireEvent.keyDown(window, { code: "KeyE", key: "E", ctrlKey: true, shiftKey: true });
+      await waitFor(() => expect(commandsCalled()).toContain("session_start"));
+      expect(calls.find((c) => c.cmd === "member_update")?.args).toEqual({
+        workspaceId: "ws1",
+        memberId: "b",
+        patch: { start_dir: "/srv/app" },
+      });
+      const save = calls.filter((c) => c.cmd === "workspace_save_layout").at(-1)!.args!;
+      expect(save.mode).toBe("grid");
+      expect(membersIn(save.layout)).toEqual(["a", "b"]);
+      expect(JSON.stringify(save.layout)).toContain('"id":"ts-b"');
+    });
+
+    it("Ctrl+= and Ctrl+0 change and reset the focused terminal's size", async () => {
+      core.workspaces = [workspace([member("a", { zoom: 2 })])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      // Like the real core: the change is stored and reported back.
+      handlers.set("member_update", (args) => {
+        const zoom = (args.patch as { zoom: number }).zoom;
+        const w = core.workspaces[0];
+        core.workspaces = [{ ...w, members: w.members.map((m) => ({ ...m, zoom })) }];
+        core.events?.send({ type: "workspaces" });
+      });
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      expect(terminals[0].options.fontSize).toBe(15);
+      fireEvent.mouseDown(document.querySelector(".term-pane")!);
+      // Rapid presses build on each other before the core replies.
+      fireEvent.keyDown(window, { code: "Equal", key: "=", ctrlKey: true });
+      fireEvent.keyDown(window, { code: "Equal", key: "=", ctrlKey: true });
+      fireEvent.keyDown(window, { code: "Equal", key: "=", ctrlKey: true });
+      await waitFor(() => expect(terminals[0].options.fontSize).toBe(18));
+      fireEvent.keyDown(window, { code: "Minus", key: "-", ctrlKey: true });
+      fireEvent.keyDown(window, { code: "Digit0", key: "0", ctrlKey: true });
+      await waitFor(() =>
+        expect(calls.filter((c) => c.cmd === "member_update").map((c) => c.args?.patch)).toEqual([
+          { zoom: 3 },
+          { zoom: 4 },
+          { zoom: 5 },
+          { zoom: 4 },
+          { zoom: 0 },
+        ])
+      );
+    });
+
+    it("broadcast sends typing to every running terminal of the workspace", async () => {
+      core.workspaces = [workspace([member("a"), member("b")])];
+      core.active = "ws1";
+      core.sessions = [
+        session({ session_id: "s-a", member_id: "a" }),
+        session({ session_id: "s-b", member_id: "b" }),
+      ];
+      const u = user();
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(2));
+      await u.click(screen.getByRole("button", { name: "Broadcast" }));
+      expect(await screen.findAllByText("Broadcast", { selector: ".chip" })).toHaveLength(2);
+      terminals[0].type("ls\r");
+      await waitFor(() =>
+        expect(
+          calls.filter((c) => c.cmd === "session_write").map((c) => c.args?.sessionId)
+        ).toEqual(["s-a", "s-b"])
+      );
+      await u.click(screen.getByRole("button", { name: "Broadcast on" }));
+      terminals[0].type("x");
+      await waitFor(() => expect(calls.filter((c) => c.cmd === "session_write")).toHaveLength(3));
+    });
+
+    it("Ctrl+Shift+S inserts a saved snippet into the focused terminal", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      handlers.set("settings_get", () => ({
+        ...settings,
+        snippets: [
+          { name: "Tail app log", text: "tail -f /var/log/app.log" },
+          { name: "Disk usage", text: "df -h" },
+        ],
+      }));
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      fireEvent.mouseDown(document.querySelector(".term-pane")!);
+      fireEvent.keyDown(window, { code: "KeyS", key: "S", ctrlKey: true, shiftKey: true });
+      const dialog = await screen.findByRole("dialog", { name: "Insert snippet" });
+      fireEvent.change(within(dialog).getByRole("combobox"), { target: { value: "disk" } });
+      fireEvent.keyDown(within(dialog).getByRole("combobox"), { key: "Enter" });
+      await waitFor(() => expect(terminals[0].pasted).toEqual(["df -h"]));
+    });
+
+    it("presentation mode hides the sidebar and toolbar and enlarges text", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      const u = user();
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      fireEvent.keyDown(window, { code: "F11", key: "F11", ctrlKey: true, shiftKey: true });
+      expect(await screen.findByRole("button", { name: /Exit presentation/ })).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+      await waitFor(() => expect(terminals[0].options.fontSize).toBe(17));
+      await u.click(screen.getByRole("button", { name: /Exit presentation/ }));
+      expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
+    });
+
+    it("notifies on the desktop when a terminal you are not looking at ends", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a", title: "Build" })];
+      handlers.set("desktop_notify", () => true);
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      const focus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+      await emit({
+        type: "session",
+        info: session({
+          session_id: "s-a",
+          member_id: "a",
+          title: "Build",
+          process_state: { kind: "exited", code: 2, signal: null },
+        }),
+      });
+      expect(calls.find((c) => c.cmd === "desktop_notify")?.args).toEqual({
+        title: "Build",
+        body: "Exited with code 2",
+      });
+      // Looking at it: no notification.
+      focus.mockReturnValue(true);
+      await emit({
+        type: "session",
+        info: session({ session_id: "s-a", member_id: "a", title: "Build" }),
+      });
+      await emit({
+        type: "session",
+        info: session({
+          session_id: "s-a",
+          member_id: "a",
+          title: "Build",
+          process_state: { kind: "exited", code: 0, signal: null },
+        }),
+      });
+      expect(calls.filter((c) => c.cmd === "desktop_notify")).toHaveLength(1);
+      focus.mockRestore();
+    });
+
+    it("sets the project folder from the toolbar", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      handlers.set("workspace_set_project_dir", () => undefined);
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Folder…" }));
+      const dialog = await screen.findByRole("dialog", { name: "Project folder" });
+      await u.type(within(dialog).getByRole("textbox"), "relative/path");
+      expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+      await u.clear(within(dialog).getByRole("textbox"));
+      await u.type(within(dialog).getByRole("textbox"), "/home/me/phoenix");
+      await u.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "workspace_set_project_dir")?.args).toEqual({
+          workspaceId: "ws1",
+          dir: "/home/me/phoenix",
+        })
+      );
+    });
   });
 });

@@ -8,7 +8,9 @@ import {
   exportWorkspace,
   openWorkspace,
   setMode,
+  setProjectFolder,
   setWorkspaceColor,
+  toggleBroadcast,
 } from "../lib/actions";
 import { ColorSwatches, TagDot } from "../lib/colors";
 import { flushAllNotes, loadNotes, restoreNotes } from "../lib/notes";
@@ -127,6 +129,15 @@ function Header({ w }: { w: WorkspaceView }) {
       </div>
       <div className="ws-actions">
         <ProjectNoteButton w={w} />
+        <BroadcastButton w={w} />
+        <button
+          type="button"
+          className="btn btn-sm"
+          title={w.project_dir ? `Project folder: ${w.project_dir}` : "Set a project folder"}
+          onClick={() => void setProjectFolder(w)}
+        >
+          Folder{w.project_dir ? `: ${w.project_dir.split(/[\\/]/).filter(Boolean).pop()}` : "…"}
+        </button>
         <button
           type="button"
           className="btn btn-sm"
@@ -262,6 +273,22 @@ function EmptyMembers({ w }: { w: WorkspaceView }) {
         Supported member kinds: {Object.values(TYPE_LABELS).slice(0, 4).join(", ")}.
       </p>
     </div>
+  );
+}
+
+function BroadcastButton({ w }: { w: WorkspaceView }) {
+  const on = useAppState((s) => !!s.broadcast[w.id]);
+  if (w.members.length < 2 && !on) return null;
+  return (
+    <button
+      type="button"
+      className={on ? "btn btn-sm btn-danger" : "btn btn-sm"}
+      aria-pressed={on}
+      title="Type into every running terminal here at once (Ctrl+Shift+B)"
+      onClick={toggleBroadcast}
+    >
+      {on ? "Broadcast on" : "Broadcast"}
+    </button>
   );
 }
 

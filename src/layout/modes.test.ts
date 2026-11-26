@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  placeBeside,
   cycle,
   layoutFor,
   membersIn,
@@ -111,5 +112,67 @@ describe("helpers", () => {
     expect(stableStringify({ b: 1, a: { d: [1, { y: 2, x: 1 }], c: null } })).toBe(
       stableStringify({ a: { c: null, d: [1, { x: 1, y: 2 }] }, b: 1 })
     );
+  });
+});
+
+describe("placeBeside (quick split)", () => {
+  const a = { id: "a", title: "A" };
+  const b = { id: "b", title: "B" };
+  const c = { id: "c", title: "C" };
+  type Node = { type: string; children?: Node[]; config?: { memberId: string }; weight?: number };
+  const paneOf = (json: unknown, id: string): { parent: Node; pane: Node } | null => {
+    let found: { parent: Node; pane: Node } | null = null;
+    const visit = (node: Node, parent: Node | null) => {
+      if (node.type === "tabset" && node.children?.some((t) => t.config?.memberId === id)) {
+        found = { parent: parent!, pane: node };
+      }
+      node.children?.forEach((ch) => visit(ch, node));
+    };
+    visit((json as { layout: Node }).layout, null);
+    return found;
+  };
+
+  it("splits right into its own pane next to the target", () => {
+    const out = placeBeside(layoutFor("grid", [a]), "a", b, "right");
+    expect(membersIn(out)).toEqual(["a", "b"]);
+    const pa = paneOf(out, "a")!;
+    const pb = paneOf(out, "b")!;
+    expect(pa.pane).not.toBe(pb.pane);
+    expect(pa.parent).toBe(pb.parent);
+    // Root row is horizontal; grid columns are vertical, so a new horizontal
+    // row wraps both panes.
+    expect(pa.parent.type).toBe("row");
+    expect(pa.parent.children).toHaveLength(2);
+  });
+
+  it("splits down inside a vertical column without nesting", () => {
+    const base = layoutFor("grid", [a]);
+    const out = placeBeside(base, "a", b, "bottom");
+    const pa = paneOf(out, "a")!;
+    const pb = paneOf(out, "b")!;
+    expect(pa.parent).toBe(pb.parent);
+    expect(pa.pane.weight! + pb.pane.weight!).toBe(50);
+  });
+
+  it("works repeatedly and keeps every member exactly once", () => {
+    let out = placeBeside(layoutFor("grid", [a]), "a", b, "right");
+    out = placeBeside(out, "b", c, "bottom");
+    expect(membersIn(out).sort()).toEqual(["a", "b", "c"]);
+    // A stale tab for the new member (added by reconcile) is replaced.
+    const again = placeBeside(reconcile(out, [a, b, c])!, "a", c, "right");
+    expect(membersIn(again).filter((x) => x === "c")).toHaveLength(1);
+  });
+
+  it("falls back to a tab when the target is not shown, and leaves input untouched", () => {
+    const base = layoutFor("grid", [a]);
+    const snapshot = JSON.stringify(base);
+    const out = placeBeside(base, "ghost", b, "right");
+    expect(membersIn(out)).toEqual(["a", "b"]);
+    expect(JSON.stringify(base)).toBe(snapshot);
+  });
+
+  it("un-maximizes the target so both panes are visible", () => {
+    const out = placeBeside(layoutFor("focus", [a, b], "a"), "a", c, "right");
+    expect(JSON.stringify(out)).not.toContain('"maximized":true');
   });
 });

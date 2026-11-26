@@ -62,6 +62,12 @@ export interface AppState {
   /** Members whose note panel is open. */
   noteOpen: Record<string, boolean>;
   projectNoteOpen: boolean;
+  /** Folder last reported by each session's shell (OSC 7). */
+  cwd: Record<string, { path: string; host: string }>;
+  /** Workspaces whose terminals currently receive the same typing. */
+  broadcast: Record<string, boolean>;
+  /** Presentation mode: no sidebar or toolbar, larger terminal text. */
+  presentation: boolean;
 }
 
 const initial: AppState = {
@@ -90,6 +96,9 @@ const initial: AppState = {
   noteStatus: {},
   noteOpen: {},
   projectNoteOpen: false,
+  cwd: {},
+  broadcast: {},
+  presentation: false,
 };
 
 let state: AppState = initial;
@@ -160,11 +169,23 @@ export async function refreshSettings(): Promise<void> {
 let registryTimer: ReturnType<typeof setTimeout> | undefined;
 let workspaceTimer: ReturnType<typeof setTimeout> | undefined;
 
+type SessionListener = (before: SessionInfo | undefined, after: SessionInfo) => void;
+const sessionListeners = new Set<SessionListener>();
+
+/** Observe session state changes (used for desktop notifications). */
+export function onSessionChange(listener: SessionListener): () => void {
+  sessionListeners.add(listener);
+  return () => sessionListeners.delete(listener);
+}
+
 export function handleEvent(event: AppEvent): void {
   switch (event.type) {
-    case "session":
+    case "session": {
+      const before = state.sessions[event.info.session_id];
       setState((s) => ({ sessions: { ...s.sessions, [event.info.session_id]: event.info } }));
+      for (const l of sessionListeners) l(before, event.info);
       break;
+    }
     case "session_closed":
       setState((s) => {
         const sessions = { ...s.sessions };
