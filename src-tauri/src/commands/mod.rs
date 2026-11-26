@@ -31,6 +31,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "open_url",
     "clipboard_read_text",
     "scrollback_export",
+    "diagnostics_export",
     "registry_view",
     "registry_rescan",
     "registry_set_hidden",
@@ -84,9 +85,14 @@ where
     F: FnOnce(Arc<Core>) -> Result<T, String> + Send + 'static,
 {
     let core = core.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || f(core))
+    let result = tauri::async_runtime::spawn_blocking(move || f(core))
         .await
-        .map_err(|e| format!("worker failed: {e}"))?
+        .map_err(|e| format!("worker failed: {e}"))?;
+    if let Err(error) = &result {
+        // Error texts name ids and paths, never command text (see logging.rs).
+        crate::logging::warn("command", error);
+    }
+    result
 }
 
 #[cfg(test)]

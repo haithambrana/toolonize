@@ -11,6 +11,7 @@ use super::state::{ProcessEvent, ProcessState, ViewEvent, ViewState};
 use crate::pty::{
     is_cursor_report, DsrScanner, PtyBackend, PtyControl, PtyDims, PtyKiller, SpawnSpec,
 };
+use crate::sync::Locked;
 use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
@@ -561,13 +562,13 @@ impl SessionManager {
 
     pub fn with_limits(self, limits: FlowLimits) -> Self {
         assert!(limits.validate(), "inconsistent flow limits");
-        *self.limits.lock().unwrap() = limits;
+        *self.limits.locked() = limits;
         self
     }
 
     /// Change the replay retention for sessions started from now on.
     pub fn set_retention(&self, bytes: usize) {
-        let mut limits = self.limits.lock().unwrap();
+        let mut limits = self.limits.locked();
         let candidate = FlowLimits {
             retention: bytes.max(limits.high_water),
             ..*limits
@@ -593,7 +594,7 @@ impl SessionManager {
     }
 
     pub fn list(&self) -> Vec<SessionInfo> {
-        let sessions: Vec<_> = self.sessions.lock().unwrap().values().cloned().collect();
+        let sessions: Vec<_> = self.sessions.locked().values().cloned().collect();
         let mut out: Vec<_> = sessions.iter().map(|s| s.info()).collect();
         out.sort_by(|a, b| a.session_id.cmp(&b.session_id));
         out
@@ -619,7 +620,7 @@ impl SessionManager {
             self.next_id.fetch_add(1, Ordering::SeqCst),
             now_ms()
         );
-        let limits = *self.limits.lock().unwrap();
+        let limits = *self.limits.locked();
         let session = Arc::new(Session {
             id: id.clone(),
             shared: Mutex::new(Shared {
@@ -868,7 +869,7 @@ impl SessionManager {
         }
         session.cond.notify_all();
         session.publish();
-        self.sessions.lock().unwrap().remove(id);
+        self.sessions.locked().remove(id);
         Ok(())
     }
 
@@ -883,7 +884,7 @@ impl SessionManager {
     /// App exit: terminate every local child (FR-037). Persistence of
     /// `detach_expected` members comes from tmux/screen, not from us.
     pub fn shutdown(&self) {
-        let sessions: Vec<_> = self.sessions.lock().unwrap().values().cloned().collect();
+        let sessions: Vec<_> = self.sessions.locked().values().cloned().collect();
         let handles: Vec<_> = sessions
             .into_iter()
             .map(|session| {
@@ -898,7 +899,7 @@ impl SessionManager {
         for handle in handles {
             let _ = handle.join();
         }
-        self.sessions.lock().unwrap().clear();
+        self.sessions.locked().clear();
     }
 }
 

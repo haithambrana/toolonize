@@ -488,3 +488,27 @@ fn ssh_member_reconnects_after_a_drop() {
     assert!(events.reconnects().iter().any(|r| r.0 && r.1 == 1));
     c.close_session(&info.session_id).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn diagnostics_report_has_counts_but_no_names() {
+    let dir = tempfile::tempdir().unwrap();
+    crate::logging::init(&dir.path().join("logs"));
+    let c = core(&dir);
+    let ws = c.create_workspace("Secret Project Phoenix").unwrap();
+    let shell = shell_id(&c);
+    let fp = fingerprint(&c, &shell);
+    c.add_member(&ws, &shell, &fp, Some("prod db shell".into()))
+        .unwrap();
+    crate::logging::info("test", "diagnostics marker line");
+    let report = c.diagnostics_report();
+    assert!(report.contains("workspaces: 1, members: 1"));
+    assert!(report.contains("\"font_size\""), "settings included");
+    assert!(report.contains("[recent log]"));
+    for private in ["Secret Project Phoenix", "prod db shell"] {
+        assert!(!report.contains(private), "{private} leaked");
+    }
+    if crate::logging::log_path().is_some_and(|p| p.starts_with(dir.path())) {
+        assert!(report.contains("diagnostics marker line"));
+    }
+}

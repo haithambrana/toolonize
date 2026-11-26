@@ -5,6 +5,7 @@
 //! "rescan" callback; the registry diff decides what actually changed.
 //! Failure to watch degrades to manual rescan with a visible status (FS-01).
 
+use crate::sync::Locked;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -29,7 +30,7 @@ pub struct WatchHandle {
 
 impl WatchHandle {
     pub fn status(&self) -> WatchStatus {
-        self.status.lock().unwrap().clone()
+        self.status.locked().clone()
     }
 }
 
@@ -54,7 +55,7 @@ pub fn start(roots: Vec<PathBuf>, on_change: Arc<dyn Fn() + Send + Sync>) -> Wat
                 let _ = tx.send(true);
             }
             Err(error) => {
-                *error_status.lock().unwrap() = WatchStatus::Degraded {
+                *error_status.locked() = WatchStatus::Degraded {
                     reason: error.to_string(),
                 };
                 // Overflow and similar errors: a full rescan is the safe answer.
@@ -64,7 +65,7 @@ pub fn start(roots: Vec<PathBuf>, on_change: Arc<dyn Fn() + Send + Sync>) -> Wat
     let mut watcher = match watcher {
         Ok(w) => w,
         Err(error) => {
-            *status.lock().unwrap() = WatchStatus::Degraded {
+            *status.locked() = WatchStatus::Degraded {
                 reason: format!("watch service unavailable: {error}"),
             };
             return WatchHandle {
@@ -94,7 +95,7 @@ pub fn start(roots: Vec<PathBuf>, on_change: Arc<dyn Fn() + Send + Sync>) -> Wat
             }
         }
     }
-    *status.lock().unwrap() = if failures.is_empty() {
+    *status.locked() = if failures.is_empty() {
         WatchStatus::Live { roots: watched }
     } else {
         WatchStatus::Degraded {

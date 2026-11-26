@@ -62,6 +62,18 @@ Node.js `v24.22.1` and rustup-init `1.29.2` by SHA-256 digest; system
 packages come from the distribution's package manager, Windows tools from
 winget. Nothing here is linked into or shipped with ToolOnize.
 
+## Supply-chain gate (2026-11-26)
+
+- CI job `supply-chain`: `npm audit --audit-level=high` and
+  `cargo deny check` (RustSec advisories, licenses, sources; policy in
+  `src-tauri/deny.toml`). Both fail the build.
+- Fixed when the gate was introduced: dev tooling `vite` 6.4.3 → 6.4.6,
+  `vitest` 3.2 → 4.1.12 (pulls fixed `tinypool`), `typescript-eslint` →
+  8.74 (fixed `minimatch`/`brace-expansion`); Rust transitive `url` 2.5.8 →
+  2.5.9 (RUSTSEC-2026-0592) and `cookie` 0.18.2 → 0.18.3
+  (RUSTSEC-2026-0594) via `cargo update -p` (no other crate changed).
+  Production npm dependencies had no advisories.
+
 ## Policy
 
 - No dependency is added without recording it here and in the commit

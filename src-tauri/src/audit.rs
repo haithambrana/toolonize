@@ -6,6 +6,7 @@
 
 use crate::model::now_ms;
 use crate::persist::append_line;
+use crate::sync::Locked;
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -93,7 +94,7 @@ impl Audit {
                 let _ = append_line(path, &line, MAX_LOG_BYTES);
             }
         }
-        let mut recent = self.recent.lock().unwrap();
+        let mut recent = self.recent.locked();
         if recent.len() >= RECENT {
             recent.pop_front();
         }
@@ -101,7 +102,7 @@ impl Audit {
     }
 
     pub fn recent(&self, limit: usize) -> Vec<AuditEntry> {
-        let recent = self.recent.lock().unwrap();
+        let recent = self.recent.locked();
         recent.iter().rev().take(limit).cloned().collect()
     }
 }

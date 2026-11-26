@@ -11,6 +11,7 @@ fn main() {
             "open_url",
             "clipboard_read_text",
             "scrollback_export",
+            "diagnostics_export",
             "registry_view",
             "registry_rescan",
             "registry_set_hidden",

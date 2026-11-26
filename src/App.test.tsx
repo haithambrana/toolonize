@@ -524,4 +524,14 @@ describe("ToolOnize app", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(calls.filter((c) => c.cmd === "open_url")).toHaveLength(1);
   });
+  it("exports diagnostics from Settings and shows where they were saved", async () => {
+    handlers.set("diagnostics_export", () => "/fixture/Downloads/toolonize-diagnostics.txt");
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.click(await screen.findByRole("button", { name: "Export diagnostics" }));
+    expect(
+      await screen.findByText(/Diagnostics saved to \/fixture\/Downloads/)
+    ).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
@@ -14,6 +14,17 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM ? "chrome105" : "esnext",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    rollupOptions: {
+      output: {
+        // Large libraries in their own chunks: app changes do not rewrite them
+        // and each stays within the size budget below.
+        manualChunks: {
+          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-search"],
+          layout: ["flexlayout-react"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 450,
   },
   test: {
     environment: "jsdom",

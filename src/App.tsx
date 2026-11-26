@@ -8,16 +8,26 @@ import { actionFor, effectiveKeymap } from "./lib/keymap";
 import { applyTheme } from "./lib/theme";
 import { pruneControllers } from "./terminal/controller";
 import { dismissNotice, init, setState, useAppState } from "./state/store";
-import { ActivityScreen } from "./views/ActivityScreen";
-import { LaunchersScreen } from "./views/LaunchersScreen";
-import { SettingsScreen } from "./views/SettingsScreen";
 import { Sidebar } from "./views/Sidebar";
 import { WorkspaceScreen } from "./views/WorkspaceScreen";
 import "@xterm/xterm/css/xterm.css";
 
-// Throwaway M2 harness, included only in the dedicated spike build.
-const TerminalSpike = lazy(() => import("./spike/TerminalSpike"));
+// Throwaway M2 harness, included only in the dedicated spike build: with the
+// flag unset the import is dead code and never reaches the bundle.
 const SPIKE = import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test";
+const TerminalSpike = SPIKE ? lazy(() => import("./spike/TerminalSpike")) : null;
+
+// Secondary screens load on first use; the workspace view stays in the
+// main bundle so terminals appear without an extra round trip.
+const LaunchersScreen = lazy(() =>
+  import("./views/LaunchersScreen").then((m) => ({ default: m.LaunchersScreen }))
+);
+const SettingsScreen = lazy(() =>
+  import("./views/SettingsScreen").then((m) => ({ default: m.SettingsScreen }))
+);
+const ActivityScreen = lazy(() =>
+  import("./views/ActivityScreen").then((m) => ({ default: m.ActivityScreen }))
+);
 
 function Toasts() {
   const notices = useAppState((s) => s.notices);
@@ -122,9 +132,11 @@ function Shell() {
       <Sidebar />
       <main className="main" id="main">
         {view === "workspace" && <WorkspaceScreen />}
-        {view === "launchers" && <LaunchersScreen />}
-        {view === "settings" && <SettingsScreen />}
-        {view === "activity" && <ActivityScreen />}
+        <Suspense fallback={<div className="muted small screen-loading">Loading…</div>}>
+          {view === "launchers" && <LaunchersScreen />}
+          {view === "settings" && <SettingsScreen />}
+          {view === "activity" && <ActivityScreen />}
+        </Suspense>
       </main>
       <Toasts />
       <CommandPalette />
@@ -136,7 +148,7 @@ function Shell() {
 }
 
 export default function App() {
-  if (SPIKE) {
+  if (TerminalSpike) {
     return (
       <Suspense fallback={<div className="muted small">Loading spike harness…</div>}>
         <TerminalSpike />

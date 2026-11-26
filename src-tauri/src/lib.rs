@@ -5,6 +5,7 @@ pub mod commands;
 pub mod discovery;
 pub mod export;
 pub mod external;
+pub mod logging;
 pub mod model;
 pub mod persist;
 pub mod policy;
@@ -14,6 +15,7 @@ pub mod session;
 pub mod settings;
 pub mod shells;
 pub mod sshconfig;
+pub mod sync;
 pub mod transfer;
 pub mod workspace;
 
@@ -22,8 +24,14 @@ pub mod workspace;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (state_dir, config_dir) = persist::default_dirs();
+    logging::init(&state_dir);
+    logging::install_panic_hook();
     let core = app::Core::new(state_dir, config_dir);
     if let Err(error) = core.rescan() {
+        logging::error(
+            "discovery",
+            &format!("initial launcher scan failed: {error}"),
+        );
         eprintln!("initial launcher scan failed: {error}");
     }
     core.restart_watch();
@@ -41,6 +49,7 @@ pub fn run() {
         crate::commands::app::open_url,
         crate::commands::clipboard::clipboard_read_text,
         crate::commands::app::scrollback_export,
+        crate::commands::app::diagnostics_export,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
         crate::commands::registry::registry_set_hidden,

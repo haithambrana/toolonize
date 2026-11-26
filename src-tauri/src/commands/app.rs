@@ -49,6 +49,12 @@ pub async fn open_url(core: CoreState<'_>, url: String) -> Result<(), String> {
     blocking(&core, move |c| c.open_url(&url)).await
 }
 
+/// Write a diagnostics report into the Downloads folder (no names, no output).
+#[tauri::command]
+pub async fn diagnostics_export(core: CoreState<'_>) -> Result<String, String> {
+    blocking(&core, move |c| c.export_diagnostics()).await
+}
+
 /// Save terminal text into the Downloads folder; the core picks the path.
 #[tauri::command]
 pub async fn scrollback_export(

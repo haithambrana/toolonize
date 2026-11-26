@@ -324,6 +324,8 @@ export const api = {
   exportScrollback: (name: string, text: string) =>
     invoke<string>("scrollback_export", { name, text }),
   sshHosts: () => invoke<HostList>("ssh_hosts"),
+  /** Writes a diagnostics report (no names or output) into Downloads. */
+  exportDiagnostics: () => invoke<string>("diagnostics_export"),
 
   registry: () => invoke<RegistryView>("registry_view"),
   rescan: () => invoke<Diff>("registry_rescan"),

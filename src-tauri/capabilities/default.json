@@ -13,6 +13,7 @@
     "allow-open-url",
     "allow-clipboard-read-text",
     "allow-scrollback-export",
+    "allow-diagnostics-export",
     "allow-registry-view",
     "allow-registry-rescan",
     "allow-registry-set-hidden",

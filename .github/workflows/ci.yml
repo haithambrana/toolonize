@@ -173,3 +173,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           pwsh -NoProfile -File scripts/setup/windows.ps1 -Check
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+  supply-chain:
+    # Known-vulnerable or disallowed dependencies fail the build (AGENTS.md
+    # rule 6): npm high/critical advisories, and cargo-deny for RustSec
+    # advisories, licenses and sources (src-tauri/deny.toml).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: npm audit (high and critical fail)
+        run: npm audit --audit-level=high
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+      - name: cargo-deny (advisories, licenses, sources)
+        run: |
+          cargo install cargo-deny --version 0.22.1 --locked
+          cd src-tauri && cargo deny check

@@ -10,7 +10,7 @@ import {
   effectiveKeymap,
   type Action,
 } from "../lib/keymap";
-import { attempt, useAppState } from "../state/store";
+import { attempt, notify, useAppState } from "../state/store";
 
 function update(settings: Settings, patch: Partial<Settings>) {
   return attempt(() => api.updateSettings({ ...settings, ...patch }), "Could not save settings");
@@ -287,6 +287,25 @@ export function SettingsScreen() {
           <p className="muted small">
             To remove ToolOnize completely, uninstall it and delete these folders.
           </p>
+          <div className="row-gap">
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={async () => {
+                const path = await attempt(
+                  () => api.exportDiagnostics(),
+                  "Could not export diagnostics"
+                );
+                if (path) notify("info", `Diagnostics saved to ${path}`);
+              }}
+            >
+              Export diagnostics
+            </button>
+            <span className="muted small">
+              For bug reports: versions, settings and recent log lines — no names, commands, output
+              or notes.
+            </span>
+          </div>
           <p className="muted small">
             ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR
             Apache-2.0.
