@@ -723,3 +723,46 @@ fn notifications_respect_settings_limits_and_rate() {
     let c2 = core(&dir);
     assert!(c2.prepare_notification("off", "").is_none());
 }
+
+#[test]
+fn window_title_follows_the_active_workspace_and_internal_sinks_survive() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    assert_eq!(c.window_title(), "ToolOnize");
+    let internal = Arc::new(Events::default());
+    c.add_internal_sink(internal.clone());
+    let ui = Arc::new(Events::default());
+    c.subscribe(ui.clone());
+    let ws = c.create_workspace("Phoenix").unwrap();
+    c.set_active(Some(&ws)).unwrap();
+    assert_eq!(c.window_title(), "Phoenix — ToolOnize");
+    // A renderer reload resubscribes the UI; the internal sink keeps going.
+    c.subscribe(Arc::new(Events::default()));
+    c.rename_workspace(&ws, "Phoenix 2").unwrap();
+    assert_eq!(c.window_title(), "Phoenix 2 — ToolOnize");
+    let count = |e: &Events| {
+        e.0.lock()
+            .unwrap()
+            .iter()
+            .filter(|x| matches!(x, AppEvent::Workspaces))
+            .count()
+    };
+    assert!(
+        count(&internal) > count(&ui),
+        "internal sink saw the rename"
+    );
+}
+
+#[test]
+fn audit_log_exports_as_json_lines() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    c.create_workspace("A").unwrap();
+    c.open_url("https://example.com").ok();
+    let text = c.audit.export_text();
+    assert!(text.lines().count() >= 1);
+    for line in text.lines() {
+        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        assert!(v["action"].is_string());
+    }
+}

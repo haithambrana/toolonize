@@ -101,6 +101,24 @@ impl Audit {
         recent.push_back(entry);
     }
 
+    /// The whole local audit log as JSON lines (the file, or the in-memory
+    /// recent entries when there is no file).
+    pub fn export_text(&self) -> String {
+        if let Some(text) = self
+            .path
+            .as_ref()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+        {
+            return text;
+        }
+        self.recent
+            .locked()
+            .iter()
+            .filter_map(|e| serde_json::to_string(e).ok())
+            .map(|l| l + "\n")
+            .collect()
+    }
+
     pub fn recent(&self, limit: usize) -> Vec<AuditEntry> {
         let recent = self.recent.locked();
         recent.iter().rev().take(limit).cloned().collect()

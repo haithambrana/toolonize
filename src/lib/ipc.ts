@@ -353,6 +353,8 @@ export const api = {
   settings: () => invoke<Settings>("settings_get"),
   updateSettings: (settings: Settings) => invoke<void>("settings_update", { settings }),
   audit: (limit: number) => invoke<AuditEntry[]>("audit_recent", { limit }),
+  /** Copies the whole local audit log (JSON lines) into Downloads. */
+  exportAudit: () => invoke<string>("audit_export"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   clipboardRead: () => invoke<string | null>("clipboard_read_text"),
   /** Saves into the Downloads folder; returns the path the core chose. */

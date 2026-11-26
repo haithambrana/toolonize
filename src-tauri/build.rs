@@ -8,6 +8,7 @@ fn main() {
             "settings_get",
             "settings_update",
             "audit_recent",
+            "audit_export",
             "open_url",
             "clipboard_read_text",
             "scrollback_export",

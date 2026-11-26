@@ -15,6 +15,7 @@ import {
 import { ColorSwatches, TagDot } from "../lib/colors";
 import { flushAllNotes, loadNotes, restoreNotes } from "../lib/notes";
 import { StickyNote } from "../components/StickyNote";
+import { MenuButton } from "../components/MenuButton";
 import { addMemberDialog } from "../lib/addMember";
 import { confirmDialog, openDialog, promptDialog } from "../lib/dialogs";
 import { TYPE_LABELS, entryName } from "../lib/labels";
@@ -90,6 +91,76 @@ function ImportBanner({ w }: { w: WorkspaceView }) {
   );
 }
 
+function StartButton({ w }: { w: WorkspaceView }) {
+  // Only while some terminal member is not running.
+  const idle = useAppState((s) =>
+    w.members.some(
+      (m) =>
+        m.member_type !== "external_app" &&
+        m.status.state === "ready" &&
+        !Object.values(s.sessions).some(
+          (x) =>
+            x.workspace_id === w.id &&
+            x.member_id === m.id &&
+            ["running", "starting"].includes(x.process_state.kind)
+        )
+    )
+  );
+  if (!idle) return null;
+  return (
+    <button
+      type="button"
+      className="btn btn-sm"
+      onClick={() => void openWorkspace(w, { start_terminals: true, launch_external: false })}
+    >
+      Start terminals
+    </button>
+  );
+}
+
+function pickWorkspaceColor(w: WorkspaceView) {
+  return openDialog<void>("Workspace color", (close) => (
+    <>
+      <div className="dialog-body">
+        <ColorSwatches
+          label="Workspace color"
+          value={w.color}
+          onPick={(color) => {
+            close(undefined);
+            void setWorkspaceColor(w.id, color);
+          }}
+        />
+      </div>
+      <div className="dialog-actions">
+        <button type="button" className="btn" onClick={() => close(undefined)}>
+          Close
+        </button>
+      </div>
+    </>
+  ));
+}
+
+async function deleteWorkspace(w: WorkspaceView) {
+  const running = Object.values(getState().sessions).filter((s) => s.workspace_id === w.id).length;
+  const ok = await confirmDialog({
+    title: `Delete ${w.name}?`,
+    body: (
+      <p>
+        The workspace, its layout and member authorizations are deleted
+        {running ? ` and ${running} running terminal(s) are closed` : ""}. Launchers stay in the
+        registry. Its notes are kept for 30 days and can be restored into another workspace&apos;s
+        project note.
+      </p>
+    ),
+    confirm: "Delete",
+    danger: true,
+  });
+  if (ok) {
+    await flushAllNotes();
+    await attempt(() => api.deleteWorkspace(w.id));
+  }
+}
+
 function Header({ w }: { w: WorkspaceView }) {
   return (
     <header className="ws-header">
@@ -132,108 +203,41 @@ function Header({ w }: { w: WorkspaceView }) {
         <BroadcastButton w={w} />
         <button
           type="button"
-          className="btn btn-sm"
-          title={w.project_dir ? `Project folder: ${w.project_dir}` : "Set a project folder"}
-          onClick={() => void setProjectFolder(w)}
-        >
-          Folder{w.project_dir ? `: ${w.project_dir.split(/[\\/]/).filter(Boolean).pop()}` : "…"}
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm"
-          title="Color tag for this workspace"
-          onClick={() =>
-            void openDialog<void>("Workspace color", (close) => (
-              <>
-                <div className="dialog-body">
-                  <ColorSwatches
-                    label="Workspace color"
-                    value={w.color}
-                    onPick={(color) => {
-                      close(undefined);
-                      void setWorkspaceColor(w.id, color);
-                    }}
-                  />
-                </div>
-                <div className="dialog-actions">
-                  <button type="button" className="btn" onClick={() => close(undefined)}>
-                    Close
-                  </button>
-                </div>
-              </>
-            ))
-          }
-        >
-          Color
-        </button>
-        <button
-          type="button"
           className="btn btn-primary btn-sm"
           onClick={() => void addMemberDialog(w)}
         >
           + Add member
         </button>
-        {w.members.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => void openWorkspace(w, { start_terminals: true, launch_external: false })}
-          >
-            Start terminals
-          </button>
-        )}
-        <label className="select-inline">
-          <span className="sr-only">Startup policy</span>
-          <select
-            className="input input-sm"
-            value={w.startup_policy}
-            aria-label="Startup policy"
-            onChange={(e) =>
-              void attempt(() => api.setPolicy(w.id, e.target.value as StartupPolicy))
-            }
-          >
-            {POLICIES.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          onClick={() => void exportWorkspace(w)}
-        >
-          Export
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          onClick={async () => {
-            const running = Object.values(getState().sessions).filter(
-              (s) => s.workspace_id === w.id
-            ).length;
-            const ok = await confirmDialog({
-              title: `Delete ${w.name}?`,
-              body: (
-                <p>
-                  The workspace, its layout and member authorizations are deleted
-                  {running ? ` and ${running} running terminal(s) are closed` : ""}. Launchers stay
-                  in the registry. Its notes are kept for 30 days and can be restored into another
-                  workspace&apos;s project note.
-                </p>
-              ),
-              confirm: "Delete",
+        <StartButton w={w} />
+        <MenuButton
+          label="More workspace actions"
+          className="btn btn-sm"
+          entries={[
+            {
+              label: w.project_dir ? `Project folder: ${w.project_dir}` : "Project folder…",
+              onSelect: () => void setProjectFolder(w),
+            },
+            { label: "Color…", onSelect: () => void pickWorkspaceColor(w) },
+            ...POLICIES.map((p, i) => ({
+              label: `On open: ${p.label}`,
+              checked: w.startup_policy === p.value,
+              separator: i === 0,
+              onSelect: () => void attempt(() => api.setPolicy(w.id, p.value)),
+            })),
+            {
+              label: "Export…",
+              separator: true,
+              onSelect: () => void exportWorkspace(w),
+            },
+            {
+              label: "Delete workspace…",
               danger: true,
-            });
-            if (ok) {
-              await flushAllNotes();
-              await attempt(() => api.deleteWorkspace(w.id));
-            }
-          }}
+              onSelect: () => void deleteWorkspace(w),
+            },
+          ]}
         >
-          Delete
-        </button>
+          More ▾
+        </MenuButton>
       </div>
     </header>
   );

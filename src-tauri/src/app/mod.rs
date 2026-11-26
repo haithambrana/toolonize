@@ -91,10 +91,16 @@ pub trait EventSink: Send + Sync {
 #[derive(Default)]
 struct Bus {
     sinks: Mutex<Vec<Arc<dyn EventSink>>>,
+    /// Core-side listeners (window title); kept when the UI resubscribes.
+    internal: Mutex<Vec<Arc<dyn EventSink>>>,
 }
 
 impl Bus {
     fn emit(&self, event: AppEvent) {
+        let internal: Vec<_> = self.internal.locked().clone();
+        for sink in &internal {
+            sink.send(&event);
+        }
         let sinks: Vec<_> = self.sinks.locked().clone();
         let mut dead = Vec::new();
         for (index, sink) in sinks.iter().enumerate() {
@@ -349,6 +355,11 @@ impl Core {
     /// page subscribes again, replacing the stream of the page it replaced.
     pub fn subscribe(&self, sink: Arc<dyn EventSink>) {
         *self.bus.sinks.locked() = vec![sink];
+    }
+
+    /// A listener inside the app process that survives UI resubscription.
+    pub fn add_internal_sink(&self, sink: Arc<dyn EventSink>) {
+        self.bus.internal.locked().push(sink);
     }
 
     fn notice(&self, level: &str, message: impl Into<String>) {

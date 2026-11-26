@@ -14,7 +14,10 @@ import {
   type Action,
   type IJsonModel,
   type ITabRenderValues,
+  type ITabSetRenderValues,
   type TabNode,
+  type TabSetNode,
+  type BorderNode,
 } from "flexlayout-react";
 import "flexlayout-react/style/combined.css";
 import { api, type WorkspaceView } from "../lib/ipc";
@@ -23,7 +26,7 @@ import { setState, useAppState } from "../state/store";
 import { GLOBAL, layoutFor, reconcile, type ModelJson } from "./modes";
 import { stableStringify } from "./stable";
 import { MemberPane } from "./MemberPane";
-import { TagDot } from "../lib/colors";
+import { PaneActions, TabLeading } from "./PaneChrome";
 
 const SAVE_DELAY_MS = 400;
 
@@ -102,11 +105,21 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
     return action;
   };
 
-  // Color tag in front of each tab name.
+  // One title row per pane: state dot + color in the tab, actions on the
+  // right of the same row (no second header inside the pane).
+  const memberOf = (node: TabNode | undefined) =>
+    (node?.getConfig?.() as { memberId?: string } | undefined)?.memberId;
   const onRenderTab = (node: TabNode, values: ITabRenderValues) => {
-    const memberId = (node.getConfig?.() as { memberId?: string } | undefined)?.memberId;
-    const color = workspace.members.find((m) => m.id === memberId)?.color;
-    if (color) values.leading = <TagDot color={color} />;
+    const memberId = memberOf(node);
+    if (memberId) values.leading = <TabLeading workspaceId={workspace.id} memberId={memberId} />;
+  };
+  const onRenderTabSet = (node: TabSetNode | BorderNode, values: ITabSetRenderValues) => {
+    const memberId = memberOf(node.getSelectedNode?.() as TabNode | undefined);
+    if (memberId) {
+      values.buttons.unshift(
+        <PaneActions key="pane-actions" workspaceId={workspace.id} memberId={memberId} />
+      );
+    }
   };
 
   const factory = (node: TabNode) => {
@@ -126,6 +139,7 @@ export function WorkspaceLayout({ workspace }: { workspace: WorkspaceView }) {
         onModelChange={onModelChange}
         onAction={onAction}
         onRenderTab={onRenderTab}
+        onRenderTabSet={onRenderTabSet}
         supportsPopout={false}
         realtimeResize
       />

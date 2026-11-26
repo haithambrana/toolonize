@@ -319,7 +319,7 @@ describe("ToolOnize app", () => {
     expect(await screen.findByText(/State recovered from an earlier snapshot/)).toBeInTheDocument();
   });
 
-  it("renames a terminal from its header; empty name resets (rename feature)", async () => {
+  it("renames a terminal (Ctrl+Shift+R); empty name resets (rename feature)", async () => {
     core.workspaces = [workspace([member("a"), member("b")])];
     core.active = "ws1";
     core.sessions = [
@@ -329,8 +329,9 @@ describe("ToolOnize app", () => {
     handlers.set("member_update", () => undefined);
     const user = userEvent.setup();
     render(<App />);
-    const header = await screen.findByRole("button", { name: /Shell a — double-click to rename/ });
-    await user.dblClick(header);
+    await waitFor(() => expect(terminals).toHaveLength(2));
+    fireEvent.mouseDown(document.querySelectorAll(".term-pane")[0]);
+    fireEvent.keyDown(window, { code: "KeyR", key: "R", ctrlKey: true, shiftKey: true });
     const dialog = await screen.findByRole("dialog", { name: "Rename terminal" });
     const input = within(dialog).getByRole("textbox");
     await user.clear(input);
@@ -799,7 +800,8 @@ describe("ToolOnize app", () => {
       handlers.set("workspace_set_project_dir", () => undefined);
       const u = user();
       render(<App />);
-      await u.click(await screen.findByRole("button", { name: "Folder…" }));
+      await u.click(await screen.findByRole("button", { name: "More ▾" }));
+      await u.click(screen.getByRole("menuitem", { name: "Project folder…" }));
       const dialog = await screen.findByRole("dialog", { name: "Project folder" });
       await u.type(within(dialog).getByRole("textbox"), "relative/path");
       expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -813,5 +815,97 @@ describe("ToolOnize app", () => {
         })
       );
     });
+  });
+  it("shows each pane's name, state and actions in one title row", async () => {
+    core.workspaces = [workspace([member("a"), member("b")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    expect(document.querySelector(".pane-header")).toBeNull();
+    // The running pane's actions sit in the layout's title row.
+    const actions = document.querySelectorAll(
+      ".flexlayout__tabset_header .pane-actions, .flexlayout__tab_toolbar .pane-actions"
+    );
+    expect(actions.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole("button", { name: "Search" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Stop" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Note( has a note)?$/ })).toHaveLength(2);
+    // FlexLayout renders tab buttons twice (one copy for measuring).
+    expect(document.querySelectorAll(".tab-leading .state-running").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".tab-leading .state-new").length).toBeGreaterThan(0);
+  });
+
+  it("shows Start terminals only while a terminal is not running; More menu holds the rest", async () => {
+    core.workspaces = [workspace([member("a")])];
+    core.active = "ws1";
+    core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+    handlers.set("workspace_set_policy", () => undefined);
+    const u = user();
+    render(<App />);
+    await waitFor(() => expect(terminals).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: "Start terminals" })).not.toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "More ▾" }));
+    const menu = screen.getByRole("menu", { name: "More workspace actions" });
+    expect(
+      within(menu).getByRole("menuitemradio", { name: /On open: Ask what to start/ })
+    ).toHaveAttribute("aria-checked", "true");
+    await u.click(within(menu).getByRole("menuitemradio", { name: /Restore \+ start terminals/ }));
+    expect(calls.find((c) => c.cmd === "workspace_set_policy")?.args).toEqual({
+      workspaceId: "ws1",
+      policy: "restore_terminals",
+    });
+    await emit({
+      type: "session",
+      info: session({
+        session_id: "s-a",
+        member_id: "a",
+        process_state: { kind: "exited", code: 0, signal: null },
+      }),
+    });
+    expect(await screen.findByRole("button", { name: "Start terminals" })).toBeInTheDocument();
+  });
+
+  it("Activity shows names instead of internal ids and filters the audit log", async () => {
+    core.workspaces = [workspace([member("a", { title: "API server" })])];
+    core.active = "ws1";
+    core.sessions = [
+      session({ session_id: "s-a", member_id: "a", title: "API server", view_state: "hidden" }),
+    ];
+    handlers.set("audit_recent", () => [
+      {
+        at: 2,
+        action: "session.start",
+        outcome: "allowed",
+        workspace_id: "ws1",
+        member_id: "a",
+        launcher_id: "sys:shell:a",
+        fingerprint: null,
+        detail: null,
+      },
+      {
+        at: 1,
+        action: "url.open",
+        outcome: "denied",
+        workspace_id: null,
+        member_id: null,
+        launcher_id: null,
+        fingerprint: null,
+        detail: "scheme not allowed",
+      },
+    ]);
+    handlers.set("audit_export", () => "/fixture/Downloads/toolonize-audit-log.txt");
+    const u = user();
+    render(<App />);
+    await u.click(await screen.findByRole("button", { name: "Activity" }));
+    expect(await screen.findByText("In the background")).toBeInTheDocument();
+    expect(await screen.findByText("Terminal started")).toBeInTheDocument();
+    expect(screen.getAllByText("API server").length).toBeGreaterThan(1);
+    expect(screen.queryByText("sys:shell:a")).not.toBeInTheDocument();
+    await u.selectOptions(screen.getByRole("combobox", { name: "Outcome" }), "denied");
+    expect(screen.queryByText("Terminal started")).not.toBeInTheDocument();
+    expect(screen.getByText("Link opened")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Export" }));
+    expect(await screen.findByText(/Audit log saved to/)).toBeInTheDocument();
   });
 });

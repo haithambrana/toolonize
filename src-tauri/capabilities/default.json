@@ -10,6 +10,7 @@
     "allow-settings-get",
     "allow-settings-update",
     "allow-audit-recent",
+    "allow-audit-export",
     "allow-open-url",
     "allow-clipboard-read-text",
     "allow-scrollback-export",

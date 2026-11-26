@@ -1337,3 +1337,70 @@ kbd {
   gap: 6px;
   margin-top: 8px;
 }
+
+.menu-wrap {
+  position: relative;
+}
+
+.menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  left: auto;
+  min-width: 260px;
+  z-index: 30;
+}
+
+.menu-separator {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.context-danger {
+  color: var(--danger);
+}
+
+.menu-check {
+  display: inline-block;
+  width: 1.2em;
+}
+
+.audit-tools {
+  margin-bottom: 8px;
+}
+
+/* Pane actions live in FlexLayout's title row. */
+.flexlayout__tab_toolbar .pane-actions {
+  align-items: center;
+  margin-left: 0;
+  padding-right: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.flexlayout__tab_toolbar .pane-actions .btn-sm {
+  padding: 1px 8px;
+}
+
+.tab-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.pane-state {
+  margin-right: 4px;
+}
+
+/* Global search: the query field takes the row, the toggle stays small. */
+.palette > .row-gap {
+  align-items: center;
+  padding-right: 12px;
+}
+
+.palette > .row-gap .palette-input {
+  flex: 1;
+  min-width: 0;
+}

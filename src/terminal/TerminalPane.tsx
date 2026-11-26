@@ -9,13 +9,10 @@ import {
   memberTitle,
   reconnectSession,
   restartSession,
-  renameMember,
-  stopSession,
 } from "../lib/actions";
 import { processLabel } from "../lib/labels";
 import { api } from "../lib/ipc";
-import { TagDot } from "../lib/colors";
-import { MemberNoteButton, MemberNoteOverlay } from "../components/MemberNote";
+import { MemberNoteOverlay } from "../components/MemberNote";
 import { setState, useAppState } from "../state/store";
 import { getController, peekController } from "./controller";
 import { controllerOptions } from "./options";
@@ -232,8 +229,6 @@ export function TerminalPane({
   }, [sessionId, isFocused]);
 
   const presentation = useAppState((s) => s.presentation);
-  const cwd = useAppState((s) => s.cwd[sessionId]);
-  const broadcasting = useAppState((s) => !!s.broadcast[workspace.id]);
   useEffect(() => {
     peekController(sessionId)?.applyOptions(
       controllerOptions(settings, theme, { sessionId, memberId: member.id })
@@ -245,74 +240,12 @@ export function TerminalPane({
     generation.current = session.generation;
   }, [sessionId, session.generation]);
 
-  const live = ["running", "starting"].includes(session.process_state.kind);
   return (
     <div
       className="term-pane"
       onFocusCapture={() => setState({ focused: member.id })}
       onMouseDown={() => setState({ focused: member.id })}
     >
-      <div className={member.color ? `pane-header pane-tag tag-${member.color}` : "pane-header"}>
-        <span className={`state-dot state-${session.process_state.kind}`} aria-hidden="true" />
-        <TagDot color={member.color} />
-        <button
-          type="button"
-          className="pane-title title-button"
-          title="Double-click to rename"
-          aria-label={`${memberTitle(member)} — double-click to rename`}
-          onDoubleClick={() => void renameMember(workspace.id, member.id)}
-        >
-          {memberTitle(member)}
-        </button>
-        <span className="muted small">{processLabel(session)}</span>
-        {cwd && (
-          <span
-            className="pane-cwd muted small"
-            title={cwd.host ? `${cwd.host}:${cwd.path}` : cwd.path}
-          >
-            {cwd.path.split(/[\\/]/).filter(Boolean).pop() ?? cwd.path}
-          </span>
-        )}
-        {member.zoom !== 0 && (
-          <span className="chip chip-info" title="Ctrl+0 resets the zoom">
-            {member.zoom > 0 ? `+${member.zoom}` : member.zoom}
-          </span>
-        )}
-        {broadcasting && live && (
-          <span className="chip chip-warn" title="Typing goes to every running terminal here">
-            Broadcast
-          </span>
-        )}
-        {session.detach_expected && (
-          <span
-            className="chip chip-info"
-            title="Persistence comes from tmux/screen, not from ToolOnize"
-          >
-            tmux
-          </span>
-        )}
-        <span className="pane-actions">
-          <MemberNoteButton workspaceId={workspace.id} memberId={member.id} />
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setState({ searchOpen: searchOpen ? null : sessionId })}
-            aria-pressed={searchOpen}
-            title="Search scrollback"
-          >
-            Search
-          </button>
-          {live ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => void stopSession(sessionId, memberTitle(member))}
-            >
-              Stop
-            </button>
-          ) : null}
-        </span>
-      </div>
       {searchOpen && <SearchBar sessionId={sessionId} />}
       <div className="term-stage">
         <div

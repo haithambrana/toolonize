@@ -213,4 +213,26 @@ impl Core {
         recent.push_back(Instant::now());
         Some((title, body))
     }
+
+    pub fn export_audit(&self) -> Result<String, String> {
+        let text = self.audit.export_text();
+        let dir = crate::export::downloads_dir().ok_or("no Downloads or home folder")?;
+        let path = crate::export::export_text(&dir, "audit-log", &text, now_ms())?;
+        Ok(path.to_string_lossy().into_owned())
+    }
+
+    /// Window title: the active workspace's name, then the app name.
+    pub fn window_title(&self) -> String {
+        let data = self.data.locked();
+        let active = data.state.active_workspace.as_deref();
+        match data
+            .state
+            .workspaces
+            .iter()
+            .find(|w| Some(w.id.as_str()) == active)
+        {
+            Some(w) => format!("{} — ToolOnize", w.name),
+            None => "ToolOnize".into(),
+        }
+    }
 }

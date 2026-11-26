@@ -49,6 +49,7 @@ pub fn run() {
         crate::commands::app::settings_get,
         crate::commands::app::settings_update,
         crate::commands::app::audit_recent,
+        crate::commands::app::audit_export,
         crate::commands::app::open_url,
         crate::commands::clipboard::clipboard_read_text,
         crate::commands::app::scrollback_export,
@@ -111,6 +112,18 @@ pub fn run() {
         crate::commands::spike::spike_complete,
         crate::commands::spike::spike_fail
     ]);
+    let title_core = std::sync::Arc::downgrade(&exit_core);
+    let builder = builder.setup(move |app| {
+        let sink = std::sync::Arc::new(TitleSink {
+            app: app.handle().clone(),
+            core: title_core.clone(),
+        });
+        sink.update();
+        if let Some(core) = title_core.upgrade() {
+            core.add_internal_sink(sink);
+        }
+        Ok(())
+    });
     builder
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -120,6 +133,35 @@ pub fn run() {
                 exit_core.shutdown();
             }
         });
+}
+
+/// Keeps the window title on the active workspace ("Name — ToolOnize").
+struct TitleSink {
+    app: tauri::AppHandle,
+    core: std::sync::Weak<app::Core>,
+}
+
+impl TitleSink {
+    fn update(&self) {
+        use tauri::Manager;
+        let (app, core) = (self.app.clone(), self.core.clone());
+        // Off the emitting thread: the event may be sent while core state is
+        // being changed, and reading it here must never wait on that.
+        tauri::async_runtime::spawn(async move {
+            if let (Some(core), Some(window)) = (core.upgrade(), app.get_webview_window("main")) {
+                let _ = window.set_title(&core.window_title());
+            }
+        });
+    }
+}
+
+impl app::EventSink for TitleSink {
+    fn send(&self, event: &app::AppEvent) -> bool {
+        if matches!(event, app::AppEvent::Workspaces) {
+            self.update();
+        }
+        true
+    }
 }
 
 #[cfg(test)]

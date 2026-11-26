@@ -85,3 +85,9 @@ pub async fn desktop_notify(
     }
     Ok(true)
 }
+
+/// Copy the local audit log (JSON lines) into the Downloads folder.
+#[tauri::command]
+pub async fn audit_export(core: CoreState<'_>) -> Result<String, String> {
+    blocking(&core, move |c| c.export_audit()).await
+}
