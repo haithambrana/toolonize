@@ -4,12 +4,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { MemberView, SessionInfo, WorkspaceView } from "../lib/ipc";
-import {
-  closeSession,
-  memberTitle,
-  reconnectSession,
-  restartSession,
-} from "../lib/actions";
+import { closeSession, memberTitle, reconnectSession, restartSession } from "../lib/actions";
 import { processLabel } from "../lib/labels";
 import { api } from "../lib/ipc";
 import { MemberNoteOverlay } from "../components/MemberNote";
