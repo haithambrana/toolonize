@@ -3,6 +3,8 @@ import { useMemo, useRef } from "react";
 import { TagDot } from "../lib/colors";
 import { api } from "../lib/ipc";
 import { createWorkspace, importWorkspaceText, selectWorkspace, setView } from "../lib/actions";
+import { newFromTemplate } from "../lib/backup";
+import { readFileText } from "../lib/files";
 import { attempt, notify, useAppState } from "../state/store";
 
 function WatchBadge() {
@@ -101,6 +103,13 @@ export function Sidebar() {
         >
           Import workspace…
         </button>
+        <button
+          type="button"
+          className="nav-item nav-subtle"
+          onClick={() => void newFromTemplate()}
+        >
+          New from template…
+        </button>
         <input
           ref={fileInput}
           type="file"
@@ -114,7 +123,7 @@ export function Sidebar() {
               notify("error", "Import file is too large");
               return;
             }
-            await importWorkspaceText(await file.text());
+            await importWorkspaceText(await readFileText(file));
           }}
         />
       </div>

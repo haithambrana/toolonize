@@ -908,4 +908,209 @@ describe("ToolOnize app", () => {
     await u.click(screen.getByRole("button", { name: "Export" }));
     expect(await screen.findByText(/Audit log saved to/)).toBeInTheDocument();
   });
+
+  describe("backup, duplicate and templates (ADR-014)", () => {
+    it("backs up everything from Settings, with or without settings", async () => {
+      handlers.set("backup_export", () => "/fixture/Downloads/toolonize-backup.json");
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(await screen.findByRole("button", { name: "Back up everything" }));
+      expect(await screen.findByText(/Backup saved to \/fixture\/Downloads/)).toBeInTheDocument();
+      await u.click(screen.getByRole("checkbox", { name: "Include settings" }));
+      await u.click(screen.getByRole("button", { name: "Back up everything" }));
+      await waitFor(() =>
+        expect(calls.filter((c) => c.cmd === "backup_export").map((c) => c.args)).toEqual([
+          { includeSettings: true },
+          { includeSettings: false },
+        ])
+      );
+    });
+
+    it("saves typed-but-unsaved note text before the backup is written", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      handlers.set("backup_export", () => "/fixture/Downloads/b.json");
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Notes" }));
+      const area = await screen.findByRole("textbox", { name: "Project note" });
+      await waitFor(() => expect(area).not.toBeDisabled());
+      fireEvent.change(area, { target: { value: "deploy at 5" } });
+      // Straight to the palette action, before the save delay ran out.
+      await act(async () => {
+        const { backupNow } = await import("./lib/backup");
+        await backupNow(false);
+      });
+      const order = commandsCalled().filter((c) => c === "note_save" || c === "backup_export");
+      expect(order).toEqual(["note_save", "backup_export"]);
+      expect(core.notes.ws1.project).toBe("deploy at 5");
+    });
+
+    it("restores a backup file into review and reports what came back", async () => {
+      handlers.set("backup_restore", () => {
+        core.workspaces = [
+          workspace([member("a", { authorized_fingerprint: null })], {
+            id: "ws-r",
+            name: "Phoenix (restored)",
+            staged_import: true,
+          }),
+        ];
+        return {
+          workspaces: 1,
+          members: 1,
+          notes: 2,
+          templates: 1,
+          connections: 0,
+          settings_restored: false,
+          warnings: [],
+        };
+      });
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await screen.findByRole("button", { name: "Restore from backup…" });
+      const input = screen.getByLabelText("Backup file");
+      const file = new File(['{"format":"toolonize-backup"}'], "backup.json", {
+        type: "application/json",
+      });
+      await u.upload(input, file);
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "backup_restore")?.args).toEqual({
+          contents: '{"format":"toolonize-backup"}',
+          restoreSettings: false,
+        })
+      );
+      expect(
+        await screen.findByText(
+          /Restored 1 workspace\(s\) with 1 terminal\(s\), 2 note\(s\), 1 template\(s\)\. Review and authorize/
+        )
+      ).toBeInTheDocument();
+      const nav = screen.getByRole("navigation", { name: "Main" });
+      expect(await within(nav).findByText("Phoenix (restored)")).toBeInTheDocument();
+      expect(within(nav).getByText("review")).toBeInTheDocument();
+    });
+
+    it("refuses oversized backup files and shows the core's reason for bad ones", async () => {
+      handlers.set("backup_restore", () => {
+        throw "not a ToolOnize backup";
+      });
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(await screen.findByRole("checkbox", { name: "Also replace my settings" }));
+      const input = screen.getByLabelText("Backup file");
+      const big = new File(["{}"], "big.json", { type: "application/json" });
+      Object.defineProperty(big, "size", { value: 17 * 1024 * 1024 });
+      await u.upload(input, big);
+      expect(await screen.findByText(/too large/)).toBeInTheDocument();
+      expect(commandsCalled()).not.toContain("backup_restore");
+      await u.upload(input, new File(["nope"], "x.json", { type: "application/json" }));
+      expect(await screen.findByText(/not a ToolOnize backup/)).toBeInTheDocument();
+      expect(calls.find((c) => c.cmd === "backup_restore")?.args).toEqual({
+        contents: "nope",
+        restoreSettings: true,
+      });
+    });
+
+    it("duplicates a workspace and saves it as a template from the More menu", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      handlers.set("workspace_duplicate", () => {
+        core.workspaces = [
+          ...core.workspaces,
+          workspace([member("a2")], { id: "ws2", name: "Project Phoenix (copy)" }),
+        ];
+        return "ws2";
+      });
+      handlers.set("template_save", () => "tpl_1");
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "More ▾" }));
+      await u.click(screen.getByRole("menuitem", { name: "Duplicate workspace" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "workspace_duplicate")?.args).toEqual({
+          workspaceId: "ws1",
+        })
+      );
+      expect(
+        await screen.findByRole("heading", { name: "Project Phoenix (copy)" })
+      ).toBeInTheDocument();
+      expect(calls.filter((c) => c.cmd === "workspace_set_active").at(-1)?.args).toEqual({
+        workspaceId: "ws2",
+      });
+
+      await u.click(screen.getByRole("button", { name: "More ▾" }));
+      await u.click(screen.getByRole("menuitem", { name: "Save as template…" }));
+      const dialog = await screen.findByRole("dialog", { name: "Save as template" });
+      const name = within(dialog).getByRole("textbox");
+      expect(name).toHaveValue("Project Phoenix (copy)");
+      await u.clear(name);
+      expect(within(dialog).getByRole("button", { name: "Save template" })).toBeDisabled();
+      await u.type(name, "Dev pair");
+      await u.click(within(dialog).getByRole("button", { name: "Save template" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "template_save")?.args).toEqual({
+          workspaceId: "ws2",
+          name: "Dev pair",
+        })
+      );
+      expect(await screen.findByText("Template “Dev pair” saved.")).toBeInTheDocument();
+    });
+
+    it("creates a workspace from a template and deletes templates", async () => {
+      let templates = [
+        { id: "tpl_1", name: "Dev pair", created_at: 1, members: 2 },
+        { id: "tpl_2", name: "Ops", created_at: 2, members: 3 },
+      ];
+      handlers.set("template_list", () => templates);
+      handlers.set("template_delete", (a) => {
+        templates = templates.filter((t) => t.id !== a.templateId);
+      });
+      handlers.set("template_create_workspace", (a) => {
+        core.workspaces = [
+          workspace([member("x"), member("y")], { id: "ws-t", name: a.name as string }),
+        ];
+        return "ws-t";
+      });
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "New from template…" }));
+      let dialog = await screen.findByRole("dialog", { name: "New workspace from template" });
+      expect(await within(dialog).findByText("Dev pair")).toBeInTheDocument();
+      expect(within(dialog).getByText("3 terminal(s)")).toBeInTheDocument();
+      await u.click(within(dialog).getByRole("button", { name: "Delete template Ops" }));
+      expect(within(dialog).getByRole("alert")).toHaveTextContent("Delete “Ops”?");
+      await u.click(within(dialog).getByRole("button", { name: "Keep" }));
+      expect(commandsCalled()).not.toContain("template_delete");
+      await u.click(within(dialog).getByRole("button", { name: "Delete template Ops" }));
+      await u.click(within(dialog).getByRole("button", { name: "Yes, delete" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "template_delete")?.args).toEqual({
+          templateId: "tpl_2",
+        })
+      );
+      dialog = await screen.findByRole("dialog", { name: "New workspace from template" });
+      await waitFor(() => expect(within(dialog).queryByText("Ops")).toBeNull());
+      await u.click(within(dialog).getByRole("button", { name: "Use template Dev pair" }));
+      const prompt = await screen.findByRole("dialog", { name: "New workspace" });
+      await u.type(within(prompt).getByLabelText("Name"), "Billing");
+      await u.click(within(prompt).getByRole("button", { name: "Create" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "template_create_workspace")?.args).toEqual({
+          templateId: "tpl_1",
+          name: "Billing",
+        })
+      );
+      expect(await screen.findByRole("heading", { name: "Billing" })).toBeInTheDocument();
+    });
+
+    it("explains how to make a template when there are none", async () => {
+      handlers.set("template_list", () => []);
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "New from template…" }));
+      expect(await screen.findByText(/No templates yet/)).toBeInTheDocument();
+    });
+  });
 });

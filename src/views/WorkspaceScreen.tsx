@@ -12,6 +12,7 @@ import {
   setWorkspaceColor,
   toggleBroadcast,
 } from "../lib/actions";
+import { duplicateWorkspace, saveAsTemplate } from "../lib/backup";
 import { ColorSwatches, TagDot } from "../lib/colors";
 import { flushAllNotes, loadNotes, restoreNotes } from "../lib/notes";
 import { StickyNote } from "../components/StickyNote";
@@ -225,10 +226,12 @@ function Header({ w }: { w: WorkspaceView }) {
               onSelect: () => void attempt(() => api.setPolicy(w.id, p.value)),
             })),
             {
-              label: "Export…",
+              label: "Duplicate workspace",
               separator: true,
-              onSelect: () => void exportWorkspace(w),
+              onSelect: () => void duplicateWorkspace(w),
             },
+            { label: "Save as template…", onSelect: () => void saveAsTemplate(w) },
+            { label: "Export…", onSelect: () => void exportWorkspace(w) },
             {
               label: "Delete workspace…",
               danger: true,

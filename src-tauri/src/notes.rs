@@ -41,7 +41,7 @@ impl WorkspaceNotes {
         self.project.text.is_empty() && self.members.values().all(|n| n.text.is_empty())
     }
 
-    fn total_bytes(&self) -> usize {
+    pub fn total_bytes(&self) -> usize {
         self.project.text.len() + self.members.values().map(|n| n.text.len()).sum::<usize>()
     }
 }

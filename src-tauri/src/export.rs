@@ -94,15 +94,29 @@ pub fn export_text(
     text: &str,
     now_ms: u64,
 ) -> Result<PathBuf, String> {
+    export_file(dir, name_hint, "txt", text, now_ms)
+}
+
+/// Like [`export_text`] with another extension (`json` for backups).
+pub fn export_file(
+    dir: &Path,
+    name_hint: &str,
+    ext: &str,
+    text: &str,
+    now_ms: u64,
+) -> Result<PathBuf, String> {
+    if !matches!(ext, "txt" | "json") {
+        return Err("unsupported export type".into());
+    }
     if text.len() > MAX_EXPORT_BYTES {
         return Err("the output is larger than 32 MiB".into());
     }
     let base = format!("toolonize-{}-{}", slug(name_hint), stamp(now_ms));
     for n in 1..100 {
         let name = if n == 1 {
-            format!("{base}.txt")
+            format!("{base}.{ext}")
         } else {
-            format!("{base}-{n}.txt")
+            format!("{base}-{n}.{ext}")
         };
         let path = dir.join(name);
         match OpenOptions::new().write(true).create_new(true).open(&path) {

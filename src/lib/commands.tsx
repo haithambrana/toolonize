@@ -10,6 +10,7 @@ import {
   zoomTerminal,
 } from "./actions";
 import { snippetPicker } from "./snippets";
+import { backupNow, duplicateWorkspace, newFromTemplate, saveAsTemplate } from "./backup";
 import { readClipboard } from "./clipboard";
 import type { TerminalController } from "../terminal/controller";
 import { cycle } from "../layout/modes";
@@ -183,7 +184,21 @@ export function paletteItems(): PaletteItem[] {
       });
     }
   }
-  items.push({ id: "view:activity", label: "Open Activity", run: () => setView("activity") });
+  if (w) {
+    items.push(
+      {
+        id: "ws:duplicate",
+        label: `Duplicate workspace ${w.name}`,
+        run: () => duplicateWorkspace(w),
+      },
+      { id: "ws:template", label: `Save ${w.name} as template…`, run: () => saveAsTemplate(w) }
+    );
+  }
+  items.push(
+    { id: "ws:from-template", label: "New workspace from template…", run: () => newFromTemplate() },
+    { id: "backup", label: "Back up everything now", run: () => void backupNow(false) },
+    { id: "view:activity", label: "Open Activity", run: () => setView("activity") }
+  );
   return items;
 }
 

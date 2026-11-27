@@ -766,3 +766,235 @@ fn audit_log_exports_as_json_lines() {
         assert!(v["action"].is_string());
     }
 }
+
+#[cfg(unix)]
+fn backup_fixture(c: &Core) -> (String, String, String) {
+    let project = std::env::temp_dir();
+    let ws = c.create_workspace("Backup WS").unwrap();
+    let shell = shell_id(c);
+    let fp = fingerprint(c, &shell);
+    let a = c.add_member(&ws, &shell, &fp, Some("API".into())).unwrap();
+    let b = c.add_member(&ws, &shell, &fp, Some("Logs".into())).unwrap();
+    c.set_project_dir(&ws, Some(&project.to_string_lossy()))
+        .unwrap();
+    c.set_policy(&ws, StartupPolicy::RestoreAll).unwrap();
+    let tab = |m: &str| json!({"type": "tab", "id": format!("tab-{m}"), "component": "member", "config": {"memberId": m}});
+    c.save_layout(
+        &ws,
+        LayoutMode::Grid,
+        Some(json!({"layout": {"type": "row", "children": [
+            {"type": "tabset", "id": format!("ts-{a}"), "children": [tab(&a)]},
+            {"type": "tabset", "children": [tab(&b)]}
+        ]}})),
+        Some(b.clone()),
+    )
+    .unwrap();
+    c.save_note(&ws, None, "release on friday").unwrap();
+    c.save_note(&ws, Some(&b), "tail -f app.log").unwrap();
+    c.set_alias(&shell, Some("My shell".into())).unwrap();
+    (ws, a, b)
+}
+
+#[cfg(unix)]
+#[test]
+fn backup_restores_everything_staged_and_unauthorized() {
+    let src_dir = tempfile::tempdir().unwrap();
+    let src = core(&src_dir);
+    let (ws, _, b) = backup_fixture(&src);
+    src.save_template(&ws, "Two terminals").unwrap();
+    let mut settings = src.settings();
+    settings.font_size = 17;
+    src.update_settings(settings).unwrap();
+    let text = src.backup_text(true).unwrap();
+    assert!(
+        !text.contains("authorized_fingerprint\": \""),
+        "no authorizations in the file"
+    );
+    assert!(text.contains("release on friday"));
+
+    // A different machine (fresh state).
+    let dst_dir = tempfile::tempdir().unwrap();
+    let dst = core(&dst_dir);
+    let report = dst.restore_backup(&text, false).unwrap();
+    assert_eq!(report.workspaces, 1);
+    assert_eq!(report.members, 2);
+    assert_eq!(report.notes, 2);
+    assert_eq!(report.templates, 1);
+    assert!(!report.settings_restored);
+    assert_eq!(dst.settings().font_size, Settings::default().font_size);
+
+    let check = |c: &Core| {
+        let (list, _) = c.workspaces();
+        let w = list
+            .iter()
+            .find(|w| w.name == "Backup WS (restored)")
+            .unwrap();
+        assert!(w.staged_import, "restored workspaces wait for review");
+        assert_eq!(w.startup_policy, StartupPolicy::Ask);
+        assert_ne!(w.id, ws);
+        for m in &w.members {
+            assert_eq!(m.status.state, policy::MemberState::NotAuthorized);
+            assert!(c.start_session(&w.id, &m.member.id, 24, 80).is_err());
+        }
+        let ids: Vec<String> = w.members.iter().map(|m| m.member.id.clone()).collect();
+        assert!(!ids.contains(&b));
+        let shown = crate::workspace::validate_layout(w.layout.json.as_ref().unwrap(), &ids);
+        assert_eq!(shown.unwrap(), ids);
+        assert_eq!(w.layout.focused_member.as_deref(), Some(ids[1].as_str()));
+        assert_eq!(w.members[0].member.title.as_deref(), Some("API"));
+        let notes = c.notes_view(&w.id).unwrap();
+        assert_eq!(notes.project, "release on friday");
+        assert_eq!(notes.members[&ids[1]], "tail -f app.log");
+        assert_eq!(c.templates()[0].name, "Two terminals");
+        assert_eq!(c.templates()[0].members, 2);
+    };
+    check(&dst);
+    // Alias came along; the launcher approval/authorization did not.
+    assert_eq!(
+        dst.registry_entry(&shell_id(&dst))
+            .unwrap()
+            .decision
+            .alias
+            .as_deref(),
+        Some("My shell")
+    );
+    // Everything is on disk: a restart shows the same.
+    drop(dst);
+    let dst = core(&dst_dir);
+    check(&dst);
+
+    // Authorizing a restored member makes it startable again.
+    let w = dst.workspaces().0.remove(0);
+    let m = &w.members[0];
+    dst.authorize_member(&w.id, &m.member.id, &fingerprint(&dst, &shell_id(&dst)))
+        .unwrap();
+    let info = dst.start_session(&w.id, &m.member.id, 24, 80).unwrap();
+    dst.close_session(&info.session_id).unwrap();
+
+    // Restoring again adds another copy; with settings this time.
+    let report = dst.restore_backup(&text, true).unwrap();
+    assert!(report.settings_restored);
+    assert_eq!(dst.settings().font_size, 17);
+    assert_eq!(dst.workspaces().0.len(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_restore_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let (ws, _, _) = backup_fixture(&c);
+    let before = c.workspaces().0.len();
+    let notes_dir = dir.path().join("state/notes");
+    let files = || std::fs::read_dir(&notes_dir).unwrap().count();
+    let before_files = files();
+    for bad in ["", "{}", "[1,2]", "{\"format\":\"toolonize-backup\"}"] {
+        assert!(c.restore_backup(bad, true).is_err(), "{bad}");
+    }
+    // A valid file that does not fit (workspace limit) leaves no notes behind.
+    let text = c.backup_text(false).unwrap();
+    for i in 0..(MAX_WORKSPACES - before) {
+        c.create_workspace(&format!("Filler {i}")).unwrap();
+    }
+    assert!(c.restore_backup(&text, false).is_err());
+    assert_eq!(files(), before_files);
+    assert_eq!(c.workspaces().0.len(), MAX_WORKSPACES);
+    assert!(c.workspaces().0.iter().any(|w| w.id == ws));
+}
+
+#[cfg(unix)]
+#[test]
+fn duplicate_copies_members_layout_and_notes() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let (ws, a, b) = backup_fixture(&c);
+    let copy = c.duplicate_workspace(&ws).unwrap();
+    let (list, active) = c.workspaces();
+    assert_eq!(active.as_deref(), Some(copy.as_str()));
+    assert_eq!(list.len(), 2);
+    assert_eq!(list[1].id, copy, "the copy sits right after the original");
+    let w = &list[1];
+    assert_eq!(w.name, "Backup WS (copy)");
+    assert!(!w.staged_import);
+    let ids: Vec<String> = w.members.iter().map(|m| m.member.id.clone()).collect();
+    assert!(!ids.contains(&a) && !ids.contains(&b));
+    // Same machine, same launchers: the copy can start right away.
+    assert!(w
+        .members
+        .iter()
+        .all(|m| m.status.state == policy::MemberState::Ready));
+    let info = c.start_session(&copy, &ids[0], 24, 80).unwrap();
+    c.close_session(&info.session_id).unwrap();
+    assert_eq!(
+        crate::workspace::validate_layout(w.layout.json.as_ref().unwrap(), &ids).unwrap(),
+        ids
+    );
+    let notes = c.notes_view(&copy).unwrap();
+    assert_eq!(notes.project, "release on friday");
+    assert_eq!(notes.members[&ids[1]], "tail -f app.log");
+    // Notes are separate afterwards.
+    c.save_note(&copy, None, "copy only").unwrap();
+    assert_eq!(c.notes_view(&ws).unwrap().project, "release on friday");
+    assert!(c.duplicate_workspace("ws_missing").is_err());
+    assert!(c.duplicate_workspace("../x").is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn templates_save_create_delete_and_persist() {
+    let dir = tempfile::tempdir().unwrap();
+    let (tpl, ws) = {
+        let c = core(&dir);
+        let (ws, _, _) = backup_fixture(&c);
+        let tpl = c.save_template(&ws, "Dev pair").unwrap();
+        assert!(
+            c.save_template(&ws, "Dev pair").is_err(),
+            "names are unique"
+        );
+        assert!(c.save_template(&ws, "  ").is_err());
+        assert!(c.save_template("ws_missing", "X").is_err());
+        (tpl, ws)
+    };
+    let c = core(&dir);
+    let list = c.templates();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].id, tpl);
+    let new = c.create_from_template(&tpl, "From template").unwrap();
+    let (all, active) = c.workspaces();
+    assert_eq!(active.as_deref(), Some(new.as_str()));
+    let w = all.iter().find(|w| w.id == new).unwrap();
+    assert_eq!(w.members.len(), 2);
+    assert!(w.project_dir.is_none(), "folders are project-specific");
+    assert!(
+        c.notes_view(&new).unwrap().project.is_empty(),
+        "notes are not copied"
+    );
+    let original: Vec<String> = all
+        .iter()
+        .find(|w| w.id == ws)
+        .unwrap()
+        .members
+        .iter()
+        .map(|m| m.member.id.clone())
+        .collect();
+    assert!(w.members.iter().all(|m| !original.contains(&m.member.id)));
+    // Two workspaces from one template never share ids.
+    let again = c.create_from_template(&tpl, "Again").unwrap();
+    let ids = |id: &str| -> Vec<String> {
+        c.workspaces()
+            .0
+            .iter()
+            .find(|w| w.id == id)
+            .unwrap()
+            .members
+            .iter()
+            .map(|m| m.member.id.clone())
+            .collect()
+    };
+    assert!(ids(&again).iter().all(|m| !ids(&new).contains(m)));
+    assert!(c.create_from_template("tpl_missing", "X").is_err());
+    c.delete_template(&tpl).unwrap();
+    assert!(c.templates().is_empty());
+    assert!(c.delete_template(&tpl).is_err());
+    assert!(core(&dir).templates().is_empty());
+}

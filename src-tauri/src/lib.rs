@@ -1,5 +1,6 @@
 pub mod app;
 pub mod audit;
+pub mod backup;
 pub mod classify;
 pub mod commands;
 pub mod discovery;
@@ -83,6 +84,13 @@ pub fn run() {
         crate::commands::workspace::workspace_open,
         crate::commands::workspace::workspace_export,
         crate::commands::workspace::workspace_import,
+        crate::commands::workspace::workspace_duplicate,
+        crate::commands::workspace::backup_export,
+        crate::commands::workspace::backup_restore,
+        crate::commands::workspace::template_list,
+        crate::commands::workspace::template_save,
+        crate::commands::workspace::template_create_workspace,
+        crate::commands::workspace::template_delete,
         crate::commands::workspace::member_add,
         crate::commands::workspace::member_remove,
         crate::commands::workspace::member_update,

@@ -29,6 +29,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
+mod backup;
+pub use backup::TemplateSummary;
 mod execution;
 mod import_export;
 mod launchers;
@@ -51,6 +53,9 @@ pub struct PersistedState {
     pub registry: RegistryState,
     #[serde(default)]
     pub active_workspace: Option<String>,
+    /// Saved workspace shapes (ADR-014).
+    #[serde(default)]
+    pub templates: Vec<crate::backup::Template>,
 }
 
 #[derive(Debug, Clone, Serialize)]

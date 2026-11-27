@@ -1,5 +1,5 @@
 /** Settings (FR-053/054): appearance, terminal, discovery, keyboard, data. */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, TERMINAL_SCHEMES, type Settings, type Snippet } from "../lib/ipc";
 import {
   ACTION_LABELS,
@@ -10,10 +10,88 @@ import {
   effectiveKeymap,
   type Action,
 } from "../lib/keymap";
+import { backupNow, restoreFromFile } from "../lib/backup";
 import { attempt, notify, useAppState } from "../state/store";
 
 function update(settings: Settings, patch: Partial<Settings>) {
   return attempt(() => api.updateSettings({ ...settings, ...patch }), "Could not save settings");
+}
+
+function BackupCard() {
+  const [withSettings, setWithSettings] = useState(true);
+  const [restoreSettings, setRestoreSettings] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  return (
+    <fieldset className="card card-wide">
+      <legend>Backup & restore</legend>
+      <p>
+        One file with all workspaces, terminals and their options, layouts, notes, templates,
+        launcher names and connections. It is saved to your Downloads folder and stays on this
+        machine unless you move it.
+      </p>
+      <div className="row-gap">
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await backupNow(withSettings);
+            setBusy(false);
+          }}
+        >
+          Back up everything
+        </button>
+        <label className="check-inline">
+          <input
+            type="checkbox"
+            checked={withSettings}
+            onChange={(e) => setWithSettings(e.target.checked)}
+          />
+          Include settings
+        </label>
+      </div>
+      <div className="row-gap">
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={busy}
+          onClick={() => file.current?.click()}
+        >
+          Restore from backup…
+        </button>
+        <label className="check-inline">
+          <input
+            type="checkbox"
+            checked={restoreSettings}
+            onChange={(e) => setRestoreSettings(e.target.checked)}
+          />
+          Also replace my settings
+        </label>
+        <input
+          ref={file}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          aria-label="Backup file"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            setBusy(true);
+            await restoreFromFile(f, restoreSettings);
+            setBusy(false);
+          }}
+        />
+      </div>
+      <p className="muted small">
+        Restoring adds the workspaces next to the ones you have. For your safety nothing runs from a
+        backup: restored workspaces wait for review and each terminal must be authorized again.
+        Secrets, passwords and launcher approvals are never in a backup.
+      </p>
+    </fieldset>
+  );
 }
 
 function KeyCapture({
@@ -444,6 +522,8 @@ export function SettingsScreen() {
             Shortcuts use Ctrl+Shift so terminal programs keep their own Ctrl keys.
           </p>
         </fieldset>
+
+        <BackupCard />
 
         <fieldset className="card card-wide">
           <legend>Data & privacy</legend>

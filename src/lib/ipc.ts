@@ -315,6 +315,24 @@ export interface AuditEntry {
   detail: string | null;
 }
 
+/** Result of restoring a full backup (ADR-014). */
+export interface RestoreReport {
+  workspaces: number;
+  members: number;
+  notes: number;
+  templates: number;
+  connections: number;
+  settings_restored: boolean;
+  warnings: string[];
+}
+
+export interface TemplateSummary {
+  id: string;
+  name: string;
+  created_at: number;
+  members: number;
+}
+
 export interface ImportReport {
   workspace_id: string;
   members: number;
@@ -412,6 +430,17 @@ export const api = {
   exportWorkspace: (workspaceId: string, machineBound: boolean) =>
     invoke<string>("workspace_export", { workspaceId, machineBound }),
   importWorkspace: (bundle: string) => invoke<ImportReport>("workspace_import", { bundle }),
+  duplicateWorkspace: (workspaceId: string) =>
+    invoke<string>("workspace_duplicate", { workspaceId }),
+  exportBackup: (includeSettings: boolean) => invoke<string>("backup_export", { includeSettings }),
+  restoreBackup: (contents: string, restoreSettings: boolean) =>
+    invoke<RestoreReport>("backup_restore", { contents, restoreSettings }),
+  listTemplates: () => invoke<TemplateSummary[]>("template_list"),
+  saveTemplate: (workspaceId: string, name: string) =>
+    invoke<string>("template_save", { workspaceId, name }),
+  createFromTemplate: (templateId: string, name: string) =>
+    invoke<string>("template_create_workspace", { templateId, name }),
+  deleteTemplate: (templateId: string) => invoke<void>("template_delete", { templateId }),
 
   addMember: (workspaceId: string, launcherId: string, fingerprint: string, title: string | null) =>
     invoke<string>("member_add", { workspaceId, launcherId, fingerprint, title }),

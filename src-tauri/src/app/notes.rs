@@ -67,7 +67,21 @@ impl Core {
     }
 
     /// Save first, then update the cache: a failed save changes nothing.
-    fn store_notes(&self, workspace_id: &str, notes: WorkspaceNotes) -> Result<(), String> {
+    /// Forget a workspace's notes file (only for ids that never reached the
+    /// saved state: a failed restore or duplicate).
+    pub(super) fn drop_notes(&self, workspace_id: &str) {
+        if let Ok(name) = store_name(workspace_id) {
+            self.notes_store.remove(&name);
+            self.notes.locked().remove(workspace_id);
+        }
+    }
+
+    /// Callers hold `notes_write`.
+    pub(super) fn store_notes(
+        &self,
+        workspace_id: &str,
+        notes: WorkspaceNotes,
+    ) -> Result<(), String> {
         let name = store_name(workspace_id)?;
         if notes.is_empty() {
             self.notes_store.remove(&name);

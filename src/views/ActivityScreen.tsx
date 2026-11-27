@@ -25,6 +25,8 @@ const ACTION_LABELS: Record<string, string> = {
   "ssh.hosts.read": "SSH hosts read",
   "scrollback.export": "Output saved",
   "workspace.import": "Workspace imported",
+  "backup.export": "Backup saved",
+  "backup.restore": "Backup restored",
 };
 
 export function ActivityScreen() {

@@ -2,7 +2,8 @@
 //! execution entry points; it names a member, never a command.
 
 use super::{blocking, CoreState};
-use crate::app::{MemberPatch, OpenChoice, OpenResult, WorkspaceView};
+use crate::app::{MemberPatch, OpenChoice, OpenResult, TemplateSummary, WorkspaceView};
+use crate::backup::RestoreReport;
 use crate::transfer::ImportReport;
 use crate::workspace::{LayoutMode, StartupPolicy};
 use serde::Serialize;
@@ -114,6 +115,64 @@ pub async fn workspace_export(
 #[tauri::command]
 pub async fn workspace_import(core: CoreState<'_>, bundle: String) -> Result<ImportReport, String> {
     blocking(&core, move |c| c.import_workspace(&bundle)).await
+}
+
+/// Copy a workspace with its members, layout and notes; returns the new id.
+#[tauri::command]
+pub async fn workspace_duplicate(
+    core: CoreState<'_>,
+    workspace_id: String,
+) -> Result<String, String> {
+    blocking(&core, move |c| c.duplicate_workspace(&workspace_id)).await
+}
+
+/// Write a full backup to Downloads; returns the file path (ADR-014).
+#[tauri::command]
+pub async fn backup_export(core: CoreState<'_>, include_settings: bool) -> Result<String, String> {
+    blocking(&core, move |c| c.export_backup(include_settings)).await
+}
+
+/// Restore a backup next to the existing workspaces, staged for review.
+#[tauri::command]
+pub async fn backup_restore(
+    core: CoreState<'_>,
+    contents: String,
+    restore_settings: bool,
+) -> Result<RestoreReport, String> {
+    blocking(&core, move |c| {
+        c.restore_backup(&contents, restore_settings)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn template_list(core: CoreState<'_>) -> Result<Vec<TemplateSummary>, String> {
+    Ok(core.templates())
+}
+
+/// Save a workspace's shape as a template; returns the template id.
+#[tauri::command]
+pub async fn template_save(
+    core: CoreState<'_>,
+    workspace_id: String,
+    name: String,
+) -> Result<String, String> {
+    blocking(&core, move |c| c.save_template(&workspace_id, &name)).await
+}
+
+/// New workspace from a template; returns the workspace id.
+#[tauri::command]
+pub async fn template_create_workspace(
+    core: CoreState<'_>,
+    template_id: String,
+    name: String,
+) -> Result<String, String> {
+    blocking(&core, move |c| c.create_from_template(&template_id, &name)).await
+}
+
+#[tauri::command]
+pub async fn template_delete(core: CoreState<'_>, template_id: String) -> Result<(), String> {
+    blocking(&core, move |c| c.delete_template(&template_id)).await
 }
 
 #[tauri::command]
