@@ -142,6 +142,8 @@ pub struct MemberView {
     pub origin_label: Option<String>,
     pub interpreter: bool,
     pub review_pending: bool,
+    /// Environment variables / startup command are confirmed (or none).
+    pub launch_confirmed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -215,6 +217,12 @@ pub struct MemberPatch {
     /// Font size change for this terminal, -6..=12.
     #[serde(default)]
     pub zoom: Option<i8>,
+    /// Replace the environment variables (saving them confirms them).
+    #[serde(default)]
+    pub env: Option<Vec<crate::workspace::EnvVar>>,
+    /// Replace the startup command; empty clears (saving confirms it).
+    #[serde(default)]
+    pub startup_command: Option<String>,
 }
 
 /// SSH auto-reconnect bookkeeping per session.
@@ -275,6 +283,9 @@ fn check_id(id: &str) -> Result<(), String> {
 
 impl Core {
     pub fn new(state_dir: PathBuf, config_dir: PathBuf) -> Arc<Core> {
+        // State holds notes and terminal settings: this user only.
+        memory::prepare_private_dir(&state_dir);
+        memory::prepare_private_dir(&config_dir);
         let store = Store::new(state_dir.clone());
         let config_store = Store::new(config_dir);
         let (state, load_report) =

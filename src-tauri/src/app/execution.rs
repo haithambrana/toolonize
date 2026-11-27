@@ -82,11 +82,12 @@ impl Core {
         {
             plan.spec.cwd = Some(dir);
         }
-        let (prelude, prelude_cols) = if self
+        let fresh = self
             .sessions
             .find_by_member(workspace_id, member_id)
-            .is_none()
-        {
+            .is_none();
+        let startup_command = plan.startup_command.clone();
+        let (prelude, prelude_cols) = if fresh {
             self.take_prelude(workspace_id, member_id)
         } else {
             (Vec::new(), 0)
@@ -104,6 +105,11 @@ impl Core {
                 prelude_cols,
             })
             .map_err(|e| e.to_string())
+            .inspect(|info| {
+                if let (true, Some(command)) = (fresh, startup_command) {
+                    self.type_startup_command(&info.session_id, command, info.prelude_bytes);
+                }
+            })
     }
 
     pub(super) fn replan_session(
@@ -118,17 +124,60 @@ impl Core {
     }
 
     pub fn restart_session(&self, session_id: &str) -> Result<SessionInfo, String> {
-        let (_, plan) = self.replan_session(session_id, "session.restart")?;
-        self.sessions
+        let (before, plan) = self.replan_session(session_id, "session.restart")?;
+        let info = self
+            .sessions
             .restart(session_id, plan.spec)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        if let Some(command) = plan.startup_command {
+            self.type_startup_command(session_id, command, before.end_offset);
+        }
+        Ok(info)
     }
 
     pub fn reconnect_session(&self, session_id: &str) -> Result<SessionInfo, String> {
-        let (_, plan) = self.replan_session(session_id, "session.reconnect")?;
-        self.sessions
+        let (before, plan) = self.replan_session(session_id, "session.reconnect")?;
+        let info = self
+            .sessions
             .reconnect(session_id, plan.spec)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        if let Some(command) = plan.startup_command {
+            self.type_startup_command(session_id, command, before.end_offset);
+        }
+        Ok(info)
+    }
+
+    /// Type a member's startup command into its new shell once the shell
+    /// printed something (its prompt), or after 3 s — exactly as if the user
+    /// typed it (ADR-016). Never passed to a program as arguments.
+    fn type_startup_command(&self, session_id: &str, command: String, after: u64) {
+        let Some(core) = self.arc() else { return };
+        let weak = Arc::downgrade(&core);
+        drop(core);
+        let session_id = session_id.to_string();
+        let _ = std::thread::Builder::new()
+            .name("startup-command".into())
+            .spawn(move || {
+                let deadline = Instant::now() + Duration::from_secs(3);
+                loop {
+                    let Some(core) = weak.upgrade() else { return };
+                    match core.sessions.info(&session_id) {
+                        Ok(i) if i.end_offset > after => break,
+                        Ok(_) if Instant::now() < deadline => {}
+                        Ok(_) => break,
+                        Err(_) => return,
+                    }
+                    drop(core);
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                // Let the prompt finish drawing.
+                std::thread::sleep(Duration::from_millis(150));
+                if let Some(core) = weak.upgrade() {
+                    let _ = core
+                        .sessions
+                        .write(&session_id, format!("{command}\r").as_bytes());
+                }
+            });
     }
 
     pub fn attach(

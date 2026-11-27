@@ -254,8 +254,62 @@ fn trim_to_limit(text: String) -> String {
 /// What a resumed terminal shows before its new output: the saved text
 /// (cleaned again — the file is outside our control once written), then a
 /// dim divider line.
+const DIVIDER: &str = "── restored from your previous session ──";
+
+/// Drop dividers from earlier restores, and the prompt line repeated right
+/// after each of them, so only the newest divider is shown.
+fn collapse_dividers(text: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    let mut repeat_of: Option<String> = None;
+    // What the line shows: a carriage return starts over (prompt redraws).
+    let plain = |l: &str| {
+        sanitize_plain(l)
+            .split('\r')
+            .map(str::trim)
+            .rfind(|s| !s.is_empty())
+            .unwrap_or("")
+            .to_string()
+    };
+    for line in text.split_inclusive('\n') {
+        if line.contains(DIVIDER) {
+            repeat_of = out.last().map(|l| plain(l));
+            continue;
+        }
+        if let Some(prev) = repeat_of.take() {
+            if !prev.is_empty() && plain(line) == prev {
+                continue;
+            }
+        }
+        out.push(line);
+    }
+    out.concat()
+}
+
+/// Text without escape sequences (for comparing lines).
+fn sanitize_plain(line: &str) -> String {
+    let mut out = String::new();
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for d in chars.by_ref() {
+                    if ('\u{40}'..='\u{7e}').contains(&d) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        if !c.is_control() || c == '\r' {
+            out.push(c);
+        }
+    }
+    out
+}
+
 pub fn prelude(saved: &TerminalMemory) -> Vec<u8> {
-    let text = trim_to_limit(sanitize(&saved.text));
+    let text = trim_to_limit(collapse_dividers(&sanitize(&saved.text)));
     if text.trim().is_empty() {
         return Vec::new();
     }
@@ -264,7 +318,7 @@ pub fn prelude(saved: &TerminalMemory) -> Vec<u8> {
     if !out.ends_with("\r\n") {
         out.push_str("\r\n");
     }
-    out.push_str("\u{1b}[0m\u{1b}[2m── restored from your previous session ──\u{1b}[0m\r\n");
+    out.push_str(&format!("\u{1b}[0m\u{1b}[2m{DIVIDER}\u{1b}[0m\r\n"));
     out.into_bytes()
 }
 
@@ -401,6 +455,32 @@ mod tests {
             cols: 80,
         };
         assert!(prelude(&empty).is_empty());
+    }
+
+    #[test]
+    fn repeated_restores_show_one_divider() {
+        let d = format!("\x1b[0m\x1b[2m{DIVIDER}\x1b[0m\r\n");
+        let text = format!(
+            "$ make\r\nok\r\nuser@box:~/web$ \r\n{d}user@box:~/web$ \r\x1b[K\ruser@box:~/web$ \r\n{d}user@box:~/web$ ls\r\na.txt\r\n"
+        );
+        let saved = TerminalMemory {
+            text,
+            saved_at: 1,
+            cols: 80,
+        };
+        let p = String::from_utf8(prelude(&saved)).unwrap();
+        assert_eq!(p.matches(DIVIDER).count(), 1, "{p:?}");
+        assert_eq!(p.matches("user@box:~/web$").count(), 2, "{p:?}");
+        assert!(p.contains("$ make\r\nok\r\n"));
+        assert!(p.contains("user@box:~/web$ ls\r\na.txt"));
+        // Ordinary repeated lines are kept.
+        let saved = TerminalMemory {
+            text: "ok\r\nok\r\nok\r\n".into(),
+            saved_at: 1,
+            cols: 80,
+        };
+        let p = String::from_utf8(prelude(&saved)).unwrap();
+        assert_eq!(p.matches("ok").count(), 3);
     }
 
     #[test]

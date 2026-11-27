@@ -433,7 +433,7 @@ impl Core {
 
 /// Saved terminal output is private: the folder is readable by this user
 /// only (Unix; on Windows the per-user profile folder already is).
-fn prepare_private_dir(dir: &std::path::Path) {
+pub(super) fn prepare_private_dir(dir: &std::path::Path) {
     let _ = std::fs::create_dir_all(dir);
     #[cfg(unix)]
     {

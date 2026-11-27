@@ -101,6 +101,7 @@ pub fn run() {
         crate::commands::workspace::member_remove,
         crate::commands::workspace::member_update,
         crate::commands::workspace::member_authorize,
+        crate::commands::workspace::member_confirm_launch,
         crate::commands::workspace::member_launch,
         crate::commands::session::session_start,
         crate::commands::session::session_write,
@@ -137,6 +138,8 @@ pub fn run() {
     });
     let builder = builder.setup(move |app| {
         restore_window(app.handle());
+        #[cfg(unix)]
+        exit_on_termination(app.handle().clone());
         let sink = std::sync::Arc::new(TitleSink {
             app: app.handle().clone(),
             core: title_core.clone(),
@@ -154,6 +157,35 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 // FR-037: closing the app terminates local child processes.
                 exit_core.shutdown();
+            }
+        });
+}
+
+/// Logout, shutdown and `kill` send SIGTERM (Ctrl+C in a terminal sends
+/// SIGINT): exit the normal way, so session memory saves everything and
+/// records a clean exit instead of a crash (ADR-015).
+#[cfg(unix)]
+fn exit_on_termination(app: tauri::AppHandle) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static REQUESTED: AtomicBool = AtomicBool::new(false);
+    extern "C" fn on_signal(_: libc::c_int) {
+        // Only an atomic store: async-signal-safe.
+        REQUESTED.store(true, Ordering::SeqCst);
+    }
+    // SAFETY: installs a handler that only stores to a static atomic.
+    unsafe {
+        let handler = on_signal as extern "C" fn(libc::c_int) as *const () as libc::sighandler_t;
+        libc::signal(libc::SIGTERM, handler);
+        libc::signal(libc::SIGINT, handler);
+    }
+    let _ = std::thread::Builder::new()
+        .name("termination".into())
+        .spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            if REQUESTED.load(Ordering::SeqCst) {
+                logging::info("app", "termination signal: exiting normally");
+                app.exit(0);
+                break;
             }
         });
 }

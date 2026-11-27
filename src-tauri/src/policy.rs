@@ -35,6 +35,8 @@ pub struct LaunchPlan {
     /// The launcher itself names the working directory (then a resumed
     /// session does not move it elsewhere).
     pub launcher_cwd: bool,
+    /// Typed into the shell after it started (ADR-016).
+    pub startup_command: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -200,6 +202,9 @@ pub fn plan_start(
             .reason
             .unwrap_or_else(|| "member cannot start".into()));
     }
+    if !member.launch.is_confirmed() {
+        return Err("confirm this terminal's environment variables and startup command first (Terminal settings)".into());
+    }
     let entry = registry
         .effective(&member.launcher_id, state)
         .ok_or("launcher not found")?;
@@ -258,7 +263,16 @@ pub fn plan_start(
             program,
             args,
             cwd,
-            env: vec![],
+            env: if mode == LaunchMode::Pty {
+                member
+                    .launch
+                    .env
+                    .iter()
+                    .map(|v| (v.name.clone(), v.value.clone()))
+                    .collect()
+            } else {
+                vec![]
+            },
         },
         raw_args,
         remote: member.member_type == MemberType::RemoteCommand,
@@ -270,6 +284,14 @@ pub fn plan_start(
         fingerprint: launcher.fingerprint.clone(),
         interpreter: launcher.classification.interpreter,
         launcher_cwd: d.working_dir.is_some(),
+        startup_command: if matches!(
+            member.member_type,
+            MemberType::Terminal | MemberType::RemoteCommand
+        ) {
+            member.launch.startup_command.clone()
+        } else {
+            None
+        },
     })
 }
 
@@ -329,6 +351,7 @@ mod tests {
             color: None,
             start_dir: None,
             zoom: 0,
+            launch: Default::default(),
         }
     }
 

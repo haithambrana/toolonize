@@ -21,6 +21,7 @@ impl Core {
                         .map(|e| e.launcher.classification.interpreter)
                         .unwrap_or(false),
                     review_pending: entry.as_ref().map(|e| e.review_pending).unwrap_or(false),
+                    launch_confirmed: m.launch.is_confirmed(),
                 }
             })
             .collect();
@@ -235,6 +236,7 @@ impl Core {
                 color: None,
                 start_dir: None,
                 zoom: 0,
+                launch: Default::default(),
             });
             Ok(())
         });
@@ -346,8 +348,22 @@ impl Core {
             None => None,
         };
         let renamed = title.is_some();
+        let launch_changed = patch.env.is_some() || patch.startup_command.is_some();
         let shown = self.with_workspace(workspace_id, |w, reg, rs| {
             let m = w.member_mut(member_id).ok_or("member not found")?;
+            if launch_changed {
+                let env = patch.env.as_deref().unwrap_or(&m.launch.env).to_vec();
+                let command = match &patch.startup_command {
+                    Some(c) => Some(c.as_str()),
+                    None => m.launch.startup_command.as_deref(),
+                };
+                let (env, command) =
+                    crate::workspace::validate_launch(&env, command, m.member_type)?;
+                m.launch.env = env;
+                m.launch.startup_command = command;
+                // Saved by the user in the terminal's settings: confirmed.
+                m.launch.confirm();
+            }
             if let Some(t) = title {
                 m.title = t;
             }
@@ -380,7 +396,64 @@ impl Core {
                 let _ = self.sessions.rename(&info.session_id, &shown);
             }
         }
+        if launch_changed {
+            self.audit_launch_config(workspace_id, member_id, "member.launch_config");
+        }
         Ok(())
+    }
+
+    /// Confirm a terminal's environment variables and startup command as
+    /// they are (after a restore or import).
+    pub fn confirm_launch(&self, workspace_id: &str, member_id: &str) -> Result<(), String> {
+        check_id(member_id)?;
+        self.with_workspace(workspace_id, |w, _, _| {
+            let m = w.member_mut(member_id).ok_or("member not found")?;
+            let (env, command) = crate::workspace::validate_launch(
+                &m.launch.env,
+                m.launch.startup_command.as_deref(),
+                m.member_type,
+            )?;
+            m.launch.env = env;
+            m.launch.startup_command = command;
+            m.launch.confirm();
+            Ok(())
+        })?;
+        self.audit_launch_config(workspace_id, member_id, "member.launch_confirm");
+        Ok(())
+    }
+
+    /// Audit line with counts only — never names or values.
+    fn audit_launch_config(&self, workspace_id: &str, member_id: &str, action: &str) {
+        let detail = {
+            let data = self.data.locked();
+            data.state
+                .workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.member(member_id))
+                .map(|m| {
+                    format!(
+                        "{} environment variable(s), startup command {}",
+                        m.launch.env.len(),
+                        if m.launch.startup_command.is_some() {
+                            "set"
+                        } else {
+                            "not set"
+                        }
+                    )
+                })
+                .unwrap_or_default()
+        };
+        self.audit.record(
+            action,
+            Outcome::Recorded,
+            Record {
+                workspace_id: Some(workspace_id),
+                member_id: Some(member_id),
+                detail: Some(&detail),
+                ..Default::default()
+            },
+        );
     }
 
     pub fn save_layout(

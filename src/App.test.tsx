@@ -37,6 +37,8 @@ function member(id: string, partial: Partial<MemberView> = {}): MemberView {
     color: null,
     start_dir: null,
     zoom: 0,
+    launch: { env: [], startup_command: null, confirmed: null },
+    launch_confirmed: true,
     status: { state: "ready", reason: null, launcher_name: id, current_fingerprint: "fp" },
     effective_type: "embedded_terminal",
     origin_label: "Built-in shell",
@@ -1217,6 +1219,116 @@ describe("ToolOnize app", () => {
       expect(
         await screen.findByText("Deleted the saved output of 3 terminal(s).")
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("terminal settings: environment and startup command (ADR-016)", () => {
+    it("edits variables and the startup command from the terminal's menu", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      handlers.set("member_update", () => undefined);
+      const u = user();
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      fireEvent.contextMenu(document.querySelector(".terminal-host")!, {
+        clientX: 50,
+        clientY: 60,
+      });
+      await u.click(await screen.findByRole("menuitem", { name: /Terminal settings/ }));
+      const dialog = await screen.findByRole("dialog", { name: /Terminal settings/ });
+      const env = within(dialog).getByRole("textbox", { name: /Environment variables/ });
+      await u.type(env, "NODE_ENV=development{enter}not a pair");
+      expect(within(dialog).getByRole("alert")).toHaveTextContent("Line 2: use NAME=value");
+      expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+      await u.clear(env);
+      await u.type(env, "NODE_ENV=development{enter}# comment{enter}{enter}API_URL=http://x:1/a=b");
+      await u.type(within(dialog).getByRole("textbox", { name: /Startup command/ }), "npm run dev");
+      await u.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "member_update")?.args).toEqual({
+          workspaceId: "ws1",
+          memberId: "a",
+          patch: {
+            env: [
+              { name: "NODE_ENV", value: "development" },
+              { name: "API_URL", value: "http://x:1/a=b" },
+            ],
+            startup_command: "npm run dev",
+          },
+        })
+      );
+      expect(
+        await screen.findByText("Saved. Restart the terminal to use the new settings.")
+      ).toBeInTheDocument();
+    });
+
+    it("restored settings must be checked before the terminal can start", async () => {
+      core.workspaces = [
+        workspace([
+          member("a", {
+            launch: {
+              env: [{ name: "API_TOKEN", value: "" }],
+              startup_command: "make watch",
+              confirmed: null,
+            },
+            launch_confirmed: false,
+          }),
+        ]),
+      ];
+      core.active = "ws1";
+      handlers.set("member_update", (a) => {
+        const m = core.workspaces[0].members[0];
+        core.workspaces = [
+          workspace([
+            {
+              ...m,
+              launch: {
+                env: (a.patch as { env: never[] }).env,
+                startup_command: "make watch",
+                confirmed: "d",
+              },
+              launch_confirmed: true,
+            },
+          ]),
+        ];
+      });
+      const u = user();
+      render(<App />);
+      expect(
+        await screen.findByText("Terminal settings need your confirmation")
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("start-member")).toBeNull();
+      await u.click(screen.getByRole("button", { name: "Check settings…" }));
+      const dialog = await screen.findByRole("dialog", { name: /Terminal settings/ });
+      expect(within(dialog).getByRole("alert")).toHaveTextContent(
+        "Values are never stored in backups — fill in API_TOKEN."
+      );
+      const env = within(dialog).getByRole("textbox", { name: /Environment variables/ });
+      expect(env).toHaveValue("API_TOKEN=");
+      await u.type(env, "abc123");
+      expect(within(dialog).getByRole("textbox", { name: /Startup command/ })).toHaveValue(
+        "make watch"
+      );
+      await u.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "member_update")?.args?.patch).toEqual({
+          env: [{ name: "API_TOKEN", value: "abc123" }],
+          startup_command: "make watch",
+        })
+      );
+      await emit({ type: "workspaces" });
+      expect(await screen.findByTestId("start-member")).toBeInTheDocument();
+    });
+
+    it("commands get variables but no startup command", async () => {
+      core.workspaces = [workspace([member("a", { member_type: "local_command" })])];
+      core.active = "ws1";
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings…" }));
+      const dialog = await screen.findByRole("dialog", { name: /Terminal settings/ });
+      expect(within(dialog).getByRole("textbox", { name: /Startup command/ })).toBeDisabled();
     });
   });
 });

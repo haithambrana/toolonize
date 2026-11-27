@@ -200,6 +200,18 @@ export type MemberType = "terminal" | "local_command" | "remote_command" | "exte
 export type MemberState =
   "ready" | "changed" | "not_authorized" | "orphaned" | "blocked" | "unavailable";
 
+/** One environment variable of a terminal (ADR-016). */
+export interface EnvVar {
+  name: string;
+  value: string;
+}
+
+export interface LaunchConfig {
+  env: EnvVar[];
+  startup_command: string | null;
+  confirmed: string | null;
+}
+
 export interface MemberView {
   id: string;
   launcher_id: string;
@@ -215,6 +227,9 @@ export interface MemberView {
   start_dir: string | null;
   /** Font size change for this terminal (-6..12). */
   zoom: number;
+  launch: LaunchConfig;
+  /** Environment variables / startup command confirmed here (or none). */
+  launch_confirmed: boolean;
   status: {
     state: MemberState;
     reason: string | null;
@@ -476,8 +491,14 @@ export const api = {
       /** Existing absolute folder; "" clears it. */
       start_dir?: string;
       zoom?: number;
+      /** Replaces the environment variables; saving confirms them. */
+      env?: EnvVar[];
+      /** "" clears; saving confirms it. */
+      startup_command?: string;
     }
   ) => invoke<void>("member_update", { workspaceId, memberId, patch }),
+  confirmLaunch: (workspaceId: string, memberId: string) =>
+    invoke<void>("member_confirm_launch", { workspaceId, memberId }),
   authorizeMember: (workspaceId: string, memberId: string, fingerprint: string) =>
     invoke<void>("member_authorize", { workspaceId, memberId, fingerprint }),
   launchMember: (workspaceId: string, memberId: string) =>

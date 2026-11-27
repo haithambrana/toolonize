@@ -117,11 +117,16 @@ impl ProcessState {
             (S::New | S::Exited { .. } | S::Failed { .. } | S::Disconnected { .. }, E::Stop) => {
                 S::Closed
             }
+            // A stopped terminal (Closed) offers Restart/Reconnect too.
             (
-                S::Running | S::Exited { .. } | S::Failed { .. } | S::Disconnected { .. },
+                S::Running
+                | S::Exited { .. }
+                | S::Failed { .. }
+                | S::Disconnected { .. }
+                | S::Closed,
                 E::Restart,
             ) => S::Restarting,
-            (S::Disconnected { .. } | S::Exited { .. } | S::Running, E::Reconnect) => {
+            (S::Disconnected { .. } | S::Exited { .. } | S::Running | S::Closed, E::Reconnect) => {
                 S::Reconnecting
             }
             _ => {
@@ -194,6 +199,24 @@ mod tests {
     }
 
     #[test]
+    fn a_stopped_terminal_can_be_restarted_or_reconnected() {
+        let stopped = ProcessState::Running
+            .next(ProcessEvent::Stop)
+            .unwrap()
+            .next(exited(0, false))
+            .unwrap();
+        assert_eq!(stopped, ProcessState::Closed);
+        assert_eq!(
+            stopped.next(ProcessEvent::Restart).unwrap(),
+            ProcessState::Restarting
+        );
+        assert_eq!(
+            stopped.next(ProcessEvent::Reconnect).unwrap(),
+            ProcessState::Reconnecting
+        );
+    }
+
+    #[test]
     fn spawn_failure_is_failed() {
         let s = ProcessState::Starting
             .next(ProcessEvent::SpawnFailed("no such file".into()))
@@ -231,7 +254,10 @@ mod tests {
     fn invalid_transitions_rejected() {
         assert!(ProcessState::Closed.next(ProcessEvent::Spawned).is_err());
         assert!(ProcessState::New.next(ProcessEvent::Spawned).is_err());
-        assert!(ProcessState::Closed.next(ProcessEvent::Restart).is_err());
+        // Closed -> Restart is allowed (Stop, then Restart from the banner);
+        // a terminal being stopped cannot be restarted mid-way.
+        assert!(ProcessState::Stopping.next(ProcessEvent::Restart).is_err());
+        assert!(ProcessState::Closed.next(ProcessEvent::Stop).is_err());
     }
 
     #[test]

@@ -1433,3 +1433,14 @@ kbd {
   display: flex;
   margin-bottom: 8px;
 }
+
+.callout {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.callout-warn {
+  background: color-mix(in srgb, var(--warn, #b45309) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn, #b45309) 45%, transparent);
+}

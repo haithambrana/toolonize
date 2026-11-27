@@ -35,6 +35,147 @@ pub fn validate_dir(dir: Option<&str>) -> Result<Option<String>, String> {
     Ok(Some(dir.to_string()))
 }
 
+pub const MAX_ENV_VARS: usize = 32;
+pub const MAX_ENV_VALUE: usize = 4096;
+pub const MAX_STARTUP_COMMAND: usize = 1024;
+
+/// One environment variable set for a terminal member (ADR-016).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnvVar {
+    pub name: String,
+    pub value: String,
+}
+
+/// Per-terminal environment variables and startup command (ADR-016).
+/// It only runs once the user confirmed exactly this configuration: a
+/// configuration restored from a backup, imported, or changed outside the
+/// app waits for confirmation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LaunchConfig {
+    #[serde(default)]
+    pub env: Vec<EnvVar>,
+    /// Typed into the shell once it has started, like the user would.
+    #[serde(default)]
+    pub startup_command: Option<String>,
+    /// Digest of `env` + `startup_command` as the user confirmed them.
+    #[serde(default)]
+    pub confirmed: Option<String>,
+}
+
+impl LaunchConfig {
+    pub fn is_empty(&self) -> bool {
+        self.env.is_empty() && self.startup_command.is_none()
+    }
+
+    pub fn digest(&self) -> String {
+        let bytes = serde_json::to_vec(&(&self.env, &self.startup_command))
+            .expect("launch config serializes");
+        crate::model::hex(&<sha2::Sha256 as sha2::Digest>::digest(bytes))
+    }
+
+    pub fn is_confirmed(&self) -> bool {
+        self.is_empty() || self.confirmed.as_deref() == Some(self.digest().as_str())
+    }
+
+    pub fn confirm(&mut self) {
+        self.confirmed = (!self.is_empty()).then(|| self.digest());
+    }
+}
+
+/// Variables that make the dynamic loader or a shell run extra code, which
+/// would bypass what the user sees as the terminal's program. Defense in
+/// depth: the real control is explicit confirmation of the configuration.
+pub fn env_name_refused(name: &str) -> bool {
+    const EXACT: &[&str] = &[
+        "BASH_ENV",
+        "ENV",
+        "PROMPT_COMMAND",
+        "PS0",
+        "PS4",
+        "SHELLOPTS",
+        "BASHOPTS",
+        "IFS",
+        "ZDOTDIR",
+        "GCONV_PATH",
+        "NODE_OPTIONS",
+        "PERL5OPT",
+        "RUBYOPT",
+        "PYTHONSTARTUP",
+        "JAVA_TOOL_OPTIONS",
+        "COMSPEC",
+        "PATHEXT",
+    ];
+    let upper = name.to_ascii_uppercase();
+    EXACT.contains(&upper.as_str())
+        || ["LD_", "DYLD_", "BASH_FUNC_"]
+            .iter()
+            .any(|p| upper.starts_with(p))
+}
+
+/// Check and normalize a launch configuration for a member type.
+pub fn validate_launch(
+    env: &[EnvVar],
+    startup_command: Option<&str>,
+    member_type: MemberType,
+) -> Result<(Vec<EnvVar>, Option<String>), String> {
+    let command = startup_command
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_string);
+    if member_type == MemberType::ExternalApp && (!env.is_empty() || command.is_some()) {
+        return Err("environment variables and startup commands are for terminals only".into());
+    }
+    if command.is_some()
+        && !matches!(
+            member_type,
+            MemberType::Terminal | MemberType::RemoteCommand
+        )
+    {
+        return Err("a startup command needs a shell or SSH terminal".into());
+    }
+    if let Some(c) = &command {
+        if c.len() > MAX_STARTUP_COMMAND {
+            return Err(format!(
+                "the startup command can be at most {MAX_STARTUP_COMMAND} characters"
+            ));
+        }
+        if c.chars().any(char::is_control) {
+            return Err("the startup command must be a single line".into());
+        }
+    }
+    if env.len() > MAX_ENV_VARS {
+        return Err(format!("at most {MAX_ENV_VARS} environment variables"));
+    }
+    let mut seen = HashSet::new();
+    for v in env {
+        let name = v.name.as_str();
+        let valid = !name.is_empty()
+            && name.len() <= 64
+            && name
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !valid {
+            return Err(format!(
+                "“{name}” is not a valid variable name (letters, digits and _, not starting with a digit)"
+            ));
+        }
+        if env_name_refused(name) {
+            return Err(format!(
+                "{name} can make programs run extra code, so ToolOnize does not set it"
+            ));
+        }
+        if !seen.insert(name.to_ascii_uppercase()) {
+            return Err(format!("{name} is listed twice"));
+        }
+        if v.value.len() > MAX_ENV_VALUE || v.value.contains('\0') {
+            return Err(format!("the value of {name} is too long or contains NUL"));
+        }
+    }
+    Ok((env.to_vec(), command))
+}
+
 /// `None` or an empty string clears the tag; anything else must be a palette id.
 pub fn validate_color(color: Option<&str>) -> Result<Option<String>, String> {
     match color {
@@ -130,6 +271,9 @@ pub struct Member {
     /// Per-terminal font size change in points (-6..=12; 0 = none).
     #[serde(default)]
     pub zoom: i8,
+    /// Environment variables and startup command (ADR-016).
+    #[serde(default)]
+    pub launch: LaunchConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

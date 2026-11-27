@@ -172,6 +172,17 @@ fn restore_workspace(
         m.title = validate_title(m.title.clone())?;
         m.color = validate_color(m.color.as_deref()).unwrap_or(None);
         m.zoom = m.zoom.clamp(-6, 12);
+        // Environment and startup command wait for the user's confirmation;
+        // invalid ones are dropped with a warning.
+        m.launch.confirmed = None;
+        if let Err(error) = crate::workspace::validate_launch(
+            &m.launch.env,
+            m.launch.startup_command.as_deref(),
+            m.member_type,
+        ) {
+            warnings.push(format!("“{name}”: terminal settings dropped ({error})"));
+            m.launch = Default::default();
+        }
         if let Some(dir) = m.start_dir.clone() {
             if validate_dir(Some(&dir)).is_err() {
                 m.start_dir = None;
@@ -329,6 +340,7 @@ mod tests {
             color: Some("teal".into()),
             start_dir: None,
             zoom: 3,
+            launch: Default::default(),
         }
     }
 

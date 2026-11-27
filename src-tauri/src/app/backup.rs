@@ -28,11 +28,16 @@ impl Core {
         }
         // Authorizations belong to this machine and are never restored; they
         // are left out so the file carries nothing that could look trusted.
+        // Environment values can be secrets (tokens): only names travel.
         let strip = |w: &Workspace| {
             let mut w = w.clone();
             for m in &mut w.members {
                 m.authorized_fingerprint = None;
                 m.authorized_at = None;
+                for v in &mut m.launch.env {
+                    v.value.clear();
+                }
+                m.launch.confirmed = None;
             }
             w
         };

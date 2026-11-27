@@ -224,6 +224,17 @@ pub async fn member_authorize(
     .await
 }
 
+/// Confirm a terminal's environment variables and startup command as they
+/// are now (e.g. after a restore); nothing runs until then (ADR-016).
+#[tauri::command]
+pub async fn member_confirm_launch(
+    core: CoreState<'_>,
+    workspace_id: String,
+    member_id: String,
+) -> Result<(), String> {
+    blocking(&core, move |c| c.confirm_launch(&workspace_id, &member_id)).await
+}
+
 #[tauri::command]
 pub async fn member_launch(
     core: CoreState<'_>,

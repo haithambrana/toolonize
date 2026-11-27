@@ -342,6 +342,7 @@ pub fn import(text: &str, resolver: &Resolver<'_>) -> Result<Imported, String> {
             color: color(m.color),
             start_dir: None,
             zoom: 0,
+            launch: Default::default(),
         });
     }
     let member_ids: Vec<String> = workspace.members.iter().map(|m| m.id.clone()).collect();
@@ -400,6 +401,7 @@ mod tests {
                 color: Some("blue".into()),
                 start_dir: None,
                 zoom: 0,
+                launch: Default::default(),
             });
         }
         w.layout.json = Some(json!({"layout": {"type": "row", "children": [

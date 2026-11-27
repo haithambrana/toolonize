@@ -10,6 +10,7 @@ import {
   zoomTerminal,
 } from "./actions";
 import { snippetPicker } from "./snippets";
+import { terminalSettings } from "./terminalSettings";
 import { backupNow, duplicateWorkspace, newFromTemplate, saveAsTemplate } from "./backup";
 import { readClipboard } from "./clipboard";
 import type { TerminalController } from "../terminal/controller";
@@ -173,6 +174,13 @@ export function paletteItems(): PaletteItem[] {
       label: `Add member to ${w.name}…`,
       run: () => addMemberDialog(w),
     });
+    for (const m of w.members.filter((x) => x.member_type !== "external_app")) {
+      items.push({
+        id: `settings:${m.id}`,
+        label: `Terminal settings: ${m.title ?? m.status.launcher_name ?? m.launcher_id}`,
+        run: () => terminalSettings(w, m),
+      });
+    }
     for (const m of w.members) {
       items.push({
         id: `member:${m.id}`,

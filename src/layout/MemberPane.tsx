@@ -4,6 +4,7 @@ import type { MemberView, WorkspaceView } from "../lib/ipc";
 import { reviewMember } from "../lib/review";
 import { launchMember, memberTitle, removeMember, renameMember, startMember } from "../lib/actions";
 import { TerminalPane } from "../terminal/TerminalPane";
+import { terminalSettings } from "../lib/terminalSettings";
 import { MemberNoteOverlay } from "../components/MemberNote";
 import { sessionFor, setState, useAppState } from "../state/store";
 
@@ -75,15 +76,33 @@ function IdleCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
           : "Not running."}
         {m.detach_expected && " Persistence comes from tmux/screen."}
       </p>
+      {!m.launch_confirmed && (
+        <p className="chip chip-warn">Terminal settings need your confirmation</p>
+      )}
       <div className="row-gap">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void startMember(w, m)}
-          data-testid="start-member"
-        >
-          Start
-        </button>
+        {m.launch_confirmed ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void startMember(w, m)}
+            data-testid="start-member"
+          >
+            Start
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void terminalSettings(w, m)}
+          >
+            Check settings…
+          </button>
+        )}
+        {m.launch_confirmed && (
+          <button type="button" className="btn" onClick={() => void terminalSettings(w, m)}>
+            Settings…
+          </button>
+        )}
         <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
           Rename
         </button>

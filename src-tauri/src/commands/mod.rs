@@ -74,6 +74,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "member_remove",
     "member_update",
     "member_authorize",
+    "member_confirm_launch",
     "member_launch",
     "session_start",
     "session_write",

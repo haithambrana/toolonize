@@ -9,6 +9,7 @@ import {
   splitTerminal,
 } from "../lib/actions";
 import { snippetPicker } from "../lib/snippets";
+import { terminalSettings } from "../lib/terminalSettings";
 import { ColorSwatches } from "../lib/colors";
 import { peekController } from "../terminal/controller";
 import { activeWorkspace, getState, notify, setState, useAppState } from "../state/store";
@@ -90,6 +91,14 @@ export function TerminalMenu() {
       action: run(() => {
         const w = activeWorkspace(getState());
         if (w) return renameMember(w.id, menu.memberId);
+      }),
+    },
+    {
+      label: "Terminal settings…",
+      disabled: !member || member.member_type === "external_app",
+      action: run(() => {
+        const w = activeWorkspace(getState());
+        if (w && member) return terminalSettings(w, member);
       }),
     },
   ];

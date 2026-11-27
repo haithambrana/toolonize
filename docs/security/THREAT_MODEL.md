@@ -195,6 +195,15 @@ graph LR
     harmless formatting when saved and again when loaded; OSC/DCS/APC/PM/SOS
     strings, queries, resets, mode changes, C1 controls and alternate-screen
     content are removed (unit + fuzz tests; real-app check with OSC 52).
+- **T-TERM-07 Terminal settings as an injection path** (environment
+  variables such as `LD_PRELOAD`, or a startup command, planted through a
+  backup, an import or an edited state file).
+  - Mitigations (ADR-016): configuration only runs once the user confirmed
+    exactly it (digest); restores/edits outside the app are unconfirmed and
+    refused at start; loader/shell hook variables refused; the startup
+    command is typed into the shell like user input, never executed by
+    ToolOnize; values never leave the machine (blanked in backups, absent
+    from exports, audit counts only); state/config folders 0700.
 - **T-TERM-06 Automatic restart doing harm** (a command with side effects
   starting again after a crash).
   - Mitigations: only shells and SSH sessions restart automatically; other
@@ -300,6 +309,7 @@ IPC command, dependency adoption, or format support.
 | T-TERM-04 | Process-group SIGHUP → SIGKILL on stop/exit; app exit terminates children | `stop_terminates_process_group_t_pty_013` |
 | T-TERM-01 (ADR-015) | Saved output in a 0700 folder; excluded from backups, diagnostics and logs; switch off deletes; close/remove/delete forgets | `app_tests.rs` (`memory_settings_turn_restarting_and_content_off`, `saved_output_stays_out_of_backups_diagnostics_and_logs`) |
 | T-TERM-05 | Replay sanitizer (text, SGR, line controls only; no OSC/DCS/queries/resets/alt screen), applied on save and load | `memory.rs` tests incl. fuzz; `power_loss_brings_back_terminals_folders_and_output` |
+| T-TERM-07 | Launch config confirmation digest, refused variables, typed (not executed) startup command, values blanked in backups and absent from exports/audit, private folders | `app_tests.rs` (`launch_config_is_validated`, `terminal_env_and_startup_command_run_in_the_shell`, `restored_terminal_settings_wait_for_confirmation_and_hide_values`) |
 | T-TERM-06 | Auto-restart only shells/SSH (commands only if marked auto-restart), through the execution policy | `resume_never_reruns_commands_and_respects_policy_and_settings` |
 | T-CFG-03 | Backup restore validated as hostile input, staged, unauthorized, all-or-nothing | `backup.rs` tests, `backup_restores_everything_staged_and_unauthorized`, `failed_restore_changes_nothing` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |
