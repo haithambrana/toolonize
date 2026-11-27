@@ -21,6 +21,7 @@ Index of decisions affecting ToolOnize (formerly discovery-phase codename "Dev C
 | [015](015-session-memory.md) | Session memory: continue after closing the app or a power loss | **Implemented — pending human review** |
 | [016](016-terminal-env-startup-command.md) | Per-terminal environment variables and startup command | **Implemented — pending human review** |
 | [017](017-open-at-login.md) | Open at login (tray icon deferred) | **Implemented — tray deferred; pending human review** |
+| [018](018-arabic-localization.md) | Arabic interface and right-to-left layout | **Implemented (main screens) — pending human review** |
 
 ADR-003's M4 state-preservation gate passed in automated tests (see the ADR); ADR-006..011 record decisions made while implementing M3–M10 in one pass after the owner waived per-milestone review pauses on 2026-10-25. They await human review. ADR-004 was accepted after the M2 Linux, Windows, and real-WebView evidence passed. Any portable-pty upgrade must rerun the relevant M2 matrix on both platforms before adoption; `Cargo.lock` remains authoritative.
 

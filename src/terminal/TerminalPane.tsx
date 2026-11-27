@@ -11,6 +11,7 @@ import { MemberNoteOverlay } from "../components/MemberNote";
 import { setState, useAppState } from "../state/store";
 import { getController, peekController } from "./controller";
 import { controllerOptions } from "./options";
+import { t } from "../i18n";
 
 function SearchBar({ sessionId }: { sessionId: string }) {
   const [query, setQuery] = useState("");
@@ -34,8 +35,8 @@ function SearchBar({ sessionId }: { sessionId: string }) {
     <div className="term-search" role="search">
       <input
         className="input input-sm"
-        placeholder="Search scrollback"
-        aria-label="Search scrollback"
+        placeholder={t("Search scrollback")}
+        aria-label={t("Search scrollback")}
         autoFocus
         value={query}
         onChange={(e) => {
@@ -63,13 +64,13 @@ function SearchBar({ sessionId }: { sessionId: string }) {
           checked={caseSensitive}
           onChange={(e) => setCaseSensitive(e.target.checked)}
         />
-        Aa
+        {t("Aa")}
       </label>
       <button
         type="button"
         className="btn btn-sm"
         onClick={() => run(true)}
-        aria-label="Previous match"
+        aria-label={t("Previous match")}
       >
         ↑
       </button>
@@ -77,16 +78,16 @@ function SearchBar({ sessionId }: { sessionId: string }) {
         type="button"
         className="btn btn-sm"
         onClick={() => run(false)}
-        aria-label="Next match"
+        aria-label={t("Next match")}
       >
         ↓
       </button>
       {found === false && (
         <span className="muted small" role="status">
-          No match
+          {t("No match")}
         </span>
       )}
-      <button type="button" className="btn btn-sm" onClick={close} aria-label="Close search">
+      <button type="button" className="btn btn-sm" onClick={close} aria-label={t("Close search")}>
         ✕
       </button>
     </div>
@@ -114,11 +115,19 @@ function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView })
     return (
       <div className="exit-banner exit-banner-warn" role="status">
         <span>
-          <strong>Connection lost</strong>
+          <strong>{t("Connection lost")}</strong>
           <span className="muted">
             {" "}
-            — reconnecting {seconds > 0 ? `in ${seconds} s` : "now"} (attempt {retry.attempt} of{" "}
-            {retry.max})
+            {seconds > 0
+              ? t("— reconnecting in {s} s (attempt {n} of {max})", {
+                  s: seconds,
+                  n: retry.attempt,
+                  max: retry.max,
+                })
+              : t("— reconnecting now (attempt {n} of {max})", {
+                  n: retry.attempt,
+                  max: retry.max,
+                })}
           </span>
         </span>
         <span className="exit-actions">
@@ -127,14 +136,14 @@ function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView })
             className="btn btn-sm btn-primary"
             onClick={() => void reconnectSession(info.session_id, info.detach_expected)}
           >
-            Reconnect now
+            {t("Reconnect now")}
           </button>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() => void api.cancelReconnect(info.session_id).catch(() => undefined)}
           >
-            Stop reconnecting
+            {t("Stop reconnecting")}
           </button>
         </span>
       </div>
@@ -164,7 +173,7 @@ function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView })
             className="btn btn-sm btn-primary"
             onClick={() => void reconnectSession(info.session_id, info.detach_expected)}
           >
-            Reconnect
+            {t("Reconnect")}
           </button>
         ) : (
           <button
@@ -172,7 +181,7 @@ function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView })
             className="btn btn-sm btn-primary"
             onClick={() => void restartSession(info.session_id)}
           >
-            Restart
+            {t("Restart")}
           </button>
         )}
         <button
@@ -180,9 +189,9 @@ function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView })
           className="btn btn-sm"
           onClick={() => void closeSession(info.session_id)}
         >
-          Close
+          {t("Close")}
         </button>
-        {member.auto_restart && <span className="muted small">Auto-restart on</span>}
+        {member.auto_restart && <span className="muted small">{t("Auto-restart on")}</span>}
       </span>
     </div>
   );
@@ -246,6 +255,7 @@ export function TerminalPane({
         <div
           ref={ref}
           className="term-container"
+          dir="ltr"
           data-session={sessionId}
           data-workspace={workspace.id}
           aria-label={`Terminal: ${memberTitle(member)}`}

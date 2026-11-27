@@ -9,6 +9,7 @@ import { api } from "./ipc";
 import { openDialog } from "./dialogs";
 import { memberTitle } from "./actions";
 import { attempt, getState, notify, sessionFor } from "../state/store";
+import { t } from "../i18n";
 
 /** "NAME=value" per line; blank lines and lines starting with # are skipped. */
 export function parseEnv(text: string): { env: EnvVar[]; error: string | null } {
@@ -51,14 +52,15 @@ function SettingsBody({
       <div className="dialog-body">
         {!m.launch_confirmed && (
           <p className="callout callout-warn" role="alert">
-            These settings came from a backup or import and have not run on this computer. Check
-            them, then press Save to allow them.
+            {t(
+              "These settings came from a backup or import and have not run on this computer. Check them, then press Save to allow them."
+            )}
             {blanks.length > 0 &&
               ` Values are never stored in backups — fill in ${blanks.join(", ")}.`}
           </p>
         )}
         <label className="field">
-          <span>Environment variables — one NAME=value per line</span>
+          <span>{t("Environment variables — one NAME=value per line")}</span>
           <textarea
             className="input code-area"
             rows={6}
@@ -69,7 +71,7 @@ function SettingsBody({
           />
         </label>
         <label className="field">
-          <span>Startup command — typed into the shell when the terminal starts</span>
+          <span>{t("Startup command — typed into the shell when the terminal starts")}</span>
           <input
             className="input mono"
             value={command}
@@ -84,14 +86,14 @@ function SettingsBody({
           </p>
         )}
         <p className="muted small">
-          Kept on this computer only. Backups keep the names but never the values; workspace exports
-          keep neither. Variables that make programs run extra code (such as LD_PRELOAD or BASH_ENV)
-          are refused.
+          {t(
+            "Kept on this computer only. Backups keep the names but never the values; workspace exports keep neither. Variables that make programs run extra code (such as LD_PRELOAD or BASH_ENV) are refused."
+          )}
         </p>
       </div>
       <div className="dialog-actions">
         <button type="button" className="btn" onClick={() => close(undefined)}>
-          Cancel
+          {t("Cancel")}
         </button>
         <button
           type="button"
@@ -100,7 +102,7 @@ function SettingsBody({
           data-autofocus
           onClick={() => close({ env: parsed.env, startup_command: shellLike ? command : "" })}
         >
-          Save
+          {t("Save")}
         </button>
       </div>
     </>
@@ -116,7 +118,7 @@ export async function terminalSettings(w: WorkspaceView, m: MemberView): Promise
   if (!result) return;
   const saved = await attempt(
     () => api.updateMember(w.id, m.id, result).then(() => true),
-    "Could not save terminal settings"
+    t("Could not save terminal settings")
   );
   if (!saved) return;
   notify(

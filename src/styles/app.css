@@ -1444,3 +1444,18 @@ kbd {
   background: color-mix(in srgb, var(--warn, #b45309) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--warn, #b45309) 45%, transparent);
 }
+
+/* Arabic (right-to-left): terminals and the pane layout stay left-to-right. */
+.term-container,
+.terminal-host,
+.xterm,
+.workspace-main .flexlayout__layout {
+  direction: ltr;
+}
+[dir="rtl"] .nav-item-active {
+  border-left: none;
+}
+[dir="rtl"] .sticky-note,
+[dir="rtl"] .toasts {
+  text-align: start;
+}

@@ -6,6 +6,7 @@ import { peekController, type BufferMatch } from "../terminal/controller";
 import { getState, setState, useAppState } from "../state/store";
 import { TagDot } from "../lib/colors";
 import type { ColorTag } from "../lib/ipc";
+import { t } from "../i18n";
 
 const MAX_RESULTS = 300;
 const PER_TERMINAL = 100;
@@ -93,7 +94,12 @@ function SearchBody() {
       className="dialog-backdrop palette-backdrop"
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Search all terminals">
+      <div
+        className="palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("Search all terminals")}
+      >
         <div className="row-gap">
           <input
             className="input palette-input grow"
@@ -102,7 +108,7 @@ function SearchBody() {
             aria-expanded="true"
             aria-controls="global-search-list"
             aria-activedescendant={hits[active] ? `gs-${active}` : undefined}
-            placeholder="Search the output of all open terminals"
+            placeholder={t("Search the output of all open terminals")}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -130,7 +136,7 @@ function SearchBody() {
               checked={caseSensitive}
               onChange={(e) => setCaseSensitive(e.target.checked)}
             />
-            Aa
+            {t("Aa")}
           </label>
         </div>
         <ul id="global-search-list" className="palette-list" role="listbox">
@@ -149,18 +155,19 @@ function SearchBody() {
             >
               <span className="search-hit">
                 <span className="small muted">
-                  <TagDot color={hit.color} /> {hit.where} · line {hit.row + 1}
+                  <TagDot color={hit.color} />{" "}
+                  {t("{where} · line {line}", { where: hit.where, line: hit.row + 1 })}
                 </span>
                 {excerpt(hit)}
               </span>
             </li>
           ))}
           {debounced && hits.length === 0 && (
-            <li className="palette-item muted">No match in the open terminals</li>
+            <li className="palette-item muted">{t("No match in the open terminals")}</li>
           )}
           {hits.length >= MAX_RESULTS && (
             <li className="palette-item muted small">
-              Showing the first {MAX_RESULTS} matches; refine the search.
+              {t("Showing the first {n} matches; refine the search.", { n: MAX_RESULTS })}
             </li>
           )}
         </ul>

@@ -4,6 +4,7 @@ import { api, type AuditEntry, type ViewState } from "../lib/ipc";
 import { closeSession, selectWorkspace, stopSession } from "../lib/actions";
 import { processLabel } from "../lib/labels";
 import { attempt, notify, useAppState } from "../state/store";
+import { t } from "../i18n";
 
 const VIEW_LABELS: Record<ViewState, string> = {
   attached: "On screen",
@@ -87,23 +88,25 @@ export function ActivityScreen() {
   }, [audit, filter, outcome, memberName, launcherName, wsName]);
 
   return (
-    <section className="activity" aria-label="Activity">
+    <section className="activity" aria-label={t("Activity")}>
       <header className="ws-header">
-        <h1 className="ws-title">Activity</h1>
+        <h1 className="ws-title">{t("Activity")}</h1>
       </header>
-      <h2 className="subhead">Terminal sessions</h2>
+      <h2 className="subhead">{t("Terminal sessions")}</h2>
       {list.length === 0 ? (
         <p className="muted">
-          No sessions. Terminals keep running while ToolOnize is open, even if the window reloads.
+          {t(
+            "No sessions. Terminals keep running while ToolOnize is open, even if the window reloads."
+          )}
         </p>
       ) : (
         <table className="table">
           <thead>
             <tr>
-              <th>Terminal</th>
-              <th>Workspace</th>
-              <th>State</th>
-              <th>Shown</th>
+              <th>{t("Terminal")}</th>
+              <th>{t("Workspace")}</th>
+              <th>{t("State")}</th>
+              <th>{t("Shown")}</th>
               <th />
             </tr>
           </thead>
@@ -129,7 +132,7 @@ export function ActivityScreen() {
                       className="btn btn-sm"
                       onClick={() => void stopSession(s.session_id, s.title)}
                     >
-                      Stop
+                      {t("Stop")}
                     </button>
                   )}
                   <button
@@ -137,7 +140,7 @@ export function ActivityScreen() {
                     className="btn btn-sm"
                     onClick={() => void closeSession(s.session_id)}
                   >
-                    Close
+                    {t("Close")}
                   </button>
                 </td>
               </tr>
@@ -145,54 +148,58 @@ export function ActivityScreen() {
           </tbody>
         </table>
       )}
-      <h2 className="subhead">Execution audit log</h2>
+      <h2 className="subhead">{t("Execution audit log")}</h2>
       <p className="muted small">
-        Every start, launch, approval and authorization decision is recorded locally. Command
-        arguments, environment and terminal output are never logged.
+        {t(
+          "Every start, launch, approval and authorization decision is recorded locally. Command arguments, environment and terminal output are never logged."
+        )}
       </p>
       <div className="row-gap audit-tools">
         <input
           className="input input-sm grow"
-          placeholder="Filter by action, terminal, workspace or detail"
-          aria-label="Filter the audit log"
+          placeholder={t("Filter by action, terminal, workspace or detail")}
+          aria-label={t("Filter the audit log")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         <select
           className="input input-sm"
-          aria-label="Outcome"
+          aria-label={t("Outcome")}
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as typeof outcome)}
         >
-          <option value="">All outcomes</option>
-          <option value="allowed">Allowed</option>
-          <option value="denied">Denied</option>
-          <option value="failed">Failed</option>
-          <option value="recorded">Recorded</option>
+          <option value="">{t("All outcomes")}</option>
+          <option value="allowed">{t("Allowed")}</option>
+          <option value="denied">{t("Denied")}</option>
+          <option value="failed">{t("Failed")}</option>
+          <option value="recorded">{t("Recorded")}</option>
         </select>
         <button type="button" className="btn btn-sm" onClick={() => void load()}>
-          Refresh
+          {t("Refresh")}
         </button>
         <button
           type="button"
           className="btn btn-sm"
           onClick={async () => {
-            const path = await attempt(() => api.exportAudit(), "Could not export the audit log");
+            const path = await attempt(
+              () => api.exportAudit(),
+              t("Could not export the audit log")
+            );
             if (path) notify("info", `Audit log saved to ${path}`);
           }}
         >
-          Export
+          {t("Export")}
         </button>
       </div>
       <table className="table">
         <thead>
           <tr>
-            <th>Time</th>
-            <th>Action</th>
-            <th>Outcome</th>
-            <th>Terminal or launcher</th>
-            <th>Workspace</th>
-            <th>Detail</th>
+            <th>{t("Time")}</th>
+            <th>{t("Action")}</th>
+            <th>{t("Outcome")}</th>
+            <th>{t("Terminal or launcher")}</th>
+            <th>{t("Workspace")}</th>
+            <th>{t("Detail")}</th>
           </tr>
         </thead>
         <tbody>

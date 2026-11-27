@@ -10,6 +10,7 @@ import { flushAllNotes, loadNotes } from "./notes";
 import { readFileText } from "./files";
 import { selectWorkspace } from "./actions";
 import { attempt, notify, refreshSettings, refreshWorkspaces } from "../state/store";
+import { t } from "../i18n";
 
 /** Backups larger than this are refused before reading (the core caps at 16 MiB). */
 export const MAX_BACKUP_FILE = 16 * 1024 * 1024;
@@ -27,7 +28,7 @@ const nameCheck = (v: string) =>
 export async function backupNow(includeSettings: boolean): Promise<string | undefined> {
   // Typed-but-unsaved note text must be in the backup too.
   await flushAllNotes();
-  const path = await attempt(() => api.exportBackup(includeSettings), "Backup failed");
+  const path = await attempt(() => api.exportBackup(includeSettings), t("Backup failed"));
   if (path) notify("info", `Backup saved to ${path}`);
   return path;
 }
@@ -49,12 +50,12 @@ export async function restoreFromFile(
   restoreSettings: boolean
 ): Promise<RestoreReport | undefined> {
   if (file.size > MAX_BACKUP_FILE) {
-    notify("error", "The backup file is too large (more than 16 MiB)");
+    notify("error", t("The backup file is too large (more than 16 MiB)"));
     return undefined;
   }
   const report = await attempt(
     async () => api.restoreBackup(await readFileText(file), restoreSettings),
-    "Restore failed"
+    t("Restore failed")
   );
   if (!report) return undefined;
   await refreshWorkspaces();
@@ -68,7 +69,7 @@ export async function restoreFromFile(
 
 export async function duplicateWorkspace(w: WorkspaceView): Promise<void> {
   await flushAllNotes();
-  const id = await attempt(() => api.duplicateWorkspace(w.id), "Could not duplicate");
+  const id = await attempt(() => api.duplicateWorkspace(w.id), t("Could not duplicate"));
   if (!id) return;
   await refreshWorkspaces();
   await selectWorkspace(id);
@@ -78,14 +79,14 @@ export async function duplicateWorkspace(w: WorkspaceView): Promise<void> {
 
 export async function saveAsTemplate(w: WorkspaceView): Promise<void> {
   const name = await promptDialog({
-    title: "Save as template",
-    label: "Template name (terminals, options and layout; no folders or notes)",
+    title: t("Save as template"),
+    label: t("Template name (terminals, options and layout; no folders or notes)"),
     initial: w.name,
-    confirm: "Save template",
+    confirm: t("Save template"),
     validate: nameCheck,
   });
   if (!name) return;
-  const id = await attempt(() => api.saveTemplate(w.id, name.trim()), "Could not save template");
+  const id = await attempt(() => api.saveTemplate(w.id, name.trim()), t("Could not save template"));
   if (id) notify("info", `Template “${name.trim()}” saved.`);
 }
 
@@ -94,7 +95,7 @@ function TemplateList({ close }: { close: (v: string | undefined) => void }) {
   // Confirmed inline: a nested dialog would unmount this list.
   const [confirming, setConfirming] = useState<string | null>(null);
   const load = () =>
-    void attempt(() => api.listTemplates(), "Could not load templates").then((l) =>
+    void attempt(() => api.listTemplates(), t("Could not load templates")).then((l) =>
       setList(l ?? [])
     );
   useEffect(load, []);
@@ -102,57 +103,60 @@ function TemplateList({ close }: { close: (v: string | undefined) => void }) {
     <>
       <div className="dialog-body">
         {list === null ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t("Loading…")}</p>
         ) : list.length === 0 ? (
           <p className="muted">
-            No templates yet. Open a workspace and choose More ▾ › Save as template….
+            {t("No templates yet. Open a workspace and choose More ▾ › Save as template….")}
           </p>
         ) : (
-          <ul className="template-list" aria-label="Templates">
-            {list.map((t) => (
-              <li key={t.id} className="template-row">
-                <span className="template-name">{t.name}</span>
-                <span className="muted small">{t.members} terminal(s)</span>
+          <ul className="template-list" aria-label={t("Templates")}>
+            {list.map((tpl) => (
+              <li key={tpl.id} className="template-row">
+                <span className="template-name">{tpl.name}</span>
+                <span className="muted small">{t("{n} terminal(s)", { n: tpl.members })}</span>
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
-                  aria-label={`Use template ${t.name}`}
-                  onClick={() => close(t.id)}
+                  aria-label={t("Use template {name}", { name: tpl.name })}
+                  onClick={() => close(tpl.id)}
                 >
-                  Use
+                  {t("Use")}
                 </button>
-                {confirming === t.id ? (
+                {confirming === tpl.id ? (
                   <>
                     <span className="small" role="alert">
-                      Delete “{t.name}”?
+                      {t("Delete “{name}”?", { name: tpl.name })}
                     </span>
                     <button
                       type="button"
                       className="btn btn-sm btn-danger"
                       onClick={async () => {
                         setConfirming(null);
-                        await attempt(() => api.deleteTemplate(t.id), "Could not delete template");
+                        await attempt(
+                          () => api.deleteTemplate(tpl.id),
+                          t("Could not delete template")
+                        );
                         load();
                       }}
                     >
-                      Yes, delete
+                      {t("Yes, delete")}
                     </button>
                     <button
                       type="button"
                       className="btn btn-sm"
                       onClick={() => setConfirming(null)}
                     >
-                      Keep
+                      {t("Keep")}
                     </button>
                   </>
                 ) : (
                   <button
                     type="button"
                     className="btn btn-sm"
-                    aria-label={`Delete template ${t.name}`}
-                    onClick={() => setConfirming(t.id)}
+                    aria-label={t("Delete template {name}", { name: tpl.name })}
+                    onClick={() => setConfirming(tpl.id)}
                   >
-                    Delete
+                    {t("Delete")}
                   </button>
                 )}
               </li>
@@ -162,7 +166,7 @@ function TemplateList({ close }: { close: (v: string | undefined) => void }) {
       </div>
       <div className="dialog-actions">
         <button type="button" className="btn" onClick={() => close(undefined)} data-autofocus>
-          Close
+          {t("Close")}
         </button>
       </div>
     </>
@@ -176,15 +180,15 @@ export async function newFromTemplate(): Promise<void> {
   ));
   if (!templateId) return;
   const name = await promptDialog({
-    title: "New workspace",
-    label: "Name",
-    confirm: "Create",
+    title: t("New workspace"),
+    label: t("Name"),
+    confirm: t("Create"),
     validate: nameCheck,
   });
   if (!name) return;
   const id = await attempt(
     () => api.createFromTemplate(templateId, name.trim()),
-    "Could not create workspace"
+    t("Could not create workspace")
   );
   if (!id) return;
   await refreshWorkspaces();

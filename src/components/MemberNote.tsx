@@ -3,6 +3,7 @@ import { toggleMemberNote } from "../lib/notes";
 import { setState, useAppState } from "../state/store";
 import { StickyNote } from "./StickyNote";
 import { peekController } from "../terminal/controller";
+import { t } from "../i18n";
 
 export function MemberNoteButton({
   workspaceId,
@@ -22,10 +23,11 @@ export function MemberNoteButton({
       type="button"
       className={noted ? `${className} has-note` : className}
       aria-pressed={open}
-      title="Terminal note (Ctrl+Shift+N)"
+      title={t("Terminal note (Ctrl+Shift+N)")}
       onClick={() => toggleMemberNote(memberId)}
     >
-      Note{noted && <span className="note-dot" aria-label="has a note" />}
+      {t("Note")}
+      {noted && <span className="note-dot" aria-label={t("has a note")} />}
     </button>
   );
 }

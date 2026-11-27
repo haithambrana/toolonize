@@ -3,6 +3,7 @@
  * focus trapping, Escape to cancel and restored focus (ACC-001/003).
  */
 import { useState, type ReactNode } from "react";
+import { t } from "../i18n";
 
 export interface DialogRequest {
   id: number;
@@ -113,7 +114,7 @@ function PromptBody({
       </div>
       <div className="dialog-actions">
         <button type="button" className="btn" onClick={() => close(undefined)}>
-          Cancel
+          {t("Cancel")}
         </button>
         <button type="submit" className="btn btn-primary" disabled={!!error}>
           {confirm}

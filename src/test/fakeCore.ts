@@ -50,6 +50,7 @@ export const settings: Settings = {
   snippets: [],
   restore_terminals: true,
   remember_terminal_content: true,
+  language: "en",
 };
 
 export function entry(partial: Partial<RegistryEntry> & { launcher_id: string }): RegistryEntry {

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { MemberView, WorkspaceView } from "./lib/ipc";
 import { layoutFor, membersIn } from "./layout/modes";
@@ -19,6 +19,7 @@ import {
 } from "./test/fakeCore";
 import { terminals } from "./test/fakeXterm";
 import { resetNotes } from "./lib/notes";
+import { setLanguage } from "./i18n";
 
 const user = () => userEvent.setup();
 
@@ -1353,6 +1354,43 @@ describe("ToolOnize app", () => {
       await u.click(await screen.findByRole("button", { name: "Settings…" }));
       const dialog = await screen.findByRole("dialog", { name: /Terminal settings/ });
       expect(within(dialog).getByRole("textbox", { name: /Startup command/ })).toBeDisabled();
+    });
+  });
+
+  describe("Arabic interface", () => {
+    afterEach(() => {
+      settings.language = "en";
+      setLanguage("en");
+    });
+
+    it("shows the interface in Arabic, right-to-left, with terminals left-to-right", async () => {
+      settings.language = "ar";
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a" })];
+      render(<App />);
+      expect(await screen.findByText("مساحات العمل")).toBeInTheDocument();
+      expect(document.documentElement.dir).toBe("rtl");
+      expect(screen.getByRole("button", { name: "الإعدادات" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "+ إضافة عنصر" })).toBeInTheDocument();
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      expect(document.querySelector(".term-container")?.getAttribute("dir")).toBe("ltr");
+      // Main toolbar and sidebar: no English left (names and shortcuts aside).
+      const toolbar = document.querySelector(".ws-actions")!.textContent!;
+      expect(toolbar).not.toMatch(/Notes|Broadcast|Add member|More/);
+    });
+
+    it("switching the language in Settings applies it at once", async () => {
+      handlers.set("settings_update", (a) => {
+        Object.assign(settings, a.settings as object);
+        core.events?.send({ type: "settings" });
+      });
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.selectOptions(await screen.findByRole("combobox", { name: "Language" }), "ar");
+      expect(await screen.findByText("ذاكرة الجلسة")).toBeInTheDocument();
+      expect(document.documentElement.dir).toBe("rtl");
     });
   });
 });

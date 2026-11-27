@@ -102,6 +102,8 @@ pub struct Settings {
     /// Keep the last part of each terminal's output on this computer and
     /// show it when the terminal comes back (ADR-015).
     pub remember_terminal_content: bool,
+    /// Interface language: "system", "en" or "ar" (right-to-left).
+    pub language: String,
 }
 
 impl Default for Settings {
@@ -128,6 +130,7 @@ impl Default for Settings {
             snippets: Vec::new(),
             restore_terminals: true,
             remember_terminal_content: true,
+            language: "system".into(),
         }
     }
 }
@@ -180,6 +183,9 @@ fn valid_binding(binding: &str) -> bool {
 
 impl Settings {
     pub fn validate(&self) -> Result<(), String> {
+        if !matches!(self.language.as_str(), "system" | "en" | "ar") {
+            return Err("language must be system, en or ar".into());
+        }
         if !(8..=32).contains(&self.font_size) {
             return Err("font size must be between 8 and 32".into());
         }

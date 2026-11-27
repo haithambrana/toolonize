@@ -6,6 +6,7 @@ import { createWorkspace, importWorkspaceText, selectWorkspace, setView } from "
 import { newFromTemplate } from "../lib/backup";
 import { readFileText } from "../lib/files";
 import { attempt, notify, useAppState } from "../state/store";
+import { t } from "../i18n";
 
 function WatchBadge() {
   const watch = useAppState((s) => s.watch);
@@ -15,7 +16,7 @@ function WatchBadge() {
         className="watch watch-live"
         title={`Watching ${watch.roots} launcher folder(s) for changes`}
       >
-        ● Live updates
+        {t("● Live updates")}
       </span>
     );
   }
@@ -23,10 +24,13 @@ function WatchBadge() {
     <button
       type="button"
       className="watch watch-off"
-      title={watch.state === "degraded" ? watch.reason : "Live updates are off"}
-      onClick={() => void attempt(() => api.rescan(), "Rescan failed")}
+      title={watch.state === "degraded" ? watch.reason : t("Live updates are off")}
+      onClick={() => void attempt(() => api.rescan(), t("Rescan failed"))}
     >
-      ○ {watch.state === "degraded" ? "Live updates degraded" : "Live updates off"} · Rescan
+      ○{" "}
+      {watch.state === "degraded"
+        ? t("Live updates degraded · Rescan")
+        : t("Live updates off · Rescan")}
     </button>
   );
 }
@@ -52,21 +56,21 @@ export function Sidebar() {
   }, [sessions]);
 
   return (
-    <nav className="sidebar" aria-label="Main">
+    <nav className="sidebar" aria-label={t("Main")}>
       <div className="brand">
         <span className="brand-mark" aria-hidden="true">
           ▣
         </span>
-        <span className="brand-name">ToolOnize</span>
+        <span className="brand-name">{t("ToolOnize")}</span>
       </div>
       <div className="nav-section">
         <div className="nav-heading">
-          <span>Workspaces</span>
+          <span>{t("Workspaces")}</span>
           <button
             type="button"
             className="icon-btn"
-            aria-label="New workspace"
-            title="New workspace"
+            aria-label={t("New workspace")}
+            title={t("New workspace")}
             onClick={() => void createWorkspace()}
           >
             +
@@ -87,28 +91,30 @@ export function Sidebar() {
                 <span className="nav-label">{w.name}</span>
                 {w.staged_import && <span className="chip chip-warn">review</span>}
                 {running[w.id] ? (
-                  <span className="count" title="Running terminals">
+                  <span className="count" title={t("Running terminals")}>
                     {running[w.id]}
                   </span>
                 ) : null}
               </button>
             </li>
           ))}
-          {workspaces.length === 0 && <li className="muted small nav-empty">No workspaces yet</li>}
+          {workspaces.length === 0 && (
+            <li className="muted small nav-empty">{t("No workspaces yet")}</li>
+          )}
         </ul>
         <button
           type="button"
           className="nav-item nav-subtle"
           onClick={() => fileInput.current?.click()}
         >
-          Import workspace…
+          {t("Import workspace…")}
         </button>
         <button
           type="button"
           className="nav-item nav-subtle"
           onClick={() => void newFromTemplate()}
         >
-          New from template…
+          {t("New from template…")}
         </button>
         <input
           ref={fileInput}
@@ -120,7 +126,7 @@ export function Sidebar() {
             e.target.value = "";
             if (!file) return;
             if (file.size > 1024 * 1024) {
-              notify("error", "Import file is too large");
+              notify("error", t("Import file is too large"));
               return;
             }
             await importWorkspaceText(await readFileText(file));
@@ -134,9 +140,9 @@ export function Sidebar() {
           aria-current={view === "launchers" ? "page" : undefined}
           onClick={() => setView("launchers")}
         >
-          <span className="nav-label">Launchers</span>
+          <span className="nav-label">{t("Launchers")}</span>
           {reviewCount > 0 && (
-            <span className="count count-warn" title="Launchers waiting for review">
+            <span className="count count-warn" title={t("Launchers waiting for review")}>
               {reviewCount}
             </span>
           )}
@@ -147,7 +153,7 @@ export function Sidebar() {
           aria-current={view === "activity" ? "page" : undefined}
           onClick={() => setView("activity")}
         >
-          <span className="nav-label">Activity</span>
+          <span className="nav-label">{t("Activity")}</span>
         </button>
         <button
           type="button"
@@ -155,7 +161,7 @@ export function Sidebar() {
           aria-current={view === "settings" ? "page" : undefined}
           onClick={() => setView("settings")}
         >
-          <span className="nav-label">Settings</span>
+          <span className="nav-label">{t("Settings")}</span>
         </button>
       </div>
       <div className="sidebar-footer">

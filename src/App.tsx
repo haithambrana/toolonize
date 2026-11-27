@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { CommandPalette } from "./components/CommandPalette";
 import { DialogHost } from "./components/DialogHost";
 import { GlobalSearch } from "./components/GlobalSearch";
@@ -13,6 +13,7 @@ import { dismissNotice, init, setState, useAppState } from "./state/store";
 import { Sidebar } from "./views/Sidebar";
 import { WorkspaceScreen } from "./views/WorkspaceScreen";
 import "@xterm/xterm/css/xterm.css";
+import { setLanguage, t, useLanguage } from "./i18n";
 
 // Throwaway M2 harness, included only in the dedicated spike build: with the
 // flag unset the import is dead code and never reaches the bundle.
@@ -45,7 +46,7 @@ function Toasts() {
           <button
             type="button"
             className="icon-btn"
-            aria-label="Dismiss"
+            aria-label={t("Dismiss")}
             onClick={() => dismissNotice(n.id)}
           >
             ✕
@@ -99,6 +100,11 @@ function useTheme() {
 }
 
 function Shell() {
+  const languagePref = useAppState((s) => s.settings?.language ?? "system");
+  useLayoutEffect(() => setLanguage(languagePref), [languagePref]);
+  // Remount the tree when the language changes; terminals live in
+  // long-lived controllers and keep their content.
+  const lang = useLanguage();
   const ready = useAppState((s) => s.ready);
   const fatal = useAppState((s) => s.fatal);
   const view = useAppState((s) => s.view);
@@ -121,7 +127,7 @@ function Shell() {
         <span className="brand-mark" aria-hidden="true">
           ▣
         </span>{" "}
-        Starting ToolOnize…
+        {t("Starting ToolOnize…")}
       </div>
     );
   }
@@ -129,17 +135,17 @@ function Shell() {
     return (
       <div className="splash">
         <div className="alert alert-danger" role="alert">
-          <strong>ToolOnize could not reach its core.</strong>
+          <strong>{t("ToolOnize could not reach its core.")}</strong>
           <p>{fatal}</p>
           <p className="muted small">
-            Reload the window to retry. Running terminals are not affected by a reload.
+            {t("Reload the window to retry. Running terminals are not affected by a reload.")}
           </p>
         </div>
       </div>
     );
   }
   return (
-    <div className={presentation ? "app presenting" : "app"}>
+    <div key={lang} className={presentation ? "app presenting" : "app"}>
       {!presentation && <Sidebar />}
       {presentation && (
         <button
@@ -147,12 +153,12 @@ function Shell() {
           className="btn btn-sm presentation-exit"
           onClick={() => setState({ presentation: false })}
         >
-          Exit presentation (Ctrl+Shift+F11)
+          {t("Exit presentation (Ctrl+Shift+F11)")}
         </button>
       )}
       <main className="main" id="main">
         {view === "workspace" && <WorkspaceScreen />}
-        <Suspense fallback={<div className="muted small screen-loading">Loading…</div>}>
+        <Suspense fallback={<div className="muted small screen-loading">{t("Loading…")}</div>}>
           {view === "launchers" && <LaunchersScreen />}
           {view === "settings" && <SettingsScreen />}
           {view === "activity" && <ActivityScreen />}
@@ -170,7 +176,7 @@ function Shell() {
 export default function App() {
   if (TerminalSpike) {
     return (
-      <Suspense fallback={<div className="muted small">Loading spike harness…</div>}>
+      <Suspense fallback={<div className="muted small">{t("Loading spike harness…")}</div>}>
         <TerminalSpike />
       </Suspense>
     );

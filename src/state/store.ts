@@ -17,6 +17,7 @@ import {
   type WatchStatus,
   type WorkspaceView,
 } from "../lib/ipc";
+import { t } from "../i18n";
 
 export type View = "workspace" | "launchers" | "settings" | "activity";
 
@@ -265,30 +266,45 @@ export async function init(): Promise<void> {
 export function resumeMessages(r: ResumeReport | null): [Notice["level"], string][] {
   if (!r) return [];
   const out: [Notice["level"], string][] = [];
-  if (r.restored > 0) {
-    const what = `${r.restored} terminal${r.restored === 1 ? "" : "s"}`;
-    out.push(
-      r.crashed
-        ? [
-            "warning",
-            `ToolOnize did not close normally last time. Restored ${what} with their last output.`,
-          ]
-        : ["info", `Restored ${what} from your last session.`]
-    );
+  const n = r.restored;
+  if (n > 0) {
+    if (r.crashed) {
+      out.push([
+        "warning",
+        n === 1
+          ? t(
+              "ToolOnize did not close normally last time. Restored 1 terminal with its last output."
+            )
+          : t(
+              "ToolOnize did not close normally last time. Restored {n} terminals with their last output.",
+              { n }
+            ),
+      ]);
+    } else {
+      out.push([
+        "info",
+        n === 1
+          ? t("Restored 1 terminal from your last session.")
+          : t("Restored {n} terminals from your last session.", { n }),
+      ]);
+    }
   } else if (r.crashed && r.left_stopped.length === 0 && r.failed.length === 0) {
     out.push([
       "info",
-      "ToolOnize did not close normally last time. Your workspaces and notes are safe.",
+      t("ToolOnize did not close normally last time. Your workspaces and notes are safe."),
     ]);
   }
   if (r.left_stopped.length) {
     out.push([
       "info",
-      `Not started again automatically, because commands can have side effects: ${r.left_stopped.join(", ")}. Start them when you need them.`,
+      t(
+        "Not started again automatically, because commands can have side effects: {list}. Start them when you need them.",
+        { list: r.left_stopped.join(", ") }
+      ),
     ]);
   }
   if (r.failed.length) {
-    out.push(["warning", `Could not restore: ${r.failed.join("; ")}.`]);
+    out.push(["warning", t("Could not restore: {list}.", { list: r.failed.join("; ") })]);
   }
   return out;
 }

@@ -7,6 +7,7 @@ import { TerminalPane } from "../terminal/TerminalPane";
 import { terminalSettings } from "../lib/terminalSettings";
 import { MemberNoteOverlay } from "../components/MemberNote";
 import { sessionFor, setState, useAppState } from "../state/store";
+import { t } from "../i18n";
 
 const STATE_TEXT: Record<string, string> = {
   changed: "Changed — re-review required",
@@ -24,13 +25,13 @@ function StatusCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
       {m.status.reason && <p className="muted">{m.status.reason}</p>}
       <div className="row-gap">
         <button type="button" className="btn btn-primary" onClick={() => void reviewMember(w, m)}>
-          Review…
+          {t("Review…")}
         </button>
         <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
-          Rename
+          {t("Rename")}
         </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
-          Remove
+          {t("Remove")}
         </button>
       </div>
     </div>
@@ -43,23 +44,29 @@ function ExternalCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
     <div className="member-card">
       <h3 className="member-card-title">{memberTitle(m)}</h3>
       <p className="muted">
-        External application{m.origin_label ? ` · ${m.origin_label}` : ""}. It opens as a normal
-        window outside ToolOnize; ToolOnize does not manage its windows.
+        {m.origin_label
+          ? t(
+              "External application · {origin}. It opens as a normal window outside ToolOnize; ToolOnize does not manage its windows.",
+              { origin: m.origin_label }
+            )
+          : t(
+              "External application. It opens as a normal window outside ToolOnize; ToolOnize does not manage its windows."
+            )}
       </p>
       <div className="row-gap">
         <button type="button" className="btn btn-primary" onClick={() => void launchMember(w, m)}>
-          Launch
+          {t("Launch")}
         </button>
         <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
-          Rename
+          {t("Rename")}
         </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
-          Remove
+          {t("Remove")}
         </button>
       </div>
       {launched && (
         <p className="muted small" role="status">
-          Launched at {new Date(launched).toLocaleTimeString()}
+          {t("Launched at {time}", { time: new Date(launched).toLocaleTimeString() })}
         </p>
       )}
     </div>
@@ -77,7 +84,7 @@ function IdleCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
         {m.detach_expected && " Persistence comes from tmux/screen."}
       </p>
       {!m.launch_confirmed && (
-        <p className="chip chip-warn">Terminal settings need your confirmation</p>
+        <p className="chip chip-warn">{t("Terminal settings need your confirmation")}</p>
       )}
       <div className="row-gap">
         {m.launch_confirmed ? (
@@ -87,7 +94,7 @@ function IdleCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
             onClick={() => void startMember(w, m)}
             data-testid="start-member"
           >
-            Start
+            {t("Start")}
           </button>
         ) : (
           <button
@@ -95,19 +102,19 @@ function IdleCard({ w, m }: { w: WorkspaceView; m: MemberView }) {
             className="btn btn-primary"
             onClick={() => void terminalSettings(w, m)}
           >
-            Check settings…
+            {t("Check settings…")}
           </button>
         )}
         {m.launch_confirmed && (
           <button type="button" className="btn" onClick={() => void terminalSettings(w, m)}>
-            Settings…
+            {t("Settings…")}
           </button>
         )}
         <button type="button" className="btn" onClick={() => void renameMember(w.id, m.id)}>
-          Rename
+          {t("Rename")}
         </button>
         <button type="button" className="btn" onClick={() => void removeMember(w, m)}>
-          Remove
+          {t("Remove")}
         </button>
       </div>
     </div>
@@ -118,7 +125,7 @@ export function MemberPane({ workspaceId, memberId }: { workspaceId: string; mem
   const w = useAppState((s) => s.workspaces.find((x) => x.id === workspaceId));
   const session = useAppState((s) => sessionFor(s, workspaceId, memberId));
   const m = w?.members.find((x) => x.id === memberId);
-  if (!w || !m) return <div className="member-card muted">This member was removed.</div>;
+  if (!w || !m) return <div className="member-card muted">{t("This member was removed.")}</div>;
   if (session) return <TerminalPane workspace={w} member={m} session={session} />;
   return (
     <div className="member-pane" onMouseDown={() => setState({ focused: m.id })}>

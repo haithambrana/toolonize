@@ -12,9 +12,10 @@ import {
 } from "../lib/keymap";
 import { backupNow, restoreFromFile } from "../lib/backup";
 import { attempt, notify, useAppState } from "../state/store";
+import { t, tk } from "../i18n";
 
 function update(settings: Settings, patch: Partial<Settings>) {
-  return attempt(() => api.updateSettings({ ...settings, ...patch }), "Could not save settings");
+  return attempt(() => api.updateSettings({ ...settings, ...patch }), t("Could not save settings"));
 }
 
 function AutostartToggle() {
@@ -39,13 +40,14 @@ function AutostartToggle() {
           const want = e.target.checked;
           const now = await attempt(
             () => api.autostartSet(want),
-            "Could not change opening at login"
+            t("Could not change opening at login")
           );
           if (now !== undefined) setEnabled(now);
         }}
       />
-      Open ToolOnize when I log in — with the switches below, your last session comes back after a
-      restart
+      {t(
+        "Open ToolOnize when I log in — with the switches below, your last session comes back after a restart"
+      )}
     </label>
   );
 }
@@ -55,10 +57,11 @@ function SessionMemoryCard() {
   if (!settings) return null;
   return (
     <fieldset className="card card-wide">
-      <legend>Session memory</legend>
+      <legend>{t("Session memory")}</legend>
       <p>
-        If ToolOnize closes or the computer loses power, it opens again with the same window, the
-        same terminals in the same folders, and what they showed.
+        {t(
+          "If ToolOnize closes or the computer loses power, it opens again with the same window, the same terminals in the same folders, and what they showed."
+        )}
       </p>
       <AutostartToggle />
       <label className="check">
@@ -67,8 +70,9 @@ function SessionMemoryCard() {
           checked={settings.restore_terminals}
           onChange={(e) => void update(settings, { restore_terminals: e.target.checked })}
         />
-        Start the terminals that were running last time (shells and SSH; commands only when set to
-        restart automatically)
+        {t(
+          "Start the terminals that were running last time (shells and SSH; commands only when set to restart automatically)"
+        )}
       </label>
       <label className="check">
         <input
@@ -76,7 +80,9 @@ function SessionMemoryCard() {
           checked={settings.remember_terminal_content}
           onChange={(e) => void update(settings, { remember_terminal_content: e.target.checked })}
         />
-        Remember what each terminal showed (kept on this computer only; turning this off deletes it)
+        {t(
+          "Remember what each terminal showed (kept on this computer only; turning this off deletes it)"
+        )}
       </label>
       <div className="row-gap">
         <button
@@ -85,18 +91,18 @@ function SessionMemoryCard() {
           onClick={async () => {
             const n = await attempt(
               () => api.forgetTerminalOutput(),
-              "Could not delete saved output"
+              t("Could not delete saved output")
             );
             if (n !== undefined) notify("info", `Deleted the saved output of ${n} terminal(s).`);
           }}
         >
-          Forget saved terminal output
+          {t("Forget saved terminal output")}
         </button>
       </div>
       <p className="muted small">
-        Saved output is cleaned so that nothing in it can act again (no clipboard writes,
-        notifications or terminal queries) and is never part of backups, exports or diagnostics.
-        Closing a terminal yourself forgets it.
+        {t(
+          "Saved output is cleaned so that nothing in it can act again (no clipboard writes, notifications or terminal queries) and is never part of backups, exports or diagnostics. Closing a terminal yourself forgets it."
+        )}
       </p>
     </fieldset>
   );
@@ -109,11 +115,11 @@ function BackupCard() {
   const file = useRef<HTMLInputElement>(null);
   return (
     <fieldset className="card card-wide">
-      <legend>Backup & restore</legend>
+      <legend>{t("Backup & restore")}</legend>
       <p>
-        One file with all workspaces, terminals and their options, layouts, notes, templates,
-        launcher names and connections. It is saved to your Downloads folder and stays on this
-        machine unless you move it.
+        {t(
+          "One file with all workspaces, terminals and their options, layouts, notes, templates, launcher names and connections. It is saved to your Downloads folder and stays on this machine unless you move it."
+        )}
       </p>
       <div className="row-gap backup-row">
         <button
@@ -126,7 +132,7 @@ function BackupCard() {
             setBusy(false);
           }}
         >
-          Back up everything
+          {t("Back up everything")}
         </button>
         <label className="check-inline">
           <input
@@ -134,7 +140,7 @@ function BackupCard() {
             checked={withSettings}
             onChange={(e) => setWithSettings(e.target.checked)}
           />
-          Include settings
+          {t("Include settings")}
         </label>
       </div>
       <div className="row-gap backup-row">
@@ -144,7 +150,7 @@ function BackupCard() {
           disabled={busy}
           onClick={() => file.current?.click()}
         >
-          Restore from backup…
+          {t("Restore from backup…")}
         </button>
         <label className="check-inline">
           <input
@@ -152,14 +158,14 @@ function BackupCard() {
             checked={restoreSettings}
             onChange={(e) => setRestoreSettings(e.target.checked)}
           />
-          Also replace my settings
+          {t("Also replace my settings")}
         </label>
         <input
           ref={file}
           type="file"
           accept=".json,application/json"
           hidden
-          aria-label="Backup file"
+          aria-label={t("Backup file")}
           onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
@@ -171,9 +177,9 @@ function BackupCard() {
         />
       </div>
       <p className="muted small">
-        Restoring adds the workspaces next to the ones you have. For your safety nothing runs from a
-        backup: restored workspaces wait for review and each terminal must be authorized again.
-        Secrets, passwords and launcher approvals are never in a backup.
+        {t(
+          "Restoring adds the workspaces next to the ones you have. For your safety nothing runs from a backup: restored workspaces wait for review and each terminal must be authorized again. Secrets, passwords and launcher approvals are never in a backup."
+        )}
       </p>
     </fieldset>
   );
@@ -215,7 +221,7 @@ function KeyCapture({
       </button>
       {binding !== DEFAULT_KEYMAP[action] && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>
-          Reset
+          {t("Reset")}
         </button>
       )}
     </span>
@@ -223,7 +229,7 @@ function KeyCapture({
 }
 
 const SCHEME_LABELS: Record<Settings["terminal_scheme"], string> = {
-  auto: "Follow the app theme",
+  auto: tk("Follow the app theme"),
   solarized_dark: "Solarized Dark",
   solarized_light: "Solarized Light",
   dracula: "Dracula",
@@ -243,10 +249,10 @@ function FontFamily({ settings }: { settings: Settings }) {
   };
   return (
     <label className="field">
-      <span className="field-label">Terminal font (leave empty for the default)</span>
+      <span className="field-label">{t("Terminal font (leave empty for the default)")}</span>
       <input
         className="input"
-        placeholder='"Fira Code", monospace'
+        placeholder={t('"Fira Code", monospace')}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
@@ -275,11 +281,11 @@ function Snippets({ settings }: { settings: Settings }) {
   };
   return (
     <fieldset className="card card-wide">
-      <legend>Snippets</legend>
+      <legend>{t("Snippets")}</legend>
       <p className="muted small">
-        Saved text you insert into the focused terminal with Ctrl+Shift+S. It is pasted like
-        clipboard text (the multi-line warning applies) — ToolOnize never runs it on its own. Add a
-        line break at the end if you want it to run when inserted.
+        {t(
+          "Saved text you insert into the focused terminal with Ctrl+Shift+S. It is pasted like clipboard text (the multi-line warning applies) — ToolOnize never runs it on its own. Add a line break at the end if you want it to run when inserted."
+        )}
       </p>
       <ul className="plain-list">
         {settings.snippets.map((s, i) => (
@@ -295,7 +301,7 @@ function Snippets({ settings }: { settings: Settings }) {
                 setText(s.text);
               }}
             >
-              Edit
+              {t("Edit")}
             </button>
             <button
               type="button"
@@ -304,7 +310,7 @@ function Snippets({ settings }: { settings: Settings }) {
                 void update(settings, { snippets: settings.snippets.filter((_, j) => j !== i) })
               }
             >
-              Delete
+              {t("Delete")}
             </button>
           </li>
         ))}
@@ -312,16 +318,16 @@ function Snippets({ settings }: { settings: Settings }) {
       <div className="snippet-form">
         <input
           className="input"
-          aria-label="Snippet name"
-          placeholder="Name, e.g. Tail app log"
+          aria-label={t("Snippet name")}
+          placeholder={t("Name, e.g. Tail app log")}
           value={name}
           maxLength={60}
           onChange={(e) => setName(e.target.value)}
         />
         <textarea
           className="input mono"
-          aria-label="Snippet text"
-          placeholder="tail -f /var/log/app.log"
+          aria-label={t("Snippet text")}
+          placeholder={t("tail -f /var/log/app.log")}
           rows={3}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -345,7 +351,7 @@ function Snippets({ settings }: { settings: Settings }) {
                 setText("");
               }}
             >
-              Cancel
+              {t("Cancel")}
             </button>
           )}
         </div>
@@ -366,15 +372,29 @@ export function SettingsScreen() {
   );
 
   return (
-    <section className="settings" aria-label="Settings">
+    <section className="settings" aria-label={t("Settings")}>
       <header className="ws-header">
-        <h1 className="ws-title">Settings</h1>
+        <h1 className="ws-title">{t("Settings")}</h1>
       </header>
       <div className="settings-grid">
         <fieldset className="card">
-          <legend>Appearance</legend>
+          <legend>{t("Appearance")}</legend>
           <label className="field">
-            <span className="field-label">Theme</span>
+            <span className="field-label">{t("Language")}</span>
+            <select
+              className="input"
+              value={settings.language}
+              onChange={(e) =>
+                void update(settings, { language: e.target.value as Settings["language"] })
+              }
+            >
+              <option value="system">{t("Follow system")}</option>
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">{t("Theme")}</span>
             <select
               className="input"
               value={settings.theme}
@@ -382,14 +402,14 @@ export function SettingsScreen() {
                 void update(settings, { theme: e.target.value as Settings["theme"] })
               }
             >
-              <option value="system">Follow system</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="high_contrast">High contrast</option>
+              <option value="system">{t("Follow system")}</option>
+              <option value="dark">{t("Dark")}</option>
+              <option value="light">{t("Light")}</option>
+              <option value="high_contrast">{t("High contrast")}</option>
             </select>
           </label>
           <label className="field">
-            <span className="field-label">Motion</span>
+            <span className="field-label">{t("Motion")}</span>
             <select
               className="input"
               value={settings.motion}
@@ -397,13 +417,13 @@ export function SettingsScreen() {
                 void update(settings, { motion: e.target.value as Settings["motion"] })
               }
             >
-              <option value="system">Follow system</option>
-              <option value="reduced">Reduced</option>
-              <option value="full">Full</option>
+              <option value="system">{t("Follow system")}</option>
+              <option value="reduced">{t("Reduced")}</option>
+              <option value="full">{t("Full")}</option>
             </select>
           </label>
           <label className="field">
-            <span className="field-label">Terminal font size</span>
+            <span className="field-label">{t("Terminal font size")}</span>
             <input
               className="input"
               type="number"
@@ -415,7 +435,7 @@ export function SettingsScreen() {
           </label>
           <FontFamily settings={settings} />
           <label className="field">
-            <span className="field-label">Terminal colors</span>
+            <span className="field-label">{t("Terminal colors")}</span>
             <select
               className="input"
               value={settings.terminal_scheme}
@@ -427,14 +447,16 @@ export function SettingsScreen() {
             >
               {TERMINAL_SCHEMES.map((s) => (
                 <option key={s} value={s}>
-                  {SCHEME_LABELS[s]}
+                  {t(SCHEME_LABELS[s])}
                 </option>
               ))}
             </select>
-            <span className="muted small">High contrast theme always uses its own colors.</span>
+            <span className="muted small">
+              {t("High contrast theme always uses its own colors.")}
+            </span>
           </label>
           <label className="field">
-            <span className="field-label">Cursor</span>
+            <span className="field-label">{t("Cursor")}</span>
             <select
               className="input"
               value={settings.cursor_style}
@@ -442,9 +464,9 @@ export function SettingsScreen() {
                 void update(settings, { cursor_style: e.target.value as Settings["cursor_style"] })
               }
             >
-              <option value="block">Block</option>
-              <option value="underline">Underline</option>
-              <option value="bar">Bar</option>
+              <option value="block">{t("Block")}</option>
+              <option value="underline">{t("Underline")}</option>
+              <option value="bar">{t("Bar")}</option>
             </select>
           </label>
           <label className="check">
@@ -453,7 +475,7 @@ export function SettingsScreen() {
               checked={settings.cursor_blink}
               onChange={(e) => void update(settings, { cursor_blink: e.target.checked })}
             />
-            Blinking cursor
+            {t("Blinking cursor")}
           </label>
           <label className="check">
             <input
@@ -461,21 +483,22 @@ export function SettingsScreen() {
               checked={settings.desktop_notifications}
               onChange={(e) => void update(settings, { desktop_notifications: e.target.checked })}
             />
-            Desktop notifications when a terminal you are not looking at finishes, disconnects or
-            rings the bell
+            {t(
+              "Desktop notifications when a terminal you are not looking at finishes, disconnects or rings the bell"
+            )}
           </label>
         </fieldset>
 
         <fieldset className="card">
-          <legend>Terminals</legend>
+          <legend>{t("Terminals")}</legend>
           <label className="field">
-            <span className="field-label">Default shell for new terminals</span>
+            <span className="field-label">{t("Default shell for new terminals")}</span>
             <select
               className="input"
               value={settings.default_shell ?? ""}
               onChange={(e) => void update(settings, { default_shell: e.target.value || null })}
             >
-              <option value="">Automatic</option>
+              <option value="">{t("Automatic")}</option>
               {shells.map((s) => (
                 <option key={s.launcher_id} value={s.launcher_id}>
                   {s.display_name}
@@ -484,7 +507,7 @@ export function SettingsScreen() {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">Scrollback lines per terminal</span>
+            <span className="field-label">{t("Scrollback lines per terminal")}</span>
             <input
               className="input"
               type="number"
@@ -496,7 +519,7 @@ export function SettingsScreen() {
             />
           </label>
           <label className="field">
-            <span className="field-label">Replay buffer per session (MiB)</span>
+            <span className="field-label">{t("Replay buffer per session (MiB)")}</span>
             <input
               className="input"
               type="number"
@@ -506,8 +529,9 @@ export function SettingsScreen() {
               onChange={(e) => void update(settings, { replay_buffer_mib: Number(e.target.value) })}
             />
             <span className="muted small">
-              Output kept by the core so a reloaded window can redraw running terminals. Applies to
-              terminals started afterwards.
+              {t(
+                "Output kept by the core so a reloaded window can redraw running terminals. Applies to terminals started afterwards."
+              )}
             </span>
           </label>
           <label className="check">
@@ -516,7 +540,7 @@ export function SettingsScreen() {
               checked={settings.paste_warning}
               onChange={(e) => void update(settings, { paste_warning: e.target.checked })}
             />
-            Warn before pasting multiple lines
+            {t("Warn before pasting multiple lines")}
           </label>
           <label className="check">
             <input
@@ -524,7 +548,7 @@ export function SettingsScreen() {
               checked={settings.confirm_close_running}
               onChange={(e) => void update(settings, { confirm_close_running: e.target.checked })}
             />
-            Confirm before stopping a running terminal
+            {t("Confirm before stopping a running terminal")}
           </label>
           <label className="check">
             <input
@@ -532,7 +556,7 @@ export function SettingsScreen() {
               checked={settings.copy_on_select}
               onChange={(e) => void update(settings, { copy_on_select: e.target.checked })}
             />
-            Copy selected text to the clipboard automatically
+            {t("Copy selected text to the clipboard automatically")}
           </label>
           <label className="check">
             <input
@@ -540,7 +564,7 @@ export function SettingsScreen() {
               checked={settings.osc52_clipboard}
               onChange={(e) => void update(settings, { osc52_clipboard: e.target.checked })}
             />
-            Let terminal programs copy to my clipboard (OSC 52 — works over SSH, tmux, vim)
+            {t("Let terminal programs copy to my clipboard (OSC 52 — works over SSH, tmux, vim)")}
           </label>
           <label className="check">
             <input
@@ -548,38 +572,42 @@ export function SettingsScreen() {
               checked={settings.ssh_auto_reconnect}
               onChange={(e) => void update(settings, { ssh_auto_reconnect: e.target.checked })}
             />
-            Reconnect SSH terminals automatically when the connection drops
+            {t("Reconnect SSH terminals automatically when the connection drops")}
           </label>
           <p className="muted small">
-            Copying always goes to this computer’s clipboard, also when the terminal is an SSH
-            session. Programs can only write to the clipboard, never read it.
+            {t(
+              "Copying always goes to this computer’s clipboard, also when the terminal is an SSH session. Programs can only write to the clipboard, never read it."
+            )}
           </p>
         </fieldset>
 
         <Snippets settings={settings} />
 
         <fieldset className="card">
-          <legend>Discovery</legend>
+          <legend>{t("Discovery")}</legend>
           <label className="check">
             <input
               type="checkbox"
               checked={settings.live_updates}
               onChange={(e) => void update(settings, { live_updates: e.target.checked })}
             />
-            Watch launcher folders for changes
+            {t("Watch launcher folders for changes")}
           </label>
           <p className="muted small">
-            Discovery only reads launcher metadata. It never runs a discovered program, resolves
-            scripts, or uses the network. PATH is not scanned.
+            {t(
+              "Discovery only reads launcher metadata. It never runs a discovered program, resolves scripts, or uses the network. PATH is not scanned."
+            )}
           </p>
         </fieldset>
 
         <fieldset className="card card-wide">
-          <legend>Keyboard</legend>
+          <legend>{t("Keyboard")}</legend>
           {clashes.size > 0 && (
             <p className="alert alert-warn" role="alert">
-              Conflicting shortcuts: {[...clashes.keys()].join(", ")}. Saving is blocked until each
-              shortcut is unique.
+              {t(
+                "Conflicting shortcuts: {list}. Saving is blocked until each shortcut is unique.",
+                { list: [...clashes.keys()].join(", ") }
+              )}
             </p>
           )}
           <table className="table">
@@ -604,7 +632,7 @@ export function SettingsScreen() {
             </tbody>
           </table>
           <p className="muted small">
-            Shortcuts use Ctrl+Shift so terminal programs keep their own Ctrl keys.
+            {t("Shortcuts use Ctrl+Shift so terminal programs keep their own Ctrl keys.")}
           </p>
         </fieldset>
 
@@ -613,23 +641,24 @@ export function SettingsScreen() {
         <BackupCard />
 
         <fieldset className="card card-wide">
-          <legend>Data & privacy</legend>
+          <legend>{t("Data & privacy")}</legend>
           <p>
-            ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except
-            what your own terminals do.
+            {t(
+              "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do."
+            )}
           </p>
           {startup && (
             <dl className="kv">
               <div className="kv-row">
-                <dt>State</dt>
+                <dt>{t("State")}</dt>
                 <dd className="mono small break">{startup.state_dir}</dd>
               </div>
               <div className="kv-row">
-                <dt>Settings</dt>
+                <dt>{t("Settings")}</dt>
                 <dd className="mono small break">{startup.config_dir}</dd>
               </div>
               <div className="kv-row">
-                <dt>Version</dt>
+                <dt>{t("Version")}</dt>
                 <dd>
                   {startup.version} · {startup.platform} · {startup.backend}
                 </dd>
@@ -637,7 +666,7 @@ export function SettingsScreen() {
             </dl>
           )}
           <p className="muted small">
-            To remove ToolOnize completely, uninstall it and delete these folders.
+            {t("To remove ToolOnize completely, uninstall it and delete these folders.")}
           </p>
           <div className="row-gap">
             <button
@@ -646,21 +675,23 @@ export function SettingsScreen() {
               onClick={async () => {
                 const path = await attempt(
                   () => api.exportDiagnostics(),
-                  "Could not export diagnostics"
+                  t("Could not export diagnostics")
                 );
                 if (path) notify("info", `Diagnostics saved to ${path}`);
               }}
             >
-              Export diagnostics
+              {t("Export diagnostics")}
             </button>
             <span className="muted small">
-              For bug reports: versions, settings and recent log lines — no names, commands, output
-              or notes.
+              {t(
+                "For bug reports: versions, settings and recent log lines — no names, commands, output or notes."
+              )}
             </span>
           </div>
           <p className="muted small">
-            ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR
-            Apache-2.0.
+            {t(
+              "ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR Apache-2.0."
+            )}
           </p>
         </fieldset>
       </div>

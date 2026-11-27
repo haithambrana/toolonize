@@ -8,6 +8,7 @@ import { TagDot } from "../lib/colors";
 import { processLabel } from "../lib/labels";
 import { MemberNoteButton } from "../components/MemberNote";
 import { sessionFor, setState, useAppState } from "../state/store";
+import { t } from "../i18n";
 
 function useMemberAndSession(workspaceId: string, memberId: string) {
   const member = useAppState((s) =>
@@ -55,14 +56,14 @@ export function PaneActions({ workspaceId, memberId }: { workspaceId: string; me
         </span>
       )}
       {broadcasting && live && (
-        <span className="chip chip-warn" title="Typing goes to every running terminal here">
-          Broadcast
+        <span className="chip chip-warn" title={t("Typing goes to every running terminal here")}>
+          {t("Broadcast")}
         </span>
       )}
       {session?.detach_expected && (
         <span
           className="chip chip-info"
-          title="Persistence comes from tmux/screen, not from ToolOnize"
+          title={t("Persistence comes from tmux/screen, not from ToolOnize")}
         >
           tmux
         </span>
@@ -74,9 +75,9 @@ export function PaneActions({ workspaceId, memberId }: { workspaceId: string; me
           className="btn btn-ghost btn-sm"
           onClick={() => setState({ searchOpen: searchOpen ? null : session.session_id })}
           aria-pressed={searchOpen}
-          title="Search scrollback"
+          title={t("Search scrollback")}
         >
-          Search
+          {t("Search")}
         </button>
       )}
       {session && live && (
@@ -85,7 +86,7 @@ export function PaneActions({ workspaceId, memberId }: { workspaceId: string; me
           className="btn btn-ghost btn-sm"
           onClick={() => void stopSession(session.session_id, memberTitle(member))}
         >
-          Stop
+          {t("Stop")}
         </button>
       )}
     </span>

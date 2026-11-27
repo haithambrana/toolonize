@@ -13,6 +13,7 @@ import { terminalSettings } from "../lib/terminalSettings";
 import { ColorSwatches } from "../lib/colors";
 import { peekController } from "../terminal/controller";
 import { activeWorkspace, getState, notify, setState, useAppState } from "../state/store";
+import { t } from "../i18n";
 
 export function TerminalMenu() {
   const menu = useAppState((s) => s.termMenu);
@@ -37,48 +38,48 @@ export function TerminalMenu() {
   };
   const items: { label: string; hint?: string; disabled?: boolean; action: () => void }[] = [
     {
-      label: "Copy",
+      label: t("Copy"),
       hint: "Ctrl+Shift+C",
       disabled: !hasSelection,
       action: run(async () => {
         if (!(await controller?.copyToClipboard()))
-          notify("error", "Could not copy to the clipboard");
+          notify("error", t("Could not copy to the clipboard"));
       }),
     },
     {
-      label: "Paste",
+      label: t("Paste"),
       hint: "Ctrl+Shift+V",
       action: run(() => controller && pasteInto(controller)),
     },
-    { label: "Select all", hint: "Ctrl+Shift+A", action: run(() => controller?.selectAll()) },
-    { label: "Clear screen", action: run(() => controller?.clearScreen()) },
+    { label: t("Select all"), hint: "Ctrl+Shift+A", action: run(() => controller?.selectAll()) },
+    { label: t("Clear screen"), action: run(() => controller?.clearScreen()) },
     {
-      label: "Find…",
+      label: t("Find…"),
       hint: "Ctrl+Shift+F",
       action: run(() => setState({ searchOpen: menu.sessionId })),
     },
     {
-      label: "Split right",
+      label: t("Split right"),
       hint: "Ctrl+Shift+E",
       action: run(() => splitTerminal("right", menu.memberId)),
     },
     {
-      label: "Split down",
+      label: t("Split down"),
       hint: "Ctrl+Shift+O",
       action: run(() => splitTerminal("bottom", menu.memberId)),
     },
     {
-      label: "Insert snippet…",
+      label: t("Insert snippet…"),
       hint: "Ctrl+Shift+S",
       action: run(() => controller && snippetPicker(controller)),
     },
     {
-      label: "Search all terminals…",
+      label: t("Search all terminals…"),
       hint: "Ctrl+Shift+G",
       action: run(() => setState({ globalSearchOpen: true })),
     },
     {
-      label: "Save output to file",
+      label: t("Save output to file"),
       action: run(
         () =>
           controller &&
@@ -86,7 +87,7 @@ export function TerminalMenu() {
       ),
     },
     {
-      label: "Rename terminal…",
+      label: t("Rename terminal…"),
       hint: "Ctrl+Shift+R",
       action: run(() => {
         const w = activeWorkspace(getState());
@@ -94,7 +95,7 @@ export function TerminalMenu() {
       }),
     },
     {
-      label: "Terminal settings…",
+      label: t("Terminal settings…"),
       disabled: !member || member.member_type === "external_app",
       action: run(() => {
         const w = activeWorkspace(getState());
@@ -109,7 +110,7 @@ export function TerminalMenu() {
       ref={ref}
       className="context-menu"
       role="menu"
-      aria-label="Terminal actions"
+      aria-label={t("Terminal actions")}
       style={{ left: x, top: y }}
       onKeyDown={(e) => {
         const buttons = [
@@ -143,9 +144,9 @@ export function TerminalMenu() {
       ))}
       {workspace && member && (
         <div className="context-colors">
-          <span className="small muted">Color</span>
+          <span className="small muted">{t("Color")}</span>
           <ColorSwatches
-            label="Terminal color"
+            label={t("Terminal color")}
             value={member.color}
             onPick={(color) => {
               setState({ termMenu: null });

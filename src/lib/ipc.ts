@@ -293,6 +293,8 @@ export interface Settings {
   restore_terminals: boolean;
   /** Keep each terminal's last output on this computer (ADR-015). */
   remember_terminal_content: boolean;
+  /** Interface language; "ar" is right-to-left. */
+  language: "system" | "en" | "ar";
 }
 
 export const TERMINAL_SCHEMES = [

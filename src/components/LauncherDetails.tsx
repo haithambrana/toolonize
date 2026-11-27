@@ -4,9 +4,10 @@
  */
 import type { LauncherType, RegistryEntry } from "../lib/ipc";
 import { TYPE_LABELS, entryName } from "../lib/labels";
+import { t } from "../i18n";
 
 export function TypeChip({ type }: { type: LauncherType }) {
-  return <span className={`chip chip-type-${type}`}>{TYPE_LABELS[type]}</span>;
+  return <span className={`chip chip-type-${type}`}>{t(TYPE_LABELS[type])}</span>;
 }
 
 export function Badges({ entry }: { entry: RegistryEntry }) {
