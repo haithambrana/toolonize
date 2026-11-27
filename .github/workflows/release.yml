@@ -73,7 +73,7 @@ jobs:
           mkdir -p dist-release
           bundle=src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            cp "$bundle"/deb/*.deb "$bundle"/appimage/*.AppImage dist-release/
+            cp "$bundle"/deb/*.deb "$bundle"/rpm/*.rpm "$bundle"/appimage/*.AppImage dist-release/
           else
             cp "$bundle"/nsis/*.exe dist-release/
           fi

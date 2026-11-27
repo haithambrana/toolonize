@@ -53,6 +53,7 @@ release checklist) are untouched. No release has been tagged or published.
 | M9 UX/a11y/perf | Themes (dark/light/high contrast), reduced motion, remappable shortcuts, command palette, ARIA roles/labels, focus-trapped dialogs, failure banners/badges, perf harness | `keymap.test.ts`, `App.test.tsx`; perf baseline in `docs/research/perf/BASELINE.md`. |
 | Setup wizard (ADR-009) | `./setup.sh` / `scripts/setup/{linux.sh,windows.ps1,macos.sh}`: one check, one plan, one consent, one authorization, one-shot install, verification. Linux implemented (apt verified; dnf/pacman/zypper best-effort); Windows (winget, one UAC prompt) and macOS (toolchain only) prepared | `scripts/setup/tests/linux_test.sh` (19 stub-based cases: single sudo call, positional package args, checksum refusal, cancel/decline, distro mapping, pkexec fallback); CI installs the Linux build deps through the wizard; Windows `-Check`/`-DryRun` on PowerShell 5.1 + 7 and macOS `--check` in CI; manual run on Ubuntu 24.04 (real install + real pinned-hash downloads). |
 | Owner-selected features (ADR-011) | SSH connection manager (Host aliases only), SSH auto-reconnect with backoff, Ctrl+click links (OSC 8 confirmed), color tags, output export to Downloads, search across all terminals | Rust: `sshconfig.rs`, `export.rs`, `app_tests.rs` (backoff rules; real-PTY reconnect with a fake ssh), `transfer.rs` (colors); frontend: `controller.test.ts`, `App.test.tsx`; manual run on Linux/WebKitGTK 2026-10-26 (all five features). |
+| Enhancement round (ADR-012..018, 2026-11) | Sticky notes; split/zoom/folders/appearance/notifications/broadcast/snippets/presentation; UI polish; full backup/restore, duplicate, templates; terminal environment variables + startup command; session memory (crash/close recovery); open at login; Arabic RTL interface; rpm bundle | Rust 208 lib tests and frontend 109 tests incl. real-PTY recovery after a simulated power loss, sanitizer fuzz test, catalog parity; real-app runs under Xvfb/WebKitGTK with kill -9 (same window, folders, output; OSC 52 not replayed), SIGTERM clean exit, backup file inspection, settings dialog, Arabic screens. |
 | M10 Packaging & release | deb + AppImage + NSIS bundle config; `release.yml` builds on tags, publishes a **draft** release with SHA-256 sums and build-provenance attestations; dependency inventory; release checklist | `docs/release/RELEASE_CHECKLIST.md`, `docs/security/DEPENDENCIES.md`. |
 
 ## Open items (honest list)
@@ -79,6 +80,14 @@ release checklist) are untouched. No release has been tagged or published.
   done; ARIA roles and keyboard paths exist but are not certified.
 - **Signing**: binaries are not code-signed; no release has been published.
 - Manual release matrix (clean-VM install/uninstall) is pending.
+- **Enhancement round leftovers**: tray icon (ADR-017), real-WebView
+  end-to-end tests in CI (tauri-driver) and automated axe checks, Flatpak/
+  AUR/winget manifests, an opt-in updater (needs the owner's signing key and
+  endpoint), MSIX/AppsFolder discovery, macOS preview, xterm 6 /
+  flexlayout 0.11 / eslint 10 upgrades, fuzzing in CI, and PSS memory work
+  are not done; the rest of the Arabic coverage is listed in ADR-018.
+- Session memory reads a local shell's folder from `/proc` on Linux; on
+  Windows a restored shell starts in its member/project folder.
 
 ## History
 

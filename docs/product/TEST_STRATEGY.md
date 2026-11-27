@@ -348,3 +348,32 @@ Where each test-ID family lives. Run Rust suites with `cargo test` in
 Measurement harness: `cargo run --release --example perf` (results in
 `docs/research/perf/`). Manual matrices (WebView2 smoke, WSL, clean-VM
 install, screen readers) are tracked in `docs/release/RELEASE_CHECKLIST.md`.
+
+## Enhancement round (2026-11): what is tested and how
+
+- **Session memory (ADR-015):** Rust integration tests start real shells,
+  write output (including an OSC 52 clipboard write), save, simulate a power
+  loss (processes killed, no final save) and start a new core on the same
+  folders: the terminal comes back in the same folder and size with its
+  output, the clipboard write is gone, closing on purpose forgets it,
+  commands with side effects are not re-run, changed launchers are refused,
+  both settings work, and saved output never reaches backups, diagnostics
+  or logs. The replay sanitizer has unit tests and a deterministic fuzz test
+  (only `ESC [ digits ; allowed-final` may survive). Real app: `kill -9`
+  under Xvfb/WebKitGTK, relaunch, screenshot comparison; SIGTERM exits
+  cleanly.
+- **Backups, duplicate, templates (ADR-014):** hostile-file corpus (format,
+  schema, unknown fields, size, ids, layouts, notes), a full round trip onto
+  a fresh state folder incl. restart, all-or-nothing on failure.
+- **Terminal settings (ADR-016):** validation (names, refused loader/shell
+  variables, sizes, control characters, member types), variables and the
+  startup command checked inside a real shell (incl. restart and no double
+  typing), confirmation flow after a restore, values absent from backups,
+  exports and the audit log.
+- **Arabic (ADR-018):** catalog parity (no missing, no stale, placeholders
+  match), direction switching, an Arabic render of the workspace with LTR
+  terminals.
+- **Gate:** `prettier`, ESLint, `tsc`, Vitest, documentation traceability,
+  public-safety check, `cargo fmt`, `clippy -D warnings` over all targets
+  (incl. examples) and `cargo test` must all pass before every commit; CI
+  repeats them on Linux and Windows plus `npm audit` and `cargo deny`.

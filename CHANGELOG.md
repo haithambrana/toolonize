@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- **Session memory** (ADR-015): after a power loss or closing the app, ToolOnize opens with the same window and the same terminals in the same folders, each showing its last output (cleaned so nothing in it can act again). Commands with side effects are not re-run unless marked "restart automatically". Logout/shutdown signals exit cleanly. Settings switches, "Forget saved terminal output", private 0700 folder.
+- **Open at login** (ADR-017): XDG autostart / HKCU Run / LaunchAgent, no new dependency. Tray icon deferred (reasons in the ADR).
+- **Sticky notes** per terminal and per workspace (ADR-012), crash-safe, Ctrl+Shift+N / Ctrl+Shift+M.
+- **Full backup and restore**, duplicate workspace, templates (ADR-014); restores land in review, unauthorized.
+- **Terminal settings** (ADR-016): per-terminal environment variables and a startup command (typed into the shell, never executed by ToolOnize), confirmation required for anything restored or edited outside the app.
+- **Arabic interface with right-to-left layout** (ADR-018); terminals stay left-to-right.
+- Split right/down in the same folder, project folder per workspace, per-terminal zoom, terminal fonts/cursor/color schemes, desktop notifications, broadcast typing, snippets, presentation mode (ADR-013).
+- UI: one title row per pane, compact toolbar with a More menu, Activity with names, filters and export, window title follows the workspace, diagnostics export, rotating diagnostic log.
+- Packaging: rpm bundle for Fedora/openSUSE next to deb, AppImage and NSIS.
+
+### Fixed
+- The launcher watcher counted read events as changes and rescanned about three times a second forever.
+- Stop followed by Restart/Reconnect from the banner failed ("invalid transition Closed on Restart").
+- Supply chain: url and cookie advisories (RUSTSEC-2026-0592/0594) fixed; vite/vitest/typescript-eslint upgraded; cargo-deny and npm audit gates in CI.
 - SSH connection manager: Launchers › Connections reads the `Host` aliases from `~/.ssh/config` (and Includes inside `~/.ssh`) on request and adds them as SSH connections; nothing else from the ssh config is read (ADR-011).
 - SSH auto-reconnect: a dropped SSH terminal reconnects automatically with backoff (up to 8 attempts) and shows a countdown with "Reconnect now" / "Stop reconnecting"; can be turned off in Settings.
 - Ctrl+click opens links in terminal output (OSC 8 links show their target first).

@@ -1388,6 +1388,7 @@ fn window_place_is_saved_once_and_survives_restart() {
 
 // ---- Environment variables and startup command (ADR-016) ----
 
+#[cfg(unix)]
 fn launch_patch(env: Option<Vec<(&str, &str)>>, command: Option<&str>) -> MemberPatch {
     MemberPatch {
         title: None,
