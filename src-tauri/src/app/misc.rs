@@ -33,6 +33,21 @@ impl Core {
         Ok(())
     }
 
+    pub fn record_autostart(&self, enabled: bool) {
+        self.audit.record(
+            "app.autostart",
+            Outcome::Recorded,
+            Record {
+                detail: Some(if enabled {
+                    "open at login: on"
+                } else {
+                    "open at login: off"
+                }),
+                ..Default::default()
+            },
+        );
+    }
+
     pub fn audit_recent(&self, limit: usize) -> Vec<AuditEntry> {
         self.audit.recent(limit.min(500))
     }

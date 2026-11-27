@@ -61,6 +61,27 @@ pub async fn memory_forget(core: CoreState<'_>) -> Result<usize, String> {
     blocking(&core, move |c| Ok(c.forget_terminal_content())).await
 }
 
+/// Is ToolOnize set to open at login (ADR-017)?
+#[tauri::command]
+pub async fn autostart_get() -> Result<bool, String> {
+    Ok(
+        tauri::async_runtime::spawn_blocking(crate::autostart::is_enabled)
+            .await
+            .unwrap_or(false),
+    )
+}
+
+/// Turn opening at login on or off; returns the resulting state.
+#[tauri::command]
+pub async fn autostart_set(core: CoreState<'_>, enabled: bool) -> Result<bool, String> {
+    blocking(&core, move |c| {
+        crate::autostart::set_enabled(enabled)?;
+        c.record_autostart(enabled);
+        Ok(crate::autostart::is_enabled())
+    })
+    .await
+}
+
 /// Save terminal text into the Downloads folder; the core picks the path.
 #[tauri::command]
 pub async fn scrollback_export(

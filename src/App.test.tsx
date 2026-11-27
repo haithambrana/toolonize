@@ -1201,6 +1201,30 @@ describe("ToolOnize app", () => {
       expect(written.indexOf("$ make")).toBeLessThan(written.indexOf("restored from"));
     });
 
+    it("Settings: open at login reflects and changes the system entry", async () => {
+      let on = false;
+      handlers.set("autostart_get", () => on);
+      handlers.set("autostart_set", (a) => (on = a.enabled as boolean));
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      const box = await screen.findByRole("checkbox", { name: /Open ToolOnize when I log in/ });
+      await waitFor(() => expect(box).not.toBeDisabled());
+      expect(box).not.toBeChecked();
+      await u.click(box);
+      await waitFor(() => expect(box).toBeChecked());
+      expect(calls.find((c) => c.cmd === "autostart_set")?.args).toEqual({ enabled: true });
+      await u.click(box);
+      await waitFor(() => expect(box).not.toBeChecked());
+      // The system refused: the box shows the real state and says why.
+      handlers.set("autostart_set", () => {
+        throw "could not write the login entry";
+      });
+      await u.click(box);
+      expect(await screen.findByText(/could not write the login entry/)).toBeInTheDocument();
+      expect(box).not.toBeChecked();
+    });
+
     it("Settings: turn restarting and remembering off, and forget saved output", async () => {
       handlers.set("memory_forget", () => 3);
       const u = user();

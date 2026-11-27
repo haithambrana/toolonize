@@ -1,5 +1,5 @@
 /** Settings (FR-053/054): appearance, terminal, discovery, keyboard, data. */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, TERMINAL_SCHEMES, type Settings, type Snippet } from "../lib/ipc";
 import {
   ACTION_LABELS,
@@ -17,6 +17,39 @@ function update(settings: Settings, patch: Partial<Settings>) {
   return attempt(() => api.updateSettings({ ...settings, ...patch }), "Could not save settings");
 }
 
+function AutostartToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.autostartGet().then(
+      (v) => live && setEnabled(v),
+      () => live && setEnabled(false)
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={enabled === true}
+        disabled={enabled === null}
+        onChange={async (e) => {
+          const want = e.target.checked;
+          const now = await attempt(
+            () => api.autostartSet(want),
+            "Could not change opening at login"
+          );
+          if (now !== undefined) setEnabled(now);
+        }}
+      />
+      Open ToolOnize when I log in — with the switches below, your last session comes back after a
+      restart
+    </label>
+  );
+}
+
 function SessionMemoryCard() {
   const settings = useAppState((s) => s.settings);
   if (!settings) return null;
@@ -27,6 +60,7 @@ function SessionMemoryCard() {
         If ToolOnize closes or the computer loses power, it opens again with the same window, the
         same terminals in the same folders, and what they showed.
       </p>
+      <AutostartToggle />
       <label className="check">
         <input
           type="checkbox"

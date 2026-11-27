@@ -16,6 +16,8 @@
     "allow-scrollback-export",
     "allow-diagnostics-export",
     "allow-memory-forget",
+    "allow-autostart-get",
+    "allow-autostart-set",
     "allow-desktop-notify",
     "allow-registry-view",
     "allow-registry-rescan",

@@ -14,6 +14,8 @@ fn main() {
             "scrollback_export",
             "diagnostics_export",
             "memory_forget",
+            "autostart_get",
+            "autostart_set",
             "desktop_notify",
             "registry_view",
             "registry_rescan",

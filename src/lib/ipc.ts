@@ -414,6 +414,8 @@ export const api = {
   /** Writes a diagnostics report (no names or output) into Downloads. */
   exportDiagnostics: () => invoke<string>("diagnostics_export"),
   forgetTerminalOutput: () => invoke<number>("memory_forget"),
+  autostartGet: () => invoke<boolean>("autostart_get"),
+  autostartSet: (enabled: boolean) => invoke<boolean>("autostart_set", { enabled }),
 
   registry: () => invoke<RegistryView>("registry_view"),
   rescan: () => invoke<Diff>("registry_rescan"),

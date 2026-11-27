@@ -203,6 +203,7 @@ export function resetFakeCore() {
     };
   });
   handlers.set("audit_recent", () => []);
+  handlers.set("autostart_get", () => false);
   handlers.set("notes_get", (a) => {
     const n = core.notes[a.workspaceId as string] ?? { project: "", members: {} };
     return { project: n.project, project_updated_at: 0, members: { ...n.members }, trash: [] };

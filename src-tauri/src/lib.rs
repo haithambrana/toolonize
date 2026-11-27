@@ -1,5 +1,6 @@
 pub mod app;
 pub mod audit;
+pub mod autostart;
 pub mod backup;
 pub mod classify;
 pub mod commands;
@@ -61,6 +62,8 @@ pub fn run() {
         crate::commands::app::scrollback_export,
         crate::commands::app::diagnostics_export,
         crate::commands::app::memory_forget,
+        crate::commands::app::autostart_get,
+        crate::commands::app::autostart_set,
         crate::commands::app::desktop_notify,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
