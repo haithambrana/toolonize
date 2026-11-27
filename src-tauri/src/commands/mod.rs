@@ -36,6 +36,8 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "memory_forget",
     "autostart_get",
     "autostart_set",
+    "update_check",
+    "update_install",
     "desktop_notify",
     "registry_view",
     "registry_rescan",

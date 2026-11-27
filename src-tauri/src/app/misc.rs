@@ -33,6 +33,37 @@ impl Core {
         Ok(())
     }
 
+    pub fn update_progress(&self, downloaded: u64, total: Option<u64>) {
+        self.bus
+            .emit(AppEvent::UpdateProgress { downloaded, total });
+    }
+
+    pub fn record_update(&self, action: &str, version: &str) {
+        let detail = format!("version {version}");
+        self.audit.record(
+            action,
+            Outcome::Recorded,
+            Record {
+                detail: Some(&detail),
+                ..Default::default()
+            },
+        );
+        crate::logging::info("update", &format!("{action}: {version}"));
+    }
+
+    pub fn record_update_failure(&self, version: &str, error: &str) {
+        let detail = format!("version {version}: {error}");
+        self.audit.record(
+            "update.install",
+            Outcome::Failed,
+            Record {
+                detail: Some(&detail),
+                ..Default::default()
+            },
+        );
+        crate::logging::warn("update", &detail);
+    }
+
     pub fn record_autostart(&self, enabled: bool) {
         self.audit.record(
             "app.autostart",
@@ -123,7 +154,7 @@ impl Core {
         let data = self.data.locked();
         let mut out = String::new();
         let _ = writeln!(out, "ToolOnize diagnostics");
-        let _ = writeln!(out, "version: {}", env!("CARGO_PKG_VERSION"));
+        let _ = writeln!(out, "version: {}", app_version());
         let _ = writeln!(
             out,
             "platform: {}-{}",

@@ -5,8 +5,30 @@ import { api } from "../lib/ipc";
 import { createWorkspace, importWorkspaceText, selectWorkspace, setView } from "../lib/actions";
 import { newFromTemplate } from "../lib/backup";
 import { readFileText } from "../lib/files";
+import { formatProgress, installUpdate } from "../lib/updates";
 import { attempt, notify, useAppState } from "../state/store";
 import { t } from "../i18n";
+
+function UpdateBadge() {
+  const update = useAppState((s) => s.update);
+  if (update.installing) {
+    return (
+      <p className="update-badge" role="status">
+        {formatProgress(update.progress)}
+      </p>
+    );
+  }
+  if (!update.status?.available || !update.status.version) return null;
+  return (
+    <button
+      type="button"
+      className="update-badge update-badge-ready"
+      onClick={() => void installUpdate()}
+    >
+      {t("Update to {version}", { version: update.status.version })}
+    </button>
+  );
+}
 
 function WatchBadge() {
   const watch = useAppState((s) => s.watch);
@@ -165,6 +187,7 @@ export function Sidebar() {
         </button>
       </div>
       <div className="sidebar-footer">
+        <UpdateBadge />
         <WatchBadge />
       </div>
     </nav>

@@ -82,6 +82,19 @@ pub async fn autostart_set(core: CoreState<'_>, enabled: bool) -> Result<bool, S
     .await
 }
 
+/// Is a newer ToolOnize available (ADR-019)? Never takes a URL.
+#[tauri::command]
+pub async fn update_check(app: tauri::AppHandle) -> Result<crate::updates::UpdateStatus, String> {
+    crate::updates::check(&app).await
+}
+
+/// Download, verify and install the available update, then restart.
+#[tauri::command]
+pub async fn update_install(app: tauri::AppHandle, core: CoreState<'_>) -> Result<(), String> {
+    let core = core.inner().clone();
+    crate::updates::install(app, core).await
+}
+
 /// Save terminal text into the Downloads folder; the core picks the path.
 #[tauri::command]
 pub async fn scrollback_export(

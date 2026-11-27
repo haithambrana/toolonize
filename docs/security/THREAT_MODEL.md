@@ -151,6 +151,15 @@ graph LR
     validated like an import; restored workspaces get new ids, are staged,
     policy Ask, all members unauthorized; approvals never restored; a failed
     restore changes nothing.
+- **T-UPD-01 Malicious or downgraded update** (attacker serves a crafted
+  manifest or file, or replays an older genuine release).
+  - Mitigations (ADR-019): Ed25519/minisign signature of every installer
+    checked against the public key built into the release before anything
+    is written; `requireSignedVersion` binds signature and version (no
+    downgrade); HTTPS endpoint; WebView cannot choose URLs or call the plugin;
+    drafts only reach users once the owner publishes; private key only in
+    the repository secret store, generated outside the repository.
+    Residual: compromise of the private key and the release channel together.
 - **T-CFG-02 State corruption** (disk fault/bad migration).
   - Mitigations: atomic writes+journal; checksums; migrations versioned and
     tested; corrupt ⇒ previous snapshot + explicit loss report (FS-03).
@@ -311,6 +320,7 @@ IPC command, dependency adoption, or format support.
 | T-TERM-05 | Replay sanitizer (text, SGR, line controls only; no OSC/DCS/queries/resets/alt screen), applied on save and load | `memory.rs` tests incl. fuzz; `power_loss_brings_back_terminals_folders_and_output` |
 | T-TERM-07 | Launch config confirmation digest, refused variables, typed (not executed) startup command, values blanked in backups and absent from exports/audit, private folders | `app_tests.rs` (`launch_config_is_validated`, `terminal_env_and_startup_command_run_in_the_shell`, `restored_terminal_settings_wait_for_confirmation_and_hide_values`) |
 | T-TERM-06 | Auto-restart only shells/SSH (commands only if marked auto-restart), through the execution policy | `resume_never_reruns_commands_and_respects_policy_and_settings` |
+| T-UPD-01 | Signed updates (pinned public key, signed version), core-only commands, no plugin capability, draft-then-publish | `updates.rs`, `tools/tests/test_update_manifest.py`, end-to-end run with a test key (update accepted; wrong key and downgrade refused) |
 | T-CFG-03 | Backup restore validated as hostile input, staged, unauthorized, all-or-nothing | `backup.rs` tests, `backup_restores_everything_staged_and_unauthorized`, `failed_restore_changes_nothing` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |
 | T-SEC-01 | Export linter (key headers, token prefixes, long tokens, home paths); audit log never records argv/env/output; repo safety checks | `transfer.rs`, `audit.rs` |

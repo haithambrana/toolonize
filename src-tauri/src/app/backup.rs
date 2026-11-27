@@ -46,7 +46,7 @@ impl Core {
             format: BACKUP_FORMAT.into(),
             schema_version: BACKUP_SCHEMA,
             created_at: now_ms(),
-            app_version: env!("CARGO_PKG_VERSION").into(),
+            app_version: app_version().into(),
             workspaces: state.workspaces.iter().map(strip).collect(),
             templates: state
                 .templates

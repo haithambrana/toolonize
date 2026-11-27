@@ -82,10 +82,13 @@ release checklist) are untouched. No release has been tagged or published.
 - Manual release matrix (clean-VM install/uninstall) is pending.
 - **Enhancement round leftovers**: tray icon (ADR-017), real-WebView
   end-to-end tests in CI (tauri-driver) and automated axe checks, Flatpak/
-  AUR/winget manifests, an opt-in updater (needs the owner's signing key and
-  endpoint), MSIX/AppsFolder discovery, macOS preview, xterm 6 /
+  AUR/winget manifests, MSIX/AppsFolder discovery, macOS preview, xterm 6 /
   flexlayout 0.11 / eslint 10 upgrades, fuzzing in CI, and PSS memory work
   are not done; the rest of the Arabic coverage is listed in ADR-018.
+- **In-app updates (ADR-019)** are implemented and tested end to end with a
+  test key; they reach users only after the owner runs
+  `scripts/release/setup-updater.sh` once (signing key, outside the
+  repository) and publishes a tagged release.
 - Session memory reads a local shell's folder from `/proc` on Linux; on
   Windows a restored shell starts in its member/project folder.
 

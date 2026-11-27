@@ -22,6 +22,7 @@ ToolOnize is a **local-first developer workspace orchestrator** for **Linux and 
 - **External apps.** Authorized GUI members launch detached through the OS; ToolOnize does not manage their windows.
 - **Trust model.** Execution authorization is bound to `launcher_id + descriptor_fingerprint + workspace member`. If a launcher's command changes, its members keep their place but need re-review before the next start; running sessions are untouched. All decisions are recorded in a local, redacted audit log.
 - **Local-first.** No account, no cloud, no telemetry. Non-secret workspace export/import (imports land in review; nothing runs).
+- **Updates inside the app.** ToolOnize checks for a new release by itself and updates with one click; updates are signed and refused unless the signature matches (the check can be turned off).
 
 ## Set up your computer
 

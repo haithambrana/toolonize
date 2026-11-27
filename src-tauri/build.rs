@@ -16,6 +16,8 @@ fn main() {
             "memory_forget",
             "autostart_get",
             "autostart_set",
+            "update_check",
+            "update_install",
             "desktop_notify",
             "registry_view",
             "registry_rescan",

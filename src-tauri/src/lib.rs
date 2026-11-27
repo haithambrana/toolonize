@@ -21,12 +21,15 @@ pub mod shells;
 pub mod sshconfig;
 pub mod sync;
 pub mod transfer;
+pub mod updates;
 pub mod workspace;
 
 /// Run the Tauri application. Separated from `main.rs` for testability and
 /// to keep `main.rs` minimal (Tauri convention).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    app::set_app_version(context.package_info().version.to_string());
     let (state_dir, config_dir) = persist::default_dirs();
     logging::init(&state_dir);
     logging::install_panic_hook();
@@ -45,9 +48,18 @@ pub fn run() {
     core.start_memory();
     let exit_core = core.clone();
 
+    // Release builds carry an updater configuration (ADR-019); the plugin
+    // needs one to start, so other builds run without it.
+    let updates = context.config().plugins.0.contains_key("updater");
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .manage(core);
+        .manage(core)
+        .manage(updates::UpdatesEnabled(updates));
+    let builder = if updates {
+        builder.plugin(tauri_plugin_updater::Builder::new().build())
+    } else {
+        builder
+    };
     #[cfg(not(feature = "spike"))]
     let builder = builder.invoke_handler(tauri::generate_handler![
         crate::commands::ping::ping,
@@ -64,6 +76,8 @@ pub fn run() {
         crate::commands::app::memory_forget,
         crate::commands::app::autostart_get,
         crate::commands::app::autostart_set,
+        crate::commands::app::update_check,
+        crate::commands::app::update_install,
         crate::commands::app::desktop_notify,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
@@ -154,7 +168,7 @@ pub fn run() {
         Ok(())
     });
     builder
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(move |_app, event| {
             if let tauri::RunEvent::Exit = event {

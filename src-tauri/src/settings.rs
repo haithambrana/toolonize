@@ -1,5 +1,5 @@
-//! User settings (FR-053, FR-054). ToolOnize has no network features, so
-//! there are no telemetry or update switches to opt into.
+//! User settings (FR-053, FR-054). ToolOnize has no telemetry; its only
+//! network request of its own is the optional update check (ADR-019).
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -104,6 +104,9 @@ pub struct Settings {
     pub remember_terminal_content: bool,
     /// Interface language: "system", "en" or "ar" (right-to-left).
     pub language: String,
+    /// Ask GitHub Releases for a newer version at start and every few hours
+    /// (ADR-019). Installing always needs a click.
+    pub auto_update_check: bool,
 }
 
 impl Default for Settings {
@@ -131,6 +134,7 @@ impl Default for Settings {
             restore_terminals: true,
             remember_terminal_content: true,
             language: "system".into(),
+            auto_update_check: true,
         }
     }
 }

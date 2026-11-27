@@ -19,6 +19,7 @@ gating (cargo/npm audit as a blocking check) remains a human decision.
 | windows-sys (windows) | 0.59.0 | MIT OR Apache-2.0 | `SHGetKnownFolderPath`, Lxss registry read, `ShellExecuteW` — added in M6 |
 | gtk (linux) | 0.18.2 | MIT | Native clipboard read for terminal paste (WebKitGTK blocks the web API); already in Tauri's tree — added with the clipboard feature |
 | tauri-plugin-notification | 2.4.0 | Apache-2.0 OR MIT | Desktop notifications (terminal exited, bell, program request), called from Rust only — no JS capability granted; pulls notify-rust (Linux D-Bus) — added 2026-11-26 |
+| tauri-plugin-updater | 2.12.0 (`~2.12.0`, default features off: `rustls-tls`, `system-proxy`; **no `zip`**) | Apache-2.0 OR MIT | In-app updates (ADR-019), called from Rust only — no JS capability granted; signature check (minisign/Ed25519) against the public key built into release builds. The default `zip` feature is disabled: it pulled `zip` 4.6.1 with six RustSec advisories and is only needed for archive-format updates. Pulls reqwest/rustls; `webpki-root-certs` (Mozilla root list) is CDLA-Permissive-2.0, allowed for that crate only in `deny.toml`. Pinned to 2.12.x because 2.14 requires Tauri 2.12 — added 2026-11-27 |
 | nix (optional, `spike` feature only) | 0.28.0 | MIT | M2 spike harness; not in production builds |
 
 Dev-only: `proptest` 1.12 (MIT OR Apache-2.0, property tests),
@@ -39,7 +40,10 @@ Removed in M10: `@xterm/addon-serialize`, `@xterm/addon-webgl` (unused).
 
 Dev-only tooling (all MIT except TypeScript, Apache-2.0): vite, vitest,
 jsdom, Testing Library, eslint + plugins, prettier, typescript,
-@tauri-apps/cli (Apache-2.0 OR MIT).
+@tauri-apps/cli (Apache-2.0 OR MIT). `@tauri-apps/cli` was raised from
+2.11.4 to 2.12.4 on 2026-11-27 (build tool only): 2.12 records the version in
+the update signature's trusted comment, which `requireSignedVersion`
+(ADR-019, downgrade protection) needs; 2.11 signatures carry no version.
 
 ## Transitive license summary (Rust, 457 crates)
 

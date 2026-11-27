@@ -374,6 +374,11 @@ impl Core {
 
     /// Final save at a normal exit, before terminals are stopped.
     pub(super) fn memory_shutdown(&self) {
+        // Once only: a second call would save the list after the
+        // terminals were stopped (update restart, then the exit handler).
+        if self.memory.locked().shutting_down {
+            return;
+        }
         self.save_running_inner(true);
         self.snapshot_content_inner(true);
         self.flush_window();

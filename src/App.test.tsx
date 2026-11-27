@@ -1393,4 +1393,75 @@ describe("ToolOnize app", () => {
       expect(document.documentElement.dir).toBe("rtl");
     });
   });
+
+  describe("in-app updates (ADR-019)", () => {
+    const available = {
+      configured: true,
+      current: "0.1.0",
+      available: true,
+      version: "0.2.0",
+      notes: "Session memory\nArabic interface",
+      date: "2026-12-01",
+    };
+
+    it("a development build says it is not set up for updates", async () => {
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(await screen.findByRole("button", { name: "Check now" }));
+      expect(await screen.findByText(/This build was not set up for updates/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Update and restart" })).toBeNull();
+    });
+
+    it("finds an update, shows it in the sidebar, and installs after confirmation", async () => {
+      handlers.set("update_check", () => available);
+      handlers.set("update_install", () => new Promise(() => undefined));
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(await screen.findByRole("button", { name: "Check now" }));
+      expect(await screen.findByText(/Version 0.2.0 is available/)).toBeInTheDocument();
+      await u.click(await screen.findByRole("button", { name: "Update to 0.2.0" }));
+      const dialog = await screen.findByRole("dialog", { name: "Update to ToolOnize 0.2.0?" });
+      expect(within(dialog).getByText(/Session memory/)).toBeInTheDocument();
+      expect(commandsCalled()).not.toContain("update_install");
+      await u.click(within(dialog).getByRole("button", { name: "Update and restart" }));
+      await waitFor(() => expect(commandsCalled()).toContain("update_install"));
+      await emit({ type: "update_progress", downloaded: 1024 * 1024, total: 4 * 1024 * 1024 });
+      expect(screen.getAllByText("Downloading: 1.0 of 4.0 MiB").length).toBeGreaterThan(0);
+    });
+
+    it("a refused update (bad signature) is reported and nothing restarts", async () => {
+      handlers.set("update_check", () => available);
+      handlers.set("update_install", () => {
+        throw "update not installed: the signature does not match the ToolOnize key";
+      });
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(await screen.findByRole("button", { name: "Check now" }));
+      await u.click(await screen.findByRole("button", { name: "Update and restart" }));
+      await u.click(
+        within(await screen.findByRole("dialog")).getByRole("button", {
+          name: "Update and restart",
+        })
+      );
+      expect((await screen.findAllByText(/signature does not match/)).length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "Update to 0.2.0" })).toBeInTheDocument();
+    });
+
+    it("turning automatic checks off is saved", async () => {
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(
+        await screen.findByRole("checkbox", { name: /Check for updates automatically/ })
+      );
+      await waitFor(() =>
+        expect(calls.find((c) => c.cmd === "settings_update")?.args?.settings).toMatchObject({
+          auto_update_check: false,
+        })
+      );
+    });
+  });
 });

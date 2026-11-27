@@ -51,6 +51,7 @@ export const settings: Settings = {
   restore_terminals: true,
   remember_terminal_content: true,
   language: "en",
+  auto_update_check: true,
 };
 
 export function entry(partial: Partial<RegistryEntry> & { launcher_id: string }): RegistryEntry {
@@ -205,6 +206,14 @@ export function resetFakeCore() {
   });
   handlers.set("audit_recent", () => []);
   handlers.set("autostart_get", () => false);
+  handlers.set("update_check", () => ({
+    configured: false,
+    current: "0.1.0",
+    available: false,
+    version: null,
+    notes: null,
+    date: null,
+  }));
   handlers.set("notes_get", (a) => {
     const n = core.notes[a.workspaceId as string] ?? { project: "", members: {} };
     return { project: n.project, project_updated_at: 0, members: { ...n.members }, trash: [] };

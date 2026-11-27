@@ -1459,3 +1459,26 @@ kbd {
 [dir="rtl"] .toasts {
   text-align: start;
 }
+
+/* In-app updates */
+.update-badge {
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-align: start;
+}
+.update-badge-ready {
+  border: 1px solid var(--accent, #2563eb);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+}
+.update-notes {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}

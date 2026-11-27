@@ -42,6 +42,23 @@ pub use notes::{NotesView, TrashSummary};
 mod workspaces;
 
 pub const STATE_SCHEMA: u32 = 1;
+
+static APP_VERSION: OnceLock<String> = OnceLock::new();
+
+/// Record the release version (`tauri.conf.json`, possibly set by the
+/// release build); called once at start before anything reports a version.
+pub fn set_app_version(version: String) {
+    let _ = APP_VERSION.set(version);
+}
+
+/// The version users see and the updater compares (falls back to the
+/// crate version in tests).
+pub fn app_version() -> &'static str {
+    APP_VERSION
+        .get()
+        .map(String::as_str)
+        .unwrap_or(env!("CARGO_PKG_VERSION"))
+}
 const STATE_FORMAT: &str = "toolonize-state";
 const SETTINGS_FORMAT: &str = "toolonize-settings";
 const MAX_CUSTOM_ROOTS: usize = 16;
@@ -80,6 +97,11 @@ pub enum AppEvent {
     Notice {
         level: String,
         message: String,
+    },
+    /// Update download progress (ADR-019).
+    UpdateProgress {
+        downloaded: u64,
+        total: Option<u64>,
     },
     /// SSH auto-reconnect progress for a session (`active: false` = stopped).
     Reconnect {
@@ -294,7 +316,7 @@ impl Core {
             "startup",
             &format!(
                 "ToolOnize {} on {}-{}; state generation {}, recovered: {}",
-                env!("CARGO_PKG_VERSION"),
+                app_version(),
                 std::env::consts::OS,
                 std::env::consts::ARCH,
                 load_report.generation,
@@ -373,7 +395,7 @@ impl Core {
         StartupInfo {
             load_report: self.load_report.clone(),
             platform: std::env::consts::OS.to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: app_version().to_string(),
             backend: "portable-pty-0.9.0".to_string(),
             state_dir: self.store.dir().to_string_lossy().into_owned(),
             config_dir: self.config_store.dir().to_string_lossy().into_owned(),

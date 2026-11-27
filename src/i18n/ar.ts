@@ -37,7 +37,13 @@ export const ar: Record<string, string> = {
   "Broadcast on": "البث مفعّل",
   "Browse launchers…": "تصفّح المشغّلات…",
   Cancel: "إلغاء",
+  "Check for updates automatically (at start and every 6 hours)":
+    "البحث عن تحديثات تلقائياً (عند البدء وكل 6 ساعات)",
+  "Check now": "افحص الآن",
   "Check settings…": "مراجعة الإعدادات…",
+  "Checking asks GitHub (github.com) over HTTPS for the latest released version; GitHub sees your IP address and ToolOnize's version, nothing else is sent. An update is installed only after you click, and only if it is signed with the ToolOnize release key.":
+    "الفحص يسأل GitHub (github.com) عبر HTTPS عن أحدث إصدار منشور؛ يرى GitHub عنوان IP الخاص بك وإصدار ToolOnize فقط، ولا يُرسل أي شيء آخر. لا يُثبَّت أي تحديث إلا بعد أن تضغط، وفقط إذا كان موقّعاً بمفتاح إصدارات ToolOnize.",
+  "Checking…": "جارٍ الفحص…",
   "Clear screen": "مسح الشاشة",
   Close: "إغلاق",
   "Close search": "إغلاق البحث",
@@ -98,6 +104,8 @@ export const ar: Record<string, string> = {
     "الاكتشاف يقرأ بيانات المشغّلات فقط. لا يشغّل أي برنامج مكتشف، ولا يحلّل السكربتات، ولا يستخدم الشبكة. ولا يتم فحص PATH.",
   Dismiss: "إخفاء",
   "Display name (empty to reset)": "الاسم المعروض (اتركه فارغاً لإعادة الضبط)",
+  "Downloading: {done} MiB": "جارٍ التنزيل: {done} ميجابايت",
+  "Downloading: {done} of {total} MiB": "جارٍ التنزيل: {done} من {total} ميجابايت",
   "Duplicate workspace": "نسخ مساحة العمل",
   Edit: "تعديل",
   Entries: "العناصر",
@@ -303,6 +311,7 @@ export const ar: Record<string, string> = {
   "Start this workspace’s members?": "تشغيل عناصر مساحة العمل هذه؟",
   Starting: "جارٍ البدء",
   "Starting ToolOnize…": "جارٍ تشغيل ToolOnize…",
+  "Starting the download…": "جارٍ بدء التنزيل…",
   Startup: "عند الفتح",
   "Startup command — typed into the shell when the terminal starts":
     "أمر البدء — يُكتب في الشِل عند بدء التيرمنال",
@@ -337,8 +346,11 @@ export const ar: Record<string, string> = {
   Theme: "السمة",
   "These settings came from a backup or import and have not run on this computer. Check them, then press Save to allow them.":
     "هذه الإعدادات جاءت من نسخة احتياطية أو استيراد ولم تعمل على هذا الجهاز من قبل. راجعها ثم اضغط حفظ للسماح بها.",
+  "This build was not set up for updates (a development or self-built version).":
+    "هذه النسخة غير مُعدّة للتحديثات (نسخة تطوير أو مبنية ذاتياً).",
   "This entry is malformed, unavailable or unsupported, so it cannot be approved. Fix the launcher file and ToolOnize will pick up the change.":
     "هذا العنصر تالف أو غير متاح أو غير مدعوم، لذلك لا يمكن الموافقة عليه. أصلح ملف المشغّل وسيلتقط ToolOnize التغيير.",
+  "This is ToolOnize {version}.": "هذا ToolOnize {version}.",
   "This member was removed.": "تمت إزالة هذا العنصر.",
   Time: "الوقت",
   "To remove ToolOnize completely, uninstall it and delete these folders.":
@@ -351,28 +363,38 @@ export const ar: Record<string, string> = {
     "لم يُغلق ToolOnize بشكل طبيعي في المرة السابقة. تمت استعادة {n} تيرمنال مع آخر ما عرضته.",
   "ToolOnize did not close normally last time. Your workspaces and notes are safe.":
     "لم يُغلق ToolOnize بشكل طبيعي في المرة السابقة. مساحات العمل والملاحظات بأمان.",
+  "ToolOnize downloads the update, checks its signature, installs it and restarts. Your terminals come back after the restart, in the same folders.":
+    "سيقوم ToolOnize بتنزيل التحديث والتحقق من توقيعه وتثبيته ثم إعادة التشغيل. تعود تيرمنالاتك بعد إعادة التشغيل في نفس المجلدات.",
   "ToolOnize found the launchers on this machine without running any of them. Create a workspace, add the tools you use for one project, and ToolOnize restores the layout next time.":
     "عثر ToolOnize على المشغّلات في هذا الجهاز دون تشغيل أي منها. أنشئ مساحة عمل، وأضف الأدوات التي تستخدمها في مشروع واحد، وسيستعيد ToolOnize التخطيط في المرة القادمة.",
-  "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do.":
-    "ToolOnize بلا حساب ولا سحابة ولا قياس عن بُعد. لا يخرج شيء من هذا الجهاز إلا ما تفعله تيرمنالاتك أنت.",
+  "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do and, if you keep it on, the update check.":
+    "ToolOnize بلا حساب ولا سحابة ولا قياس عن بُعد. لا يخرج شيء من هذا الجهاز إلا ما تفعله تيرمنالاتك أنت، وفحص التحديثات إذا تركته مفعّلاً.",
   "ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR Apache-2.0.":
     "ToolOnize مشروع مفتوح المصدر من CRMonize.com (crmonize.com)، بترخيص MIT أو Apache-2.0.",
   "ToolOnize runs your own": "يشغّل ToolOnize أداة",
+  "ToolOnize {version} is available.": "الإصدار {version} من ToolOnize متاح.",
+  "ToolOnize {version} is the latest version.": "ToolOnize {version} هو أحدث إصدار.",
   "Type a command": "اكتب أمراً",
   "Type into every running terminal here at once (Ctrl+Shift+B)":
     "الكتابة في كل التيرمنالات العاملة هنا مرة واحدة (Ctrl+Shift+B)",
   "Typing goes to every running terminal here": "الكتابة تذهب إلى كل التيرمنالات العاملة هنا",
   Unavailable: "غير متاح",
   Underline: "خط سفلي",
+  "Update and restart": "تحديث وإعادة تشغيل",
+  "Update to ToolOnize {version}?": "التحديث إلى ToolOnize {version}؟",
+  "Update to {version}": "تحديث إلى {version}",
+  Updates: "التحديثات",
   Use: "استخدام",
   "Use template {name}": "استخدام القالب {name}",
   Version: "الإصدار",
+  "Version {version} is available.": "الإصدار {version} متاح.",
   "Warn before pasting multiple lines": "التحذير قبل لصق عدة أسطر",
   "Watch launcher folders for changes": "مراقبة مجلدات المشغّلات بحثاً عن تغييرات",
   Workspace: "مساحة العمل",
   "Workspace color": "لون مساحة العمل",
   Workspaces: "مساحات العمل",
   "Yes, delete": "نعم، احذف",
+  "You have the latest version.": "لديك أحدث إصدار.",
   "Your existing dev tools. One persistent workspace.": "أدواتك الحالية. مساحة عمل واحدة تبقى معك.",
   "aliases are read — never host names, users, keys, proxy commands or any other setting. Each host you add still needs to be added to a workspace, and connects with your own":
     "فقط — ولا تُقرأ أبداً أسماء المضيفين أو المستخدمين أو المفاتيح أو أوامر الوكيل أو أي إعداد آخر. كل مضيف تضيفه يجب إضافته إلى مساحة عمل، ويتصل باستخدام أداة",

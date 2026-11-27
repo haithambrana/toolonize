@@ -14,6 +14,7 @@ import {
   type SessionInfo,
   type Settings,
   type StartupInfo,
+  type UpdateStatus,
   type WatchStatus,
   type WorkspaceView,
 } from "../lib/ipc";
@@ -70,6 +71,14 @@ export interface AppState {
   broadcast: Record<string, boolean>;
   /** Presentation mode: no sidebar or toolbar, larger terminal text. */
   presentation: boolean;
+  /** In-app updates (ADR-019). */
+  update: {
+    status: UpdateStatus | null;
+    checking: boolean;
+    installing: boolean;
+    progress: { downloaded: number; total: number | null } | null;
+    error: string | null;
+  };
 }
 
 const initial: AppState = {
@@ -101,6 +110,7 @@ const initial: AppState = {
   cwd: {},
   broadcast: {},
   presentation: false,
+  update: { status: null, checking: false, installing: false, progress: null, error: null },
 };
 
 let state: AppState = initial;
@@ -199,6 +209,11 @@ export function handleEvent(event: AppEvent): void {
         return { sessions, reconnecting };
       });
       break;
+    case "update_progress":
+      setState((s) => ({
+        update: { ...s.update, progress: { downloaded: event.downloaded, total: event.total } },
+      }));
+      return;
     case "reconnect":
       setState((s) => {
         const reconnecting = { ...s.reconnecting };

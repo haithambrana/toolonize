@@ -11,6 +11,7 @@ import {
   type Action,
 } from "../lib/keymap";
 import { backupNow, restoreFromFile } from "../lib/backup";
+import { checkForUpdates, formatProgress, installUpdate } from "../lib/updates";
 import { attempt, notify, useAppState } from "../state/store";
 import { t, tk } from "../i18n";
 
@@ -49,6 +50,72 @@ function AutostartToggle() {
         "Open ToolOnize when I log in — with the switches below, your last session comes back after a restart"
       )}
     </label>
+  );
+}
+
+function UpdatesCard() {
+  const settings = useAppState((s) => s.settings);
+  const upd = useAppState((s) => s.update);
+  const version = useAppState((s) => s.startup?.version ?? "");
+  if (!settings) return null;
+  const status = upd.status;
+  return (
+    <fieldset className="card card-wide">
+      <legend>{t("Updates")}</legend>
+      <p>
+        {t("This is ToolOnize {version}.", { version })}{" "}
+        {status && !status.configured
+          ? t("This build was not set up for updates (a development or self-built version).")
+          : status?.available && status.version
+            ? t("Version {version} is available.", { version: status.version })
+            : status
+              ? t("You have the latest version.")
+              : null}
+      </p>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.auto_update_check}
+          onChange={(e) => void update(settings, { auto_update_check: e.target.checked })}
+        />
+        {t("Check for updates automatically (at start and every 6 hours)")}
+      </label>
+      <div className="row-gap">
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={upd.checking || upd.installing}
+          onClick={() => void checkForUpdates(true)}
+        >
+          {upd.checking ? t("Checking…") : t("Check now")}
+        </button>
+        {status?.available && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={upd.installing}
+            onClick={() => void installUpdate()}
+          >
+            {t("Update and restart")}
+          </button>
+        )}
+        {upd.installing && (
+          <span className="muted small" role="status">
+            {formatProgress(upd.progress)}
+          </span>
+        )}
+      </div>
+      {upd.error && (
+        <p className="field-error" role="alert">
+          {upd.error}
+        </p>
+      )}
+      <p className="muted small">
+        {t(
+          "Checking asks GitHub (github.com) over HTTPS for the latest released version; GitHub sees your IP address and ToolOnize's version, nothing else is sent. An update is installed only after you click, and only if it is signed with the ToolOnize release key."
+        )}
+      </p>
+    </fieldset>
   );
 }
 
@@ -636,6 +703,8 @@ export function SettingsScreen() {
           </p>
         </fieldset>
 
+        <UpdatesCard />
+
         <SessionMemoryCard />
 
         <BackupCard />
@@ -644,7 +713,7 @@ export function SettingsScreen() {
           <legend>{t("Data & privacy")}</legend>
           <p>
             {t(
-              "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do."
+              "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do and, if you keep it on, the update check."
             )}
           </p>
           {startup && (

@@ -373,6 +373,16 @@ install, screen readers) are tracked in `docs/release/RELEASE_CHECKLIST.md`.
 - **Arabic (ADR-018):** catalog parity (no missing, no stale, placeholders
   match), direction switching, an Arabic render of the workspace with LTR
   terminals.
+- **In-app updates (ADR-019):** manifest generator unit tests
+  (`tools/tests/test_update_manifest.py`: every platform key, fallbacks,
+  unsigned files, bad tags, http refused, URL encoding); Rust tests for
+  release-note cleaning and failure wording; UI tests (not-configured build,
+  sidebar entry, confirmation with notes, progress, refusal shown, setting);
+  scheduling with fake timers. End to end with a throwaway key: an installed
+  0.1.0 AppImage found 0.1.1 by itself, downloaded, verified, replaced its own
+  file (hash checked), restarted as 0.1.1 and brought its terminal back; an
+  update signed with another key and a genuine 0.1.1 file announced as 0.1.3
+  (downgrade trick) were both refused and the installed file stayed the same.
 - **Gate:** `prettier`, ESLint, `tsc`, Vitest, documentation traceability,
   public-safety check, `cargo fmt`, `clippy -D warnings` over all targets
   (incl. examples) and `cargo test` must all pass before every commit; CI

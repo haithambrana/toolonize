@@ -14,6 +14,7 @@ import { Sidebar } from "./views/Sidebar";
 import { WorkspaceScreen } from "./views/WorkspaceScreen";
 import "@xterm/xterm/css/xterm.css";
 import { setLanguage, t, useLanguage } from "./i18n";
+import { scheduleUpdateChecks } from "./lib/updates";
 
 // Throwaway M2 harness, included only in the dedicated spike build: with the
 // flag unset the import is dead code and never reaches the bundle.
@@ -116,6 +117,7 @@ function Shell() {
     installNoteFlush();
     installAttention();
     void init();
+    return scheduleUpdateChecks();
   }, []);
   useEffect(() => {
     if (ready) pruneControllers(new Set(Object.keys(sessions)));

@@ -28,6 +28,10 @@ allow = [
   "BSL-1.0",
 ]
 confidence-threshold = 0.9
+# Mozilla's root certificate list (webpki-root-certs, via reqwest/rustls)
+# used by the updater to verify GitHub's TLS certificate (ADR-019). A
+# permissive license for data; allowed for that crate only.
+exceptions = [{ crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] }]
 
 [bans]
 multiple-versions = "allow"

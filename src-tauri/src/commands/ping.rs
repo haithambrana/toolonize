@@ -27,7 +27,7 @@ pub struct PingResponse {
 pub fn ping() -> PingResponse {
     PingResponse {
         app_name: "ToolOnize".to_string(),
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        app_version: crate::app::app_version().to_string(),
         target_os: std::env::consts::OS.to_string(),
         target_arch: std::env::consts::ARCH.to_string(),
         status: "ok".to_string(),

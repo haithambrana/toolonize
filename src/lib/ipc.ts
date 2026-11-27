@@ -295,6 +295,8 @@ export interface Settings {
   remember_terminal_content: boolean;
   /** Interface language; "ar" is right-to-left. */
   language: "system" | "en" | "ar";
+  /** Check GitHub Releases for updates automatically (ADR-019). */
+  auto_update_check: boolean;
 }
 
 export const TERMINAL_SCHEMES = [
@@ -320,6 +322,16 @@ export interface ResumeReport {
   restored: number;
   left_stopped: string[];
   failed: string[];
+}
+
+/** Result of an update check (ADR-019). */
+export interface UpdateStatus {
+  configured: boolean;
+  current: string;
+  available: boolean;
+  version: string | null;
+  notes: string | null;
+  date: string | null;
 }
 
 export interface StartupInfo {
@@ -382,6 +394,7 @@ export type AppEvent =
   | { type: "settings" }
   | { type: "watch"; status: WatchStatus }
   | { type: "notice"; level: string; message: string }
+  | { type: "update_progress"; downloaded: number; total: number | null }
   | {
       type: "reconnect";
       session_id: string;
@@ -417,6 +430,8 @@ export const api = {
   exportDiagnostics: () => invoke<string>("diagnostics_export"),
   forgetTerminalOutput: () => invoke<number>("memory_forget"),
   autostartGet: () => invoke<boolean>("autostart_get"),
+  updateCheck: () => invoke<UpdateStatus>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
   autostartSet: (enabled: boolean) => invoke<boolean>("autostart_set", { enabled }),
 
   registry: () => invoke<RegistryView>("registry_view"),
