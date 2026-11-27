@@ -9,6 +9,10 @@ impl Core {
 
     pub fn update_settings(&self, settings: Settings) -> Result<(), String> {
         settings.validate()?;
+        let forget_content = {
+            let data = self.data.locked();
+            data.settings.remember_terminal_content && !settings.remember_terminal_content
+        };
         let watch_changed = {
             let mut data = self.data.locked();
             self.config_store
@@ -21,6 +25,9 @@ impl Core {
         };
         if watch_changed {
             self.restart_watch();
+        }
+        if forget_content {
+            self.forget_terminal_content();
         }
         self.bus.emit(AppEvent::Settings);
         Ok(())
@@ -82,6 +89,8 @@ impl Core {
 
     pub fn shutdown(&self) {
         *self.watch.locked() = None;
+        // Remember what was running before it is stopped (ADR-015).
+        self.memory_shutdown();
         self.sessions.shutdown();
     }
 
@@ -163,6 +172,11 @@ impl Core {
                 s.session_id, s.generation, s.remote, s.view_state, s.process_state
             );
         }
+        let (running, saved) = self.memory_summary();
+        let _ = writeln!(
+            out,
+            "session memory: {running} running in the last snapshot, {saved} saved output(s)"
+        );
         let _ = writeln!(out, "\n[recent log]");
         for line in crate::logging::tail(300) {
             let _ = writeln!(out, "{line}");

@@ -15,6 +15,7 @@
     "allow-clipboard-read-text",
     "allow-scrollback-export",
     "allow-diagnostics-export",
+    "allow-memory-forget",
     "allow-desktop-notify",
     "allow-registry-view",
     "allow-registry-rescan",

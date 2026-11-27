@@ -396,6 +396,8 @@ fn dropped(session_id: &str, code: u32, remote: bool) -> SessionInfo {
         attached: false,
         backend: "test".into(),
         started_at_ms: now_ms(),
+        prelude_bytes: 0,
+        prelude_cols: 0,
     }
 }
 
@@ -997,4 +999,379 @@ fn templates_save_create_delete_and_persist() {
     assert!(c.templates().is_empty());
     assert!(c.delete_template(&tpl).is_err());
     assert!(core(&dir).templates().is_empty());
+}
+
+// ---- Session memory (ADR-015) ----
+
+#[cfg(unix)]
+fn wait_output(c: &Core, session_id: &str, needle: &str) -> String {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let text = String::from_utf8_lossy(
+            &c.sessions
+                .tail(session_id, crate::memory::MAX_RAW_TAIL)
+                .unwrap(),
+        )
+        .into_owned();
+        if text.contains(needle) {
+            return text;
+        }
+        assert!(Instant::now() < deadline, "no {needle:?} in {text:?}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[cfg(unix)]
+fn wait_cwd(c: &Core, session_id: &str) -> Option<std::path::PathBuf> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let cwd = c
+            .sessions
+            .info(session_id)
+            .unwrap()
+            .pid
+            .and_then(crate::session::process_cwd);
+        if cwd.is_some() || Instant::now() > deadline {
+            return cwd.map(|p| std::path::PathBuf::from(p).canonicalize().unwrap());
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Power loss: the processes end and nothing else gets saved.
+#[cfg(unix)]
+fn crash(c: Arc<Core>) {
+    c.sessions.shutdown();
+    drop(c);
+}
+
+#[cfg(unix)]
+#[test]
+fn power_loss_brings_back_terminals_folders_and_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = tempfile::tempdir().unwrap();
+    let folder_path = folder.path().canonicalize().unwrap();
+    let (ws, a, b) = {
+        let c = core(&dir);
+        assert!(
+            c.resume_session().restored == 0,
+            "first start: nothing to resume"
+        );
+        let ws = c.create_workspace("Memory").unwrap();
+        let shell = shell_id(&c);
+        let fp = fingerprint(&c, &shell);
+        let a = c.add_member(&ws, &shell, &fp, Some("Main".into())).unwrap();
+        let b = c
+            .add_member(&ws, &shell, &fp, Some("Spare".into()))
+            .unwrap();
+        let sa = c.start_session(&ws, &a, 30, 100).unwrap().session_id;
+        let cmd = format!(
+            "cd '{}' && echo memory-$((40+2)) && printf '\\033]52;c;ZXZpbA==\\007clip-ok\\n'\n",
+            folder_path.display()
+        );
+        c.sessions.write(&sa, cmd.as_bytes()).unwrap();
+        let raw = wait_output(&c, &sa, "clip-ok");
+        assert!(
+            raw.contains("\u{1b}]52;c;"),
+            "the program really wrote OSC 52"
+        );
+        // A terminal the user stopped stays stopped.
+        let sb = c.start_session(&ws, &b, 24, 80).unwrap().session_id;
+        c.sessions.stop(&sb).unwrap();
+        c.save_running();
+        c.snapshot_content();
+        crash(c);
+        (ws, a, b)
+    };
+
+    let c = core(&dir);
+    let report = c.resume_session();
+    assert!(report.crashed, "the previous run did not end normally");
+    assert_eq!(report.restored, 1);
+    assert!(report.failed.is_empty() && report.left_stopped.is_empty());
+    assert!(c.startup_info().resume.unwrap().crashed);
+    let info = c.sessions.find_by_member(&ws, &a).expect("Main runs again");
+    assert!(c.sessions.find_by_member(&ws, &b).is_none());
+    assert_eq!((info.rows, info.cols), (30, 100), "same size as before");
+    assert!(info.prelude_bytes > 0);
+    assert_eq!(
+        info.prelude_cols, 100,
+        "shown at the width it was written at"
+    );
+    assert_eq!(wait_cwd(&c, &info.session_id), Some(folder_path.clone()));
+    let shown = wait_output(&c, &info.session_id, "restored from your previous session");
+    assert!(shown.contains("memory-42"), "{shown:?}");
+    assert!(shown.contains("clip-ok"));
+    // The typed command echoes "\033]52;" as plain text; the real escape
+    // sequence (ESC ] 52) must be gone.
+    let restored_part = &shown[..shown.find("restored from your previous").unwrap()];
+    assert!(
+        !restored_part.contains("\u{1b}]52"),
+        "clipboard write must not replay"
+    );
+    assert!(
+        restored_part.contains("\\033]52;"),
+        "the echoed command line stays as text"
+    );
+    assert!(shown.find("memory-42") < shown.find("restored from your previous"));
+    // The policy's own audit entry for the restart, plus one summary line.
+    assert!(c
+        .audit_recent(20)
+        .iter()
+        .any(|e| e.action == "session.resume"));
+    // The workspace counts as opened: its Ask policy does not ask again.
+    assert!(!c.open_workspace(&ws, None).unwrap().needs_choice);
+
+    // Normal close: the same comes back, and it is not called a crash.
+    c.shutdown();
+    drop(c);
+    let c = core(&dir);
+    let report = c.resume_session();
+    assert!(!report.crashed);
+    assert_eq!(report.restored, 1);
+    let info = c.sessions.find_by_member(&ws, &a).unwrap();
+
+    // Closed on purpose: neither the terminal nor its output come back.
+    c.close_session(&info.session_id).unwrap();
+    let file = dir.path().join(format!("state/memory/term-{ws}-{a}.json"));
+    assert!(!file.exists());
+    c.save_running();
+    c.shutdown();
+    drop(c);
+    let c = core(&dir);
+    assert_eq!(c.resume_session().restored, 0);
+    c.shutdown();
+}
+
+#[cfg(unix)]
+#[test]
+fn resume_never_reruns_commands_and_respects_policy_and_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    write_entry(
+        root.path(),
+        "job.desktop",
+        "sh -c \"echo job-ran; sleep 30\"",
+    );
+    let setup = |c: &Core| -> (String, String, String) {
+        c.add_custom_root(&root.path().to_string_lossy()).unwrap();
+        let job = c
+            .registry_view()
+            .entries
+            .into_iter()
+            .find(|e| e.launcher.origin == crate::model::OriginKind::CustomRoot)
+            .unwrap()
+            .launcher
+            .launcher_id;
+        let fp = fingerprint(c, &job);
+        c.approve(&job, &fp).unwrap();
+        let ws = c.create_workspace("Jobs").unwrap();
+        let m = c.add_member(&ws, &job, &fp, Some("Deploy".into())).unwrap();
+        (ws, m, job)
+    };
+    let (ws, job_member, _) = {
+        let c = core(&dir);
+        c.resume_session();
+        let (ws, m, job) = setup(&c);
+        let kind = c.workspaces().0[0].members[0].member.member_type;
+        assert_eq!(kind, MemberType::LocalCommand);
+        let s = c.start_session(&ws, &m, 24, 80).unwrap().session_id;
+        wait_output(&c, &s, "job-ran");
+        c.save_running();
+        c.snapshot_content();
+        crash(c);
+        let _ = job;
+        (ws, m, ())
+    };
+    // A command (side effects) is not started again on its own.
+    let c = core(&dir);
+    let report = c.resume_session();
+    assert_eq!(report.restored, 0);
+    assert_eq!(report.left_stopped, vec!["Deploy".to_string()]);
+    assert!(c.sessions.list().is_empty());
+    // Starting it by hand shows what it printed last time.
+    let s = c
+        .start_session(&ws, &job_member, 24, 80)
+        .unwrap()
+        .session_id;
+    let shown = wait_output(&c, &s, "restored from your previous session");
+    assert!(shown.contains("job-ran"));
+    // Marked "restart automatically": it comes back.
+    c.update_member(
+        &ws,
+        &job_member,
+        MemberPatch {
+            title: None,
+            auto_restart: Some(true),
+            detach_expected: None,
+            color: None,
+            start_dir: None,
+            zoom: None,
+        },
+    )
+    .unwrap();
+    c.save_running();
+    crash(c);
+    let c = core(&dir);
+    assert_eq!(c.resume_session().restored, 1);
+    c.save_running();
+    crash(c);
+
+    // The launcher changed since it was authorized: refused, not started.
+    write_entry(
+        root.path(),
+        "job.desktop",
+        "sh -c \"echo changed; sleep 30\"",
+    );
+    let c = core(&dir);
+    let report = c.resume_session();
+    assert_eq!(report.restored, 0);
+    assert_eq!(report.failed.len(), 1);
+    assert!(
+        report.failed[0].starts_with("Deploy: "),
+        "{:?}",
+        report.failed
+    );
+    assert!(c.sessions.list().is_empty());
+    c.shutdown();
+}
+
+#[cfg(unix)]
+#[test]
+fn memory_settings_turn_restarting_and_content_off() {
+    let dir = tempfile::tempdir().unwrap();
+    let (ws, a) = {
+        let c = core(&dir);
+        c.resume_session();
+        let ws = c.create_workspace("Quiet").unwrap();
+        let shell = shell_id(&c);
+        let a = c
+            .add_member(&ws, &shell, &fingerprint(&c, &shell), None)
+            .unwrap();
+        let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+        c.sessions.write(&s, b"echo kept-$((1+1))\n").unwrap();
+        wait_output(&c, &s, "kept-2");
+        c.snapshot_content();
+        let settings = Settings {
+            restore_terminals: false,
+            ..c.settings()
+        };
+        c.update_settings(settings).unwrap();
+        c.shutdown();
+        (ws, a)
+    };
+    let c = core(&dir);
+    let report = c.resume_session();
+    assert_eq!(report.restored, 0, "restarting is off");
+    assert!(c.sessions.list().is_empty());
+    // The output is still remembered for a manual start.
+    let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+    assert!(wait_output(&c, &s, "restored from your previous").contains("kept-2"));
+    c.snapshot_content();
+    let memory = dir.path().join("state/memory");
+    let saved = || {
+        std::fs::read_dir(&memory)
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("term-")
+            })
+            .count()
+    };
+    assert!(saved() > 0);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&memory).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700, "saved output is private to this user");
+    }
+    // Content memory off: everything saved is deleted, nothing new is saved.
+    let settings = Settings {
+        remember_terminal_content: false,
+        ..c.settings()
+    };
+    c.update_settings(settings).unwrap();
+    assert_eq!(saved(), 0);
+    c.sessions.write(&s, b"echo more\n").unwrap();
+    wait_output(&c, &s, "more");
+    c.snapshot_content();
+    assert_eq!(saved(), 0);
+    c.shutdown();
+    drop(c);
+    let c = core(&dir);
+    c.resume_session();
+    let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+    std::thread::sleep(Duration::from_millis(300));
+    let shown = String::from_utf8_lossy(&c.sessions.tail(&s, 1 << 20).unwrap()).into_owned();
+    assert!(!shown.contains("restored from your previous"), "{shown:?}");
+    c.shutdown();
+}
+
+#[cfg(unix)]
+#[test]
+fn saved_output_stays_out_of_backups_diagnostics_and_logs() {
+    let dir = tempfile::tempdir().unwrap();
+    let c = core(&dir);
+    c.resume_session();
+    let ws = c.create_workspace("Private").unwrap();
+    let shell = shell_id(&c);
+    let a = c
+        .add_member(&ws, &shell, &fingerprint(&c, &shell), None)
+        .unwrap();
+    let s = c.start_session(&ws, &a, 24, 80).unwrap().session_id;
+    c.sessions.write(&s, b"echo top-secret-$((6*7))\n").unwrap();
+    wait_output(&c, &s, "top-secret-42");
+    c.snapshot_content();
+    c.save_running();
+    assert!(!c.backup_text(true).unwrap().contains("top-secret"));
+    let report = c.diagnostics_report();
+    assert!(!report.contains("top-secret"));
+    assert!(report.contains("session memory: 1 running"), "{report}");
+    let log = crate::logging::log_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .unwrap_or_default();
+    assert!(!log.contains("top-secret"));
+    // Deleting the workspace deletes its saved output too.
+    c.delete_workspace(&ws).unwrap();
+    let left = std::fs::read_dir(dir.path().join("state/memory"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("term-")
+        })
+        .count();
+    assert_eq!(left, 0);
+    assert_eq!(c.forget_terminal_content(), 0);
+    c.shutdown();
+}
+
+#[test]
+fn window_place_is_saved_once_and_survives_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let c = core(&dir);
+        c.resume_session();
+        assert!(c.saved_window().is_none());
+        let w = crate::memory::WindowState {
+            x: 40,
+            y: 30,
+            width: 1280,
+            height: 800,
+            maximized: false,
+        };
+        c.note_window(w);
+        c.note_window_maximized(true);
+        c.flush_window();
+        c.shutdown();
+    }
+    let c = core(&dir);
+    let w = c.saved_window().unwrap();
+    assert_eq!((w.x, w.y, w.width, w.height), (40, 30, 1280, 800));
+    assert!(w.maximized, "maximized keeps the normal size underneath");
 }

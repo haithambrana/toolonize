@@ -134,6 +134,7 @@ impl Core {
             (w.name.clone(), titles)
         };
         self.trash_workspace_notes(id, &name, &titles)?;
+        let member_ids: Vec<String> = titles.keys().cloned().collect();
         self.mutate(|s, _| {
             let before = s.workspaces.len();
             s.workspaces.retain(|w| w.id != id);
@@ -146,6 +147,9 @@ impl Core {
             Ok(())
         })?;
         self.sessions.close_workspace(id);
+        for member in &member_ids {
+            self.forget_member_memory(id, member);
+        }
         self.changed();
         Ok(())
     }
@@ -314,6 +318,7 @@ impl Core {
         if let Some(info) = self.sessions.find_by_member(workspace_id, member_id) {
             let _ = self.sessions.close(&info.session_id);
         }
+        self.forget_member_memory(workspace_id, member_id);
         Ok(())
     }
 

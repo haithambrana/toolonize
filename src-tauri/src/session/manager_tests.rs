@@ -50,6 +50,8 @@ fn plan(member: &str, program: &str, args: &[&str]) -> SessionPlan {
         remote: false,
         detach_expected: false,
         dims: PtyDims { rows: 24, cols: 80 },
+        prelude: Vec::new(),
+        prelude_cols: 0,
     }
 }
 

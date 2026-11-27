@@ -162,6 +162,7 @@ mod tests {
             launcher_id: "probe".into(),
             fingerprint: "fp".into(),
             interpreter: false,
+            launcher_cwd: false,
         };
         launch_detached(&plan).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
@@ -191,6 +192,7 @@ mod tests {
             launcher_id: "x".into(),
             fingerprint: "fp".into(),
             interpreter: false,
+            launcher_cwd: false,
         };
         let err = launch_detached(&plan).unwrap_err();
         assert!(err.contains("Missing"));

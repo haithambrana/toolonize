@@ -100,6 +100,12 @@ export class FakeTerminal {
     this.pendingCallbacks = [];
     cbs.forEach((cb) => cb());
   }
+  resizes: [number, number][] = [];
+  resize(cols: number, rows: number) {
+    this.resizes.push([cols, rows]);
+    this.cols = cols;
+    this.rows = rows;
+  }
   paste(text: string) {
     this.pasted.push(text);
   }

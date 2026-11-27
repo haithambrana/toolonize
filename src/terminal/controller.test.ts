@@ -98,6 +98,58 @@ describe("TerminalController", () => {
     expect(c.deliveredOffset).toBe(11);
   });
 
+  it("shows restored output at the width it was written at, then fits again (ADR-015)", async () => {
+    core.sessions = [
+      session({
+        session_id: "s1",
+        member_id: "m1",
+        end_offset: 0,
+        prelude_bytes: 10,
+        prelude_cols: 62,
+      }),
+    ];
+    const c = getController("s1", options);
+    await flush();
+    const ch = core.attachments.get("s1")!;
+    const t = term();
+    let colsWhileWritingPrelude = 0;
+    const write = t.write.bind(t);
+    t.write = (data, cb) => {
+      const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+      if (text.startsWith("0123")) colsWhileWritingPrelude = t.cols;
+      write(data, cb);
+    };
+    // One frame holding the restored text and the new shell's first output.
+    ch.output.send(frame(0, "0123456789$ "));
+    expect(colsWhileWritingPrelude).toBe(62);
+    expect(t.resizes).toEqual([[62, 24]]);
+    expect(t.written).toEqual(["0123456789", "$ "]);
+    ch.output.send(frame(12, "ls"));
+    expect(t.resizes).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls.filter((x) => x.cmd === "session_ack").at(-1)?.args?.offset).toBe(14);
+    expect(c.deliveredOffset).toBe(14);
+  });
+
+  it("restored output split over frames, at the same width, or absent: no extra resize", async () => {
+    core.sessions = [
+      session({
+        session_id: "s1",
+        member_id: "m1",
+        end_offset: 0,
+        prelude_bytes: 6,
+        prelude_cols: 80,
+      }),
+    ];
+    getController("s1", options);
+    await flush();
+    const ch = core.attachments.get("s1")!;
+    ch.output.send(frame(0, "abc"));
+    ch.output.send(frame(3, "def$ "));
+    expect(term().resizes).toEqual([]);
+    expect(term().text).toBe("abcdef$ ");
+  });
+
   it("does not acknowledge bytes xterm has not finished writing (backpressure)", async () => {
     getController("s1", options);
     await flush();

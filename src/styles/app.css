@@ -1427,3 +1427,9 @@ kbd {
   white-space: nowrap;
   font-weight: 600;
 }
+
+/* Backup & restore: one action per line */
+.backup-row {
+  display: flex;
+  margin-bottom: 8px;
+}

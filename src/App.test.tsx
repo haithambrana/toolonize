@@ -314,6 +314,7 @@ describe("ToolOnize app", () => {
       backend: "portable-pty-0.9.0",
       state_dir: "/s",
       config_dir: "/c",
+      resume: null,
     }));
     render(<App />);
     expect(await screen.findByText(/State recovered from an earlier snapshot/)).toBeInTheDocument();
@@ -1111,6 +1112,111 @@ describe("ToolOnize app", () => {
       render(<App />);
       await u.click(await screen.findByRole("button", { name: "New from template…" }));
       expect(await screen.findByText(/No templates yet/)).toBeInTheDocument();
+    });
+  });
+
+  describe("session memory (ADR-015)", () => {
+    const startup = (resume: unknown) => ({
+      load_report: {
+        generation: 1,
+        recovered: false,
+        problems: [],
+        restored_saved_at: null,
+        migrated_from: null,
+      },
+      platform: "linux",
+      version: "0.1.0",
+      backend: "portable-pty-0.9.0",
+      state_dir: "/s",
+      config_dir: "/c",
+      resume,
+    });
+
+    it("tells the user what came back after the computer lost power", async () => {
+      handlers.set("app_startup_info", () =>
+        startup({
+          crashed: true,
+          restored: 2,
+          left_stopped: ["Deploy"],
+          failed: ["Build: changed"],
+        })
+      );
+      render(<App />);
+      expect(
+        await screen.findByText(
+          "ToolOnize did not close normally last time. Restored 2 terminals with their last output."
+        )
+      ).toBeInTheDocument();
+      // Shown once even though dev mode runs startup twice.
+      const { notify } = await import("./state/store");
+      act(() =>
+        notify(
+          "warning",
+          "ToolOnize did not close normally last time. Restored 2 terminals with their last output."
+        )
+      );
+      expect(screen.getAllByText(/did not close normally/)).toHaveLength(1);
+      expect(screen.getByText(/Not started again automatically.*Deploy/)).toBeInTheDocument();
+      expect(screen.getByText("Could not restore: Build: changed.")).toBeInTheDocument();
+    });
+
+    it("says so quietly after a normal close, and nothing when there was nothing", async () => {
+      handlers.set("app_startup_info", () =>
+        startup({ crashed: false, restored: 1, left_stopped: [], failed: [] })
+      );
+      const { unmount } = render(<App />);
+      expect(
+        await screen.findByText("Restored 1 terminal from your last session.")
+      ).toBeInTheDocument();
+      unmount();
+      resetStore();
+      handlers.set("app_startup_info", () =>
+        startup({ crashed: false, restored: 0, left_stopped: [], failed: [] })
+      );
+      render(<App />);
+      await screen.findByRole("button", { name: "Settings" });
+      expect(screen.queryByText(/Restored|did not close/)).toBeNull();
+    });
+
+    it("restored output is shown in the terminal before new output", async () => {
+      core.workspaces = [workspace([member("a")])];
+      core.active = "ws1";
+      core.sessions = [session({ session_id: "s-a", member_id: "a", end_offset: 0 })];
+      render(<App />);
+      await waitFor(() => expect(terminals).toHaveLength(1));
+      await waitFor(() => expect(core.attachments.get("s-a")).toBeDefined());
+      const prelude =
+        "\x1b[0m$ make\r\nok\r\n\x1b[0m\x1b[2m── restored from your previous session ──\x1b[0m\r\n";
+      await act(async () => {
+        const { frame } = await import("./test/fakeCore");
+        core.attachments.get("s-a")!.output.send(frame(0, prelude) as never);
+        const bytes = new TextEncoder().encode(prelude).length;
+        core.attachments.get("s-a")!.output.send(frame(bytes, "$ ") as never);
+        await new Promise((r) => setTimeout(r, 30));
+      });
+      const written = terminals[0].written.join("");
+      expect(written).toContain("restored from your previous session");
+      expect(written.indexOf("$ make")).toBeLessThan(written.indexOf("restored from"));
+    });
+
+    it("Settings: turn restarting and remembering off, and forget saved output", async () => {
+      handlers.set("memory_forget", () => 3);
+      const u = user();
+      render(<App />);
+      await u.click(await screen.findByRole("button", { name: "Settings" }));
+      await u.click(
+        await screen.findByRole("checkbox", { name: /Start the terminals that were running/ })
+      );
+      await u.click(screen.getByRole("checkbox", { name: /Remember what each terminal showed/ }));
+      const updates = calls.filter((c) => c.cmd === "settings_update").map((c) => c.args!.settings);
+      expect(updates).toEqual([
+        expect.objectContaining({ restore_terminals: false }),
+        expect.objectContaining({ remember_terminal_content: false }),
+      ]);
+      await u.click(screen.getByRole("button", { name: "Forget saved terminal output" }));
+      expect(
+        await screen.findByText("Deleted the saved output of 3 terminal(s).")
+      ).toBeInTheDocument();
     });
   });
 });

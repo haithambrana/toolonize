@@ -53,6 +53,19 @@ impl Core {
         rows: u16,
         cols: u16,
     ) -> Result<SessionInfo, String> {
+        self.start_session_with(workspace_id, member_id, rows, cols, None)
+    }
+
+    /// `resume_cwd`: the folder a resumed terminal was last in (used unless
+    /// the launcher names its own working directory).
+    pub(super) fn start_session_with(
+        &self,
+        workspace_id: &str,
+        member_id: &str,
+        rows: u16,
+        cols: u16,
+        resume_cwd: Option<&str>,
+    ) -> Result<SessionInfo, String> {
         let result = self.plan(workspace_id, member_id).and_then(|p| {
             if p.mode == LaunchMode::Pty {
                 Ok(p)
@@ -61,7 +74,23 @@ impl Core {
             }
         });
         self.audit_plan("session.start", workspace_id, member_id, &result);
-        let plan = result?;
+        let mut plan = result?;
+        if let Some(dir) = resume_cwd
+            .filter(|_| !plan.launcher_cwd && !plan.remote)
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute() && p.is_dir())
+        {
+            plan.spec.cwd = Some(dir);
+        }
+        let (prelude, prelude_cols) = if self
+            .sessions
+            .find_by_member(workspace_id, member_id)
+            .is_none()
+        {
+            self.take_prelude(workspace_id, member_id)
+        } else {
+            (Vec::new(), 0)
+        };
         self.sessions
             .start(SessionPlan {
                 workspace_id: workspace_id.to_string(),
@@ -71,6 +100,8 @@ impl Core {
                 remote: plan.remote,
                 detach_expected: plan.detach_expected,
                 dims: PtyDims::clamped(rows, cols),
+                prelude,
+                prelude_cols,
             })
             .map_err(|e| e.to_string())
     }
@@ -237,6 +268,8 @@ impl Core {
     }
 
     pub(super) fn on_session(&self, info: &SessionInfo) {
+        self.memory_dirty
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         self.bus.emit(AppEvent::Session { info: info.clone() });
         crate::logging::info(
             "session",
@@ -396,7 +429,12 @@ impl Core {
 
     pub fn close_session(&self, session_id: &str) -> Result<(), String> {
         self.stop_reconnect(session_id, false);
+        let info = self.sessions.info(session_id).ok();
         self.sessions.close(session_id).map_err(|e| e.to_string())?;
+        // Closed on purpose: it does not come back at the next start.
+        if let Some(info) = info {
+            self.forget_member_memory(&info.workspace_id, &info.member_id);
+        }
         self.bus.emit(AppEvent::SessionClosed {
             session_id: session_id.to_string(),
         });

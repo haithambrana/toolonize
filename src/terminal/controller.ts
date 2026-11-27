@@ -146,6 +146,12 @@ export class TerminalController {
   /** Until this offset is written, we are replaying history. */
   private replayUntil = 0;
   private lastSize = { rows: 0, cols: 0 };
+  /** Restored output (session memory, ADR-015) ends at this offset; it is
+   * shown at the width it was written at, then the view fits again, so
+   * lines the shell wrapped come back intact. */
+  private preludeEnd = 0;
+  private preludeCols = 0;
+  private holdFit = false;
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly encoder = new TextEncoder();
   private container: HTMLElement | null = null;
@@ -321,7 +327,7 @@ export class TerminalController {
   }
 
   fitNow(): void {
-    if (this.disposed || !this.container || !this.opened) return;
+    if (this.disposed || !this.container || !this.opened || this.holdFit) return;
     try {
       this.fit.fit();
     } catch {
@@ -375,6 +381,13 @@ export class TerminalController {
     this.written = info.start_offset;
     this.acked = info.start_offset;
     this.replayUntil = info.end_offset;
+    const { prelude_bytes: pBytes, prelude_cols: pCols } = info.info;
+    if (pBytes > 0 && pCols > 0 && info.start_offset < pBytes) {
+      this.preludeEnd = pBytes;
+      this.preludeCols = pCols;
+    } else {
+      this.preludeEnd = 0;
+    }
     const early = this.early ?? [];
     this.early = null;
     for (const frame of early) this.onFrame(frame);
@@ -393,9 +406,38 @@ export class TerminalController {
     }
     this.received += data.length;
     const end = this.received;
+    if (this.preludeEnd > offset) {
+      const cut = Math.min(data.length, this.preludeEnd - offset);
+      this.writePrelude(data.subarray(0, cut), offset + cut);
+      if (cut === data.length) return;
+      this.term.write(data.subarray(cut), () => {
+        this.written = end;
+        this.scheduleAck();
+      });
+      return;
+    }
     this.term.write(data, () => {
       this.written = end;
       this.scheduleAck();
+    });
+  }
+
+  private writePrelude(bytes: Uint8Array, upTo: number): void {
+    if (this.term.cols !== this.preludeCols) {
+      this.holdFit = true;
+      this.term.resize(this.preludeCols, this.term.rows);
+    }
+    this.term.write(bytes, () => {
+      this.written = upTo;
+      this.scheduleAck();
+      if (upTo >= this.preludeEnd) {
+        this.preludeEnd = 0;
+        if (this.holdFit) {
+          this.holdFit = false;
+          // Back to the pane's width: xterm re-wraps the restored lines.
+          this.fitNow();
+        }
+      }
     });
   }
 

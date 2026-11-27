@@ -62,6 +62,10 @@ pub struct SessionInfo {
     pub attached: bool,
     pub backend: String,
     pub started_at_ms: u64,
+    /// Restored output at the start of the log (session memory) and the
+    /// width it was written at: the view shows it at that width, then fits.
+    pub prelude_bytes: u64,
+    pub prelude_cols: u16,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -83,6 +87,10 @@ pub struct SessionPlan {
     pub remote: bool,
     pub detach_expected: bool,
     pub dims: PtyDims,
+    /// Shown before the first output (session memory, ADR-015); already
+    /// cleaned so that replaying it has no effects.
+    pub prelude: Vec<u8>,
+    pub prelude_cols: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,6 +150,8 @@ struct Shared {
     killer: Option<Arc<dyn PtyKiller>>,
     closed: bool,
     started_at_ms: u64,
+    prelude_bytes: u64,
+    prelude_cols: u16,
 }
 
 pub struct Session {
@@ -185,6 +195,8 @@ impl Session {
             attached: s.attachment.is_some(),
             backend: self.backend.name().to_string(),
             started_at_ms: s.started_at_ms,
+            prelude_bytes: s.prelude_bytes,
+            prelude_cols: s.prelude_cols,
         }
     }
 
@@ -604,6 +616,14 @@ impl SessionManager {
         Ok(self.get(id)?.info())
     }
 
+    /// The last `max` bytes of a session's retained output (session memory).
+    pub fn tail(&self, id: &str, max: usize) -> Result<Vec<u8>, SessionError> {
+        let session = self.get(id)?;
+        let s = session.lock();
+        let from = s.log.end().saturating_sub(max as u64);
+        Ok(s.log.read(from, max).1)
+    }
+
     /// Number of times the reader paused for a slow view (diagnostics/tests).
     pub fn backpressure_events(&self, id: &str) -> Result<u64, SessionError> {
         Ok(self.get(id)?.lock().backpressure_events)
@@ -621,6 +641,9 @@ impl SessionManager {
             now_ms()
         );
         let limits = *self.limits.locked();
+        let mut log = OutputLog::new(limits);
+        log.append(&plan.prelude);
+        log.trim(None);
         let session = Arc::new(Session {
             id: id.clone(),
             shared: Mutex::new(Shared {
@@ -637,7 +660,7 @@ impl SessionManager {
                 reader_done_generation: 0,
                 pid: None,
                 dims: plan.dims,
-                log: OutputLog::new(limits),
+                log,
                 attachment: None,
                 paused: false,
                 backpressure_events: 0,
@@ -649,6 +672,12 @@ impl SessionManager {
                 killer: None,
                 closed: false,
                 started_at_ms: now_ms(),
+                prelude_bytes: plan.prelude.len() as u64,
+                prelude_cols: if plan.prelude.is_empty() {
+                    0
+                } else {
+                    plan.prelude_cols
+                },
             }),
             cond: Condvar::new(),
             backend: self.backend.clone(),

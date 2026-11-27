@@ -64,6 +64,8 @@ mod unix {
                 remote: false,
                 detach_expected: false,
                 dims: PtyDims { rows: 24, cols: 80 },
+                prelude: Vec::new(),
+                prelude_cols: 0,
             })
             .unwrap();
         let attach = manager.attach(&info.session_id, 0, sink).unwrap();

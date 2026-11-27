@@ -49,6 +49,10 @@ export interface SessionInfo {
   attached: boolean;
   backend: string;
   started_at_ms: number;
+  /** Restored output at the start of the stream (session memory). */
+  prelude_bytes: number;
+  /** Width the restored output was written at. */
+  prelude_cols: number;
 }
 
 export interface AttachInfo {
@@ -270,6 +274,10 @@ export interface Settings {
   terminal_scheme: TerminalScheme;
   desktop_notifications: boolean;
   snippets: Snippet[];
+  /** Start the terminals that were running last time (ADR-015). */
+  restore_terminals: boolean;
+  /** Keep each terminal's last output on this computer (ADR-015). */
+  remember_terminal_content: boolean;
 }
 
 export const TERMINAL_SCHEMES = [
@@ -289,6 +297,14 @@ export interface Snippet {
   text: string;
 }
 
+/** What session memory restored at startup (ADR-015). */
+export interface ResumeReport {
+  crashed: boolean;
+  restored: number;
+  left_stopped: string[];
+  failed: string[];
+}
+
 export interface StartupInfo {
   load_report: {
     generation: number;
@@ -302,6 +318,7 @@ export interface StartupInfo {
   backend: string;
   state_dir: string;
   config_dir: string;
+  resume: ResumeReport | null;
 }
 
 export interface AuditEntry {
@@ -381,6 +398,7 @@ export const api = {
   sshHosts: () => invoke<HostList>("ssh_hosts"),
   /** Writes a diagnostics report (no names or output) into Downloads. */
   exportDiagnostics: () => invoke<string>("diagnostics_export"),
+  forgetTerminalOutput: () => invoke<number>("memory_forget"),
 
   registry: () => invoke<RegistryView>("registry_view"),
   rescan: () => invoke<Diff>("registry_rescan"),

@@ -33,6 +33,7 @@ pub const ALLOWED_COMMANDS: &[&str] = &[
     "clipboard_read_text",
     "scrollback_export",
     "diagnostics_export",
+    "memory_forget",
     "desktop_notify",
     "registry_view",
     "registry_rescan",

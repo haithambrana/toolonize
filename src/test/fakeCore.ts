@@ -48,6 +48,8 @@ export const settings: Settings = {
   terminal_scheme: "auto",
   desktop_notifications: true,
   snippets: [],
+  restore_terminals: true,
+  remember_terminal_content: true,
 };
 
 export function entry(partial: Partial<RegistryEntry> & { launcher_id: string }): RegistryEntry {
@@ -113,6 +115,8 @@ export function session(
     attached: false,
     backend: "portable-pty-0.9.0",
     started_at_ms: 1,
+    prelude_bytes: 0,
+    prelude_cols: 0,
     ...partial,
   };
 }
@@ -157,6 +161,7 @@ export function resetFakeCore() {
     backend: "portable-pty-0.9.0",
     state_dir: "/fixture/state",
     config_dir: "/fixture/config",
+    resume: null,
   }));
   handlers.set("settings_get", () => settings);
   handlers.set("settings_update", ok);

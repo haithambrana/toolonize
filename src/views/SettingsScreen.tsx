@@ -17,6 +17,57 @@ function update(settings: Settings, patch: Partial<Settings>) {
   return attempt(() => api.updateSettings({ ...settings, ...patch }), "Could not save settings");
 }
 
+function SessionMemoryCard() {
+  const settings = useAppState((s) => s.settings);
+  if (!settings) return null;
+  return (
+    <fieldset className="card card-wide">
+      <legend>Session memory</legend>
+      <p>
+        If ToolOnize closes or the computer loses power, it opens again with the same window, the
+        same terminals in the same folders, and what they showed.
+      </p>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.restore_terminals}
+          onChange={(e) => void update(settings, { restore_terminals: e.target.checked })}
+        />
+        Start the terminals that were running last time (shells and SSH; commands only when set to
+        restart automatically)
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.remember_terminal_content}
+          onChange={(e) => void update(settings, { remember_terminal_content: e.target.checked })}
+        />
+        Remember what each terminal showed (kept on this computer only; turning this off deletes it)
+      </label>
+      <div className="row-gap">
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={async () => {
+            const n = await attempt(
+              () => api.forgetTerminalOutput(),
+              "Could not delete saved output"
+            );
+            if (n !== undefined) notify("info", `Deleted the saved output of ${n} terminal(s).`);
+          }}
+        >
+          Forget saved terminal output
+        </button>
+      </div>
+      <p className="muted small">
+        Saved output is cleaned so that nothing in it can act again (no clipboard writes,
+        notifications or terminal queries) and is never part of backups, exports or diagnostics.
+        Closing a terminal yourself forgets it.
+      </p>
+    </fieldset>
+  );
+}
+
 function BackupCard() {
   const [withSettings, setWithSettings] = useState(true);
   const [restoreSettings, setRestoreSettings] = useState(false);
@@ -30,7 +81,7 @@ function BackupCard() {
         launcher names and connections. It is saved to your Downloads folder and stays on this
         machine unless you move it.
       </p>
-      <div className="row-gap">
+      <div className="row-gap backup-row">
         <button
           type="button"
           className="btn btn-sm btn-primary"
@@ -52,7 +103,7 @@ function BackupCard() {
           Include settings
         </label>
       </div>
-      <div className="row-gap">
+      <div className="row-gap backup-row">
         <button
           type="button"
           className="btn btn-sm"
@@ -522,6 +573,8 @@ export function SettingsScreen() {
             Shortcuts use Ctrl+Shift so terminal programs keep their own Ctrl keys.
           </p>
         </fieldset>
+
+        <SessionMemoryCard />
 
         <BackupCard />
 

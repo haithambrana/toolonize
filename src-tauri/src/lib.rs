@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod export;
 pub mod external;
 pub mod logging;
+pub mod memory;
 pub mod model;
 pub mod notes;
 pub mod persist;
@@ -37,6 +38,10 @@ pub fn run() {
         eprintln!("initial launcher scan failed: {error}");
     }
     core.restart_watch();
+    // Session memory (ADR-015): start again what was running last time,
+    // then keep the memory current.
+    core.resume_session();
+    core.start_memory();
     let exit_core = core.clone();
 
     let builder = tauri::Builder::default()
@@ -55,6 +60,7 @@ pub fn run() {
         crate::commands::clipboard::clipboard_read_text,
         crate::commands::app::scrollback_export,
         crate::commands::app::diagnostics_export,
+        crate::commands::app::memory_forget,
         crate::commands::app::desktop_notify,
         crate::commands::registry::registry_view,
         crate::commands::registry::registry_rescan,
@@ -121,7 +127,16 @@ pub fn run() {
         crate::commands::spike::spike_fail
     ]);
     let title_core = std::sync::Arc::downgrade(&exit_core);
+    let builder = builder.on_window_event(|window, event| {
+        if matches!(
+            event,
+            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+        ) {
+            remember_window(window);
+        }
+    });
     let builder = builder.setup(move |app| {
+        restore_window(app.handle());
         let sink = std::sync::Arc::new(TitleSink {
             app: app.handle().clone(),
             core: title_core.clone(),
@@ -141,6 +156,57 @@ pub fn run() {
                 exit_core.shutdown();
             }
         });
+}
+
+/// Put the main window where it was last time, if that place is still on
+/// a connected monitor (ADR-015).
+fn restore_window(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Some(saved) = app.state::<std::sync::Arc<app::Core>>().saved_window() else {
+        return;
+    };
+    let monitors: Vec<memory::Area> = window
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| memory::Area {
+            x: m.position().x,
+            y: m.position().y,
+            width: m.size().width,
+            height: m.size().height,
+        })
+        .collect();
+    if let Some(place) = saved.placed_on(&monitors) {
+        let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
+        let _ = window.set_position(tauri::PhysicalPosition::new(place.x, place.y));
+        if place.maximized {
+            let _ = window.maximize();
+        }
+    }
+}
+
+fn remember_window(window: &tauri::Window) {
+    use tauri::Manager;
+    if window.label() != "main" || window.is_minimized().unwrap_or(false) {
+        return;
+    }
+    let core = window.state::<std::sync::Arc<app::Core>>();
+    if window.is_maximized().unwrap_or(false) {
+        core.note_window_maximized(true);
+        return;
+    }
+    if let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) {
+        core.note_window(memory::WindowState {
+            x: pos.x,
+            y: pos.y,
+            width: size.width,
+            height: size.height,
+            maximized: false,
+        });
+    }
 }
 
 /// Keeps the window title on the active workspace ("Name — ToolOnize").

@@ -145,6 +145,12 @@ graph LR
   - Mitigations: schema validation, size caps, unknown-node rejection;
     imports land in staging requiring per-item approval; no import step
     executes anything (FS-06 tested).
+- **T-CFG-03 Malicious backup file** (crafted full backup aiming at
+  execution, smuggled data or state corruption).
+  - Mitigations (ADR-014): 16 MiB cap, unknown fields refused, every part
+    validated like an import; restored workspaces get new ids, are staged,
+    policy Ask, all members unauthorized; approvals never restored; a failed
+    restore changes nothing.
 - **T-CFG-02 State corruption** (disk fault/bad migration).
   - Mitigations: atomic writes+journal; checksums; migrations versioned and
     tested; corrupt ⇒ previous snapshot + explicit loss report (FS-03).
@@ -175,6 +181,26 @@ graph LR
   - Mitigation: default logging records no output content; scrollback stays
     in-memory capped; no cloud anything (V1). Residual: screen/clipboard
     exposure is inherent to terminals — documented.
+  - Amended by ADR-015 (session memory): the last ≤ 256 KiB of each
+    terminal's cleaned output is kept on disk so it can be shown after a
+    restart, in a folder readable only by the user (0700), never in backups,
+    exports, diagnostics or logs; the user can turn it off (deleting it) or
+    forget it at any time; closing/removing a terminal or deleting its
+    workspace deletes it. Residual: like a shell history file, it can hold
+    secrets that were printed.
+- **T-TERM-05 Replayed output acting again** (saved output containing an
+  OSC 52 clipboard write, notifications, or device queries whose answers
+  would be typed into the new shell).
+  - Mitigations: saved output is reduced to text, line controls and
+    harmless formatting when saved and again when loaded; OSC/DCS/APC/PM/SOS
+    strings, queries, resets, mode changes, C1 controls and alternate-screen
+    content are removed (unit + fuzz tests; real-app check with OSC 52).
+- **T-TERM-06 Automatic restart doing harm** (a command with side effects
+  starting again after a crash).
+  - Mitigations: only shells and SSH sessions restart automatically; other
+    commands only when the user marked them "restart automatically"; every
+    restart goes through the execution policy (authorization, fingerprint,
+    staging) and refusals are reported.
 - **T-TERM-02 Clipboard risk** (paste jacking; multi-line paste executing).
   - Mitigations: bracketed-paste aware warnings for multi-line paste
     (FR-033); copy actions user-driven only.
@@ -272,6 +298,10 @@ IPC command, dependency adoption, or format support.
 | Output export | Core picks Downloads folder and a sanitized unique name, never overwrites, 32 MiB cap; WebView cannot pass a path | `export.rs` |
 | SSH auto-reconnect | Only on ssh exit 255 (`Disconnected`); never after a user Stop; bounded backoff; each attempt re-checks policy | `app_tests.rs` (`ssh_reconnect_backoff_rules`, `ssh_member_reconnects_after_a_drop`) |
 | T-TERM-04 | Process-group SIGHUP → SIGKILL on stop/exit; app exit terminates children | `stop_terminates_process_group_t_pty_013` |
+| T-TERM-01 (ADR-015) | Saved output in a 0700 folder; excluded from backups, diagnostics and logs; switch off deletes; close/remove/delete forgets | `app_tests.rs` (`memory_settings_turn_restarting_and_content_off`, `saved_output_stays_out_of_backups_diagnostics_and_logs`) |
+| T-TERM-05 | Replay sanitizer (text, SGR, line controls only; no OSC/DCS/queries/resets/alt screen), applied on save and load | `memory.rs` tests incl. fuzz; `power_loss_brings_back_terminals_folders_and_output` |
+| T-TERM-06 | Auto-restart only shells/SSH (commands only if marked auto-restart), through the execution policy | `resume_never_reruns_commands_and_respects_policy_and_settings` |
+| T-CFG-03 | Backup restore validated as hostile input, staged, unauthorized, all-or-nothing | `backup.rs` tests, `backup_restores_everything_staged_and_unauthorized`, `failed_restore_changes_nothing` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |
 | T-SEC-01 | Export linter (key headers, token prefixes, long tokens, home paths); audit log never records argv/env/output; repo safety checks | `transfer.rs`, `audit.rs` |
 | T-SEC-02 | Draft-only releases with SHA-256 sums and build provenance; no signing claim | `release.yml` |

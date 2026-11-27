@@ -10,6 +10,7 @@ import {
   type AppEvent,
   type NotesView,
   type RegistryView,
+  type ResumeReport,
   type SessionInfo,
   type Settings,
   type StartupInfo,
@@ -124,10 +125,12 @@ export function useAppState<T>(select: (s: AppState) => T): T {
   return useSyncExternalStore(subscribe, () => select(state));
 }
 
-export function notify(level: Notice["level"], message: string): void {
+/** Show a toast. The same message already on screen is not shown twice. */
+export function notify(level: Notice["level"], message: string, ms?: number): void {
+  if (getState().notices.some((n) => n.level === level && n.message === message)) return;
   const id = ++noticeId;
   setState((s) => ({ notices: [...s.notices.slice(-4), { id, level, message }] }));
-  setTimeout(() => dismissNotice(id), level === "error" ? 9000 : 5000);
+  setTimeout(() => dismissNotice(id), ms ?? (level === "error" ? 9000 : 5000));
 }
 
 export function dismissNotice(id: number): void {
@@ -252,9 +255,42 @@ export async function init(): Promise<void> {
         `State recovered from an earlier snapshot. ${startup.load_report.problems.join(" ")}`
       );
     }
+    for (const [level, message] of resumeMessages(startup.resume)) notify(level, message, 12000);
   } catch (error) {
     setState({ fatal: errorMessage(error), ready: true });
   }
+}
+
+/** Startup notices for what session memory restored (ADR-015). */
+export function resumeMessages(r: ResumeReport | null): [Notice["level"], string][] {
+  if (!r) return [];
+  const out: [Notice["level"], string][] = [];
+  if (r.restored > 0) {
+    const what = `${r.restored} terminal${r.restored === 1 ? "" : "s"}`;
+    out.push(
+      r.crashed
+        ? [
+            "warning",
+            `ToolOnize did not close normally last time. Restored ${what} with their last output.`,
+          ]
+        : ["info", `Restored ${what} from your last session.`]
+    );
+  } else if (r.crashed && r.left_stopped.length === 0 && r.failed.length === 0) {
+    out.push([
+      "info",
+      "ToolOnize did not close normally last time. Your workspaces and notes are safe.",
+    ]);
+  }
+  if (r.left_stopped.length) {
+    out.push([
+      "info",
+      `Not started again automatically, because commands can have side effects: ${r.left_stopped.join(", ")}. Start them when you need them.`,
+    ]);
+  }
+  if (r.failed.length) {
+    out.push(["warning", `Could not restore: ${r.failed.join("; ")}.`]);
+  }
+  return out;
 }
 
 export function activeWorkspace(s: AppState): WorkspaceView | undefined {

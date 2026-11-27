@@ -32,6 +32,9 @@ pub struct LaunchPlan {
     pub launcher_id: String,
     pub fingerprint: String,
     pub interpreter: bool,
+    /// The launcher itself names the working directory (then a resumed
+    /// session does not move it elsewhere).
+    pub launcher_cwd: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -266,6 +269,7 @@ pub fn plan_start(
         launcher_id: launcher.launcher_id.clone(),
         fingerprint: launcher.fingerprint.clone(),
         interpreter: launcher.classification.interpreter,
+        launcher_cwd: d.working_dir.is_some(),
     })
 }
 

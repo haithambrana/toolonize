@@ -32,6 +32,8 @@ use std::time::{Duration, Instant};
 mod backup;
 pub use backup::TemplateSummary;
 mod execution;
+mod memory;
+pub use memory::ResumeReport;
 mod import_export;
 mod launchers;
 mod misc;
@@ -195,6 +197,8 @@ pub struct StartupInfo {
     pub backend: String,
     pub state_dir: String,
     pub config_dir: String,
+    /// What session memory restored at startup (ADR-015).
+    pub resume: Option<ResumeReport>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -253,6 +257,11 @@ pub struct Core {
     /// Workspaces whose startup policy already ran in this app process; a
     /// renderer reload must not run it (or ask) again.
     opened: Mutex<std::collections::HashSet<String>>,
+    /// Session memory (ADR-015).
+    memory_store: Store,
+    memory: Mutex<memory::MemoryRuntime>,
+    memory_dirty: std::sync::atomic::AtomicBool,
+    resume_report: Mutex<Option<ResumeReport>>,
     me: OnceLock<Weak<Core>>,
 }
 
@@ -325,6 +334,10 @@ impl Core {
                 notified: Mutex::new(std::collections::VecDeque::new()),
                 reconnect_token: std::sync::atomic::AtomicU64::new(0),
                 opened: Mutex::new(std::collections::HashSet::new()),
+                memory_store: Store::new(state_dir.join("memory")),
+                memory: Mutex::new(memory::MemoryRuntime::default()),
+                memory_dirty: std::sync::atomic::AtomicBool::new(false),
+                resume_report: Mutex::new(None),
                 me,
             }
         })
@@ -353,6 +366,7 @@ impl Core {
             backend: "portable-pty-0.9.0".to_string(),
             state_dir: self.store.dir().to_string_lossy().into_owned(),
             config_dir: self.config_store.dir().to_string_lossy().into_owned(),
+            resume: self.resume_report.locked().clone(),
         }
     }
 

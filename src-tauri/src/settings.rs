@@ -95,6 +95,13 @@ pub struct Settings {
     /// disconnects or rings the bell.
     pub desktop_notifications: bool,
     pub snippets: Vec<Snippet>,
+    /// Start the terminals that were running when ToolOnize last closed or
+    /// the computer lost power (shells and SSH; commands only when marked
+    /// "restart automatically").
+    pub restore_terminals: bool,
+    /// Keep the last part of each terminal's output on this computer and
+    /// show it when the terminal comes back (ADR-015).
+    pub remember_terminal_content: bool,
 }
 
 impl Default for Settings {
@@ -119,6 +126,8 @@ impl Default for Settings {
             terminal_scheme: "auto".into(),
             desktop_notifications: true,
             snippets: Vec::new(),
+            restore_terminals: true,
+            remember_terminal_content: true,
         }
     }
 }

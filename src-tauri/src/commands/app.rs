@@ -55,6 +55,12 @@ pub async fn diagnostics_export(core: CoreState<'_>) -> Result<String, String> {
     blocking(&core, move |c| c.export_diagnostics()).await
 }
 
+/// Delete every saved terminal output (session memory); returns how many.
+#[tauri::command]
+pub async fn memory_forget(core: CoreState<'_>) -> Result<usize, String> {
+    blocking(&core, move |c| Ok(c.forget_terminal_content())).await
+}
+
 /// Save terminal text into the Downloads folder; the core picks the path.
 #[tauri::command]
 pub async fn scrollback_export(
