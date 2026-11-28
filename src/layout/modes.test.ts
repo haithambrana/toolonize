@@ -19,7 +19,7 @@ function tabsets(node: RowJson | TabSetJson): TabSetJson[] {
   return node.children.flatMap(tabsets);
 }
 
-describe("layout modes (T-LAYOUT-001)", () => {
+describe("layout modes", () => {
   it("grid places every member exactly once in a near-square grid", () => {
     const json = layoutFor("grid", members);
     expect(membersIn(json)).toEqual(["a", "d", "b", "e", "c"]);
@@ -58,7 +58,7 @@ describe("layout modes (T-LAYOUT-001)", () => {
     }
   });
 
-  it("mode transforms are pure: no IPC, no session effects (T-LAYOUT-003)", () => {
+  it("mode transforms are pure: no IPC, no session effects", () => {
     const before = calls.length;
     for (const mode of ["grid", "focus", "tabs", "master_stack"] as const)
       layoutFor(mode, members, "e");

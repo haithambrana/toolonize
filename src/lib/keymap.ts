@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcuts for core actions (FR-054). Defaults avoid plain
+ * Keyboard shortcuts for core actions. Defaults avoid plain
  * Ctrl+<letter> so terminal programs keep their keys; every binding can be
  * remapped in Settings (validated again in Rust).
  */

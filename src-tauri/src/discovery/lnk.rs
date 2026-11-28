@@ -1,6 +1,6 @@
 //! Bounded reader for Windows Shell Link (`.lnk`) files per [MS-SHLLINK].
 //!
-//! Stored-metadata policy (M6 decision, PLATFORM_ADAPTERS §3 option (a)):
+//! Stored-metadata policy (ADR-007):
 //! ToolOnize reads the link's stored fields and never calls
 //! `IShellLink::Resolve`, so discovery cannot show UI, search, silently
 //! re-target, or mutate a link (T-WIN-01). Being pure Rust, the reader is
@@ -272,7 +272,7 @@ pub fn expand_env(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> (Strin
 }
 
 /// Test-only writer used to generate synthetic fixtures at test time
-/// (never committed binaries, TEST_STRATEGY §6).
+/// (never committed binaries; see docs/testing/FIXTURE_POLICY.md).
 #[cfg(test)]
 pub mod build {
     use super::*;

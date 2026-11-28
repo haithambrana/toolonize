@@ -1,4 +1,4 @@
-/** Keyboard/palette action dispatcher (FR-054). */
+/** Keyboard/palette action dispatcher. */
 import {
   addTerminal,
   renameMember,

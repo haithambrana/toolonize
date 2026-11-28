@@ -78,4 +78,4 @@ For answers to common questions about this code of conduct, see the FAQ at https
 
 ## Reporting
 
-Until a public GitHub Security Advisory channel is activated (before the first public release), reports should be made via the private channel announced in the first public release materials. Do not include personal contact information here unless it is already approved as public.
+Report incidents privately to the maintainers through the contact options at [crmonize.com](https://crmonize.com). For anything security-related, use the private reporting described in [SECURITY.md](SECURITY.md).

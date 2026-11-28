@@ -5,7 +5,7 @@ Status: **Accepted**
 
 ## Context
 
-V1 requires a browser-rendered terminal supporting: normal keyboard
+ToolOnize requires a browser-rendered terminal supporting: normal keyboard
 behavior, mouse-aware TUIs, Unicode (incl. wide chars), selection/copy/
 paste, search, resize-driven reflow, and full-screen CLI agents — inside a
 system WebView, over our own IPC transport (not websockets).
@@ -23,8 +23,7 @@ integration where needed, `addon-unicode11`.
    npm at retrieval (early-2026 publish) [@xterm/xterm npm page, retrieved
    2026-08-26]; release cadence active (releases list synchronized-output
    DEC 2026 mode, ligature detail work, etc.).
-2. Capability coverage matches every V1 terminal requirement (PRD FR-030..
-   034): core emulator + fit/search/serialize/webgl/unicode11 addons are
+2. Capability coverage matches every terminal requirement: core emulator + fit/search/serialize/webgl/unicode11 addons are
    team-maintained [README/npm].
 3. Ecosystem maturity: xterm.js is the de-facto standard embedded terminal
    in web-technology products (widely embedded across the industry; addon
@@ -41,7 +40,7 @@ integration where needed, `addon-unicode11`.
   and canvas fallback [addon-webgl README].
 - Layout-move continuity requires keeping the instance mounted: TerminalView
   moves its container node; FlexLayout's component-state preservation claim
-  (ADR-003) is validated in M4 with a regression test (FR-031).
+  (ADR-003) is covered by a regression test.
 
 ## Alternatives considered
 
@@ -54,8 +53,8 @@ integration where needed, `addon-unicode11`.
 ## Consequences
 
 Terminal UX parity with major products achievable; scrollback caps and
-serialize usage defined in TEST_STRATEGY §5 contract suite.
+serialize usage are covered by the terminal controller tests.
 
 ## Links
 
-TECHNOLOGY_RESEARCH §2; ARCHITECTURE §6; IMPLEMENTATION_PLAN M3/M4 gates.
+ARCHITECTURE §6; ADR-003.

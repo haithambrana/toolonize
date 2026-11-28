@@ -1,37 +1,36 @@
 # Security Policy
 
-## Supported versions
+ToolOnize runs your shells, SSH sessions and tools, so we take its security seriously.
 
-ToolOnize is a CRMonize.com open-source project. V1 is implemented but no application release has been published, so no version is supported yet. Once releases exist, this table will list supported lines.
+## Supported versions
 
 | Version | Supported |
 |---|---|
-| (pre-release) | — |
+| 0.2.x (latest release) | ✅ |
+| older | ❌ — ToolOnize updates itself; install the latest release |
 
 ## Reporting a vulnerability
 
-**Do not open a public issue for a suspected vulnerability.**
+**Please do not open a public issue for a suspected vulnerability.**
 
-Until a public GitHub Security Advisory channel is activated (before the first public release), use the following process:
+Report it privately through GitHub: open the repository's **Security** tab and choose **[Report a vulnerability](../../security/advisories/new)**. Please include:
 
-1. Contact the maintainers through the private channel announced in the repository's first public release announcement. If no channel has been announced yet, hold the report and contact the human Product/Technical Lead out-of-band.
-2. Include: affected component, steps to reproduce with fictional data only (no real credentials/hosts), impact assessment, and any suggested mitigation.
-3. Allow time for triage before any public disclosure. We will acknowledge receipt and coordinate a disclosure timeline with you.
+- the affected version and platform;
+- steps to reproduce, using fictional data only (no real hosts, keys or credentials);
+- the impact you expect and, if you have one, a suggested fix.
 
-**Never post vulnerabilities publicly** (issues, discussions, social media) until a fix and advisory are coordinated.
+We will acknowledge your report, keep you informed while we work on a fix, and publish a security advisory when the fix is released. We are happy to credit you in the advisory unless you prefer to stay anonymous. Please give us reasonable time to fix the issue before disclosing it publicly.
 
-We will credit reporters in the advisory unless you prefer to remain anonymous.
+## Security model in brief
 
-## Scope
+- **The interface is untrusted.** The WebView can only call a fixed list of typed commands; none accepts a program, arguments or a command line. Starting anything goes through the execution policy in the Rust core.
+- **Discovery never executes.** Launchers found on your system are read, classified and shown for review; changed launchers need review again before they run.
+- **No credential storage.** SSH uses your own `ssh`, agent and config. ToolOnize stores no passwords or keys.
+- **Signed updates.** Every installer and update is signed; the app refuses an update whose signature does not match its built-in key, and refuses downgrades.
+- **Local data stays local.** No account, no telemetry. Saved terminal output lives in a folder readable only by you and is never included in backups, exports or diagnostics.
 
-V1 threat model: see `docs/security/THREAT_MODEL.md`. In particular:
+The full analysis is in [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md).
 
-- The WebView is treated as untrusted; execution policy lives in the Rust core.
-- No plaintext credential storage; SSH delegates to the user's agent/config.
-- Launcher parsing must remain robust against hostile inputs.
+## Verifying downloads
 
-## Disclosure expectations
-
-We follow coordinated disclosure. We will keep you informed of remediation progress and publish an advisory once a fix is available.
-
-Do not include a personal contact email here unless it is already approved as a public security contact.
+Every release lists SHA-256 checksums in `SHA256SUMS.txt` and carries a GitHub build-provenance attestation. You can check a file with `sha256sum -c SHA256SUMS.txt --ignore-missing`, or with the `gh attestation verify` command shown in the release notes.

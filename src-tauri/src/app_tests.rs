@@ -99,10 +99,7 @@ fn custom_root_review_pin_change_reauthorize_flow() {
         .find(|e| e.launcher.origin == crate::model::OriginKind::CustomRoot)
         .unwrap();
     let id = launcher.launcher.launcher_id.clone();
-    assert!(
-        launcher.review_pending,
-        "custom roots need review (T-SEC-004)"
-    );
+    assert!(launcher.review_pending, "custom roots need review");
     assert!(launcher.launcher.classification.interpreter);
     let ws = c.create_workspace("W").unwrap();
     let fp = fingerprint(&c, &id);
@@ -115,7 +112,7 @@ fn custom_root_review_pin_change_reauthorize_flow() {
     let status = &c.workspaces().0[0].members[0].status;
     assert_eq!(status.state, policy::MemberState::Ready);
 
-    // Descriptor tampering after pinning (T-SEC-005).
+    // Descriptor tampering after pinning.
     write_entry(
         root.path(),
         "watch.desktop",

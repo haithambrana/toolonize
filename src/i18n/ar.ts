@@ -180,7 +180,6 @@ export const ar: Record<string, string> = {
   "Live updates are off": "التحديث المباشر متوقف",
   "Live updates degraded · Rescan": "التحديث المباشر متعثّر · إعادة الفحص",
   "Live updates off · Rescan": "التحديث المباشر متوقف · إعادة الفحص",
-  "Loading spike harness…": "جارٍ تحميل أداة الاختبار…",
   "Loading…": "جارٍ التحميل…",
   "Local command": "أمر محلي",
   "Local tmux session": "جلسة tmux محلية",

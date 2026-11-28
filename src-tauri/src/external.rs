@@ -1,4 +1,4 @@
-//! External Application Launcher (FR-040/041) and the URL opener (SEC-007).
+//! External Application Launcher and the URL opener.
 //!
 //! Launches an authorized plan detached from ToolOnize, preserving the
 //! target's native invocation semantics: discrete argv on Linux (no shell);
@@ -49,7 +49,7 @@ pub fn launch_detached(plan: &LaunchPlan) -> Result<u32, String> {
     Ok(pid)
 }
 
-/// http/https only, single line, bounded (SEC-007, T-EXT-01).
+/// http/https only, single line, bounded (T-EXT-01).
 pub fn validate_url(url: &str) -> Result<(), String> {
     if url.len() > 2048 || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err("invalid URL".into());

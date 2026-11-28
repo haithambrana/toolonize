@@ -1,5 +1,5 @@
 //! Launcher registry commands: inspection, review decisions, sources.
-//! None of these execute anything (FR-004).
+//! None of these execute anything.
 
 use super::{blocking, CoreState};
 use crate::app::RegistryView;

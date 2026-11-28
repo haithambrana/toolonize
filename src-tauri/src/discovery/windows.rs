@@ -1,4 +1,4 @@
-//! Windows launcher sources (FR-002): Known Folders + `.lnk` shortcuts.
+//! Windows launcher sources: Known Folders + `.lnk` shortcuts.
 //!
 //! Roots come from `SHGetKnownFolderPath` at runtime (never hard-coded).
 //! Shortcuts are read with the stored-metadata policy in [`super::lnk`]:
@@ -247,7 +247,7 @@ pub fn scan_lnk_root(
     (out, report)
 }
 
-/// Known Folder roots resolved at runtime (T-DISC-WIN-001).
+/// Known Folder roots resolved at runtime.
 #[cfg(windows)]
 pub fn known_folder_roots() -> Vec<(OriginKind, PathBuf)> {
     use windows_sys::Win32::UI::Shell::{

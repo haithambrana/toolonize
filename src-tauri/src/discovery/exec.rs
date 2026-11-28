@@ -1,8 +1,7 @@
 //! Desktop Entry `Exec` tokenizer and field-code expander.
 //!
 //! Implements the specification's quoting rules exactly and never invokes a
-//! shell: shell metacharacters are literal argument data (T-DISC-03,
-//! T-SEC-002a). Anything the specification leaves undefined, or that a
+//! shell: shell metacharacters are literal argument data (T-DISC-03). Anything the specification leaves undefined, or that a
 //! well-formed entry would not contain, is reported as an issue so the
 //! launcher lands in Needs Review instead of being guessed at.
 

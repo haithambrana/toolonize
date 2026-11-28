@@ -1,7 +1,8 @@
 # Domain Model
 
-Status: HUMAN APPROVED. Implemented in `src-tauri/src/{model,workspace,
-registry,session}`; invariants are covered by the tests listed in STATUS.md.
+The entities below are implemented in `src-tauri/src/{model,workspace,
+registry,session}`; their invariants are covered by the unit and integration
+tests next to that code.
 
 ---
 
@@ -26,7 +27,7 @@ erDiagram
     }
     MEMBER {
         string id PK
-        string launcher_id FK "references an authorized launcher (required in V1)"
+        string launcher_id FK "references an authorized launcher (required)"
         enum member_type "terminal|local_command|remote_command|external_app"
         json overrides "title, shell pref, env additions (non-secret)"
     }
@@ -124,7 +125,7 @@ Named container binding Members + LayoutState + StartupPolicy.
   inspection.
 
 ### Member
-Workspace-scoped instantiation of a launcher. **V1 invariant:** every
+Workspace-scoped instantiation of a launcher. **Invariant:** every
 executable member references either (a) an authorized launcher/descriptor in
 the registry or (b) an explicitly defined trusted synthetic system launcher
 produced by the native core. The frontend can never create an arbitrary
@@ -136,9 +137,10 @@ bash/PowerShell) are core-generated descriptors with explicit provenance and
 fixed typed fields. They still pass through execution policy and review like
 any launcher; they are not arbitrary frontend command strings.
 
-User-typed ad-hoc/custom commands are **out of scope for V1** (PRD §3;
-post-V1 Custom Command Editor consideration). Discovered Local Command
-launchers remain core V1 functionality.
+Free-form custom commands are not members. A shell or SSH member may carry a
+startup command, which is typed into the shell like the user's own input and
+adds no execution path (ADR-016). Discovered Local Command launchers are
+first-class members.
 
 Overrides may add display title/shell preferences; overrides may NOT inject
 arbitrary argv fragments beyond what the descriptor grammar allows.
@@ -162,7 +164,7 @@ Process-backed or remote-attached terminal instance. **Invariants:**
     `process_state`.
 - Local process lifetime honesty: closing the app terminates local child
   processes unless `detach_expected` documents external multiplexer
-  persistence (tmux/screen) — PRD FR-037. A Rust-owned local PTY process can
+  persistence (tmux/screen). A Rust-owned local PTY process can
   survive a renderer/WebView reload while the native application process
   remains alive; if the whole application exits, its local processes
   (including local `ssh` children) normally exit. Plain SSH reconnect means a
@@ -180,7 +182,7 @@ state alone.
 ### StartupPolicy
 Per-workspace enumerated policy (ask default). Executing it is a single
 transactional routine in the Rust core that walks members in dependency-free
-order; failures isolate per member (FS-02/FS-05).
+order; failures isolate per member.
 
 ## 3. State machines
 

@@ -16,11 +16,6 @@ import "@xterm/xterm/css/xterm.css";
 import { setLanguage, t, useLanguage } from "./i18n";
 import { scheduleUpdateChecks } from "./lib/updates";
 
-// Throwaway M2 harness, included only in the dedicated spike build: with the
-// flag unset the import is dead code and never reaches the bundle.
-const SPIKE = import.meta.env.VITE_M2_SPIKE === "1" && import.meta.env.MODE !== "test";
-const TerminalSpike = SPIKE ? lazy(() => import("./spike/TerminalSpike")) : null;
-
 // Secondary screens load on first use; the workspace view stays in the
 // main bundle so terminals appear without an extra round trip.
 const LaunchersScreen = lazy(() =>
@@ -176,12 +171,5 @@ function Shell() {
 }
 
 export default function App() {
-  if (TerminalSpike) {
-    return (
-      <Suspense fallback={<div className="muted small">{t("Loading spike harness…")}</div>}>
-        <TerminalSpike />
-      </Suspense>
-    );
-  }
   return <Shell />;
 }

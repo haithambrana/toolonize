@@ -1,6 +1,6 @@
 /**
  * Promise-based modal dialog service (confirm / prompt / custom content) with
- * focus trapping, Escape to cancel and restored focus (ACC-001/003).
+ * focus trapping, Escape to cancel and restored focus.
  */
 import { useState, type ReactNode } from "react";
 import { t } from "../i18n";

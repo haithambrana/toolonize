@@ -1,4 +1,4 @@
-//! Terminal sessions: process lifecycle independent of any view (FR-031).
+//! Terminal sessions: process lifecycle independent of any view.
 
 mod manager;
 pub mod output;

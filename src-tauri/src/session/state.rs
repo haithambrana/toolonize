@@ -1,10 +1,10 @@
-//! The two orthogonal session state machines (PRD FR-031, DOMAIN_MODEL §3).
+//! The two orthogonal session state machines (DOMAIN_MODEL §3).
 //!
 //! `ProcessState` describes the child process / remote attach lifecycle and
 //! only changes in response to [`ProcessEvent`]s. `ViewState` describes how
 //! the UI currently presents the session and only changes in response to
 //! [`ViewEvent`]s. The types share no events, so a layout or view operation
-//! cannot be expressed as a process transition (T-STATE-001..004).
+//! cannot be expressed as a process transition.
 
 use serde::{Deserialize, Serialize};
 
@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn view_events_never_touch_process_state() {
-        // T-STATE-001: every view operation leaves the process state as-is.
+        // Every view operation leaves the process state as-is.
         // The view machine is a separate type; this test documents that a
         // full sequence of layout-driven view transitions is representable
         // without a single ProcessEvent.

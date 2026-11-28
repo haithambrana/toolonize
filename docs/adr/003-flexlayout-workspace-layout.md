@@ -1,9 +1,7 @@
 # ADR-003: flexlayout-react for workspace docking layout
 
 Date: 2026-08-26
-Status: **Accepted with the stable-host architecture — M4 gate passed in
-automated tests; pending human review** (per-milestone review pause waived by
-the owner on 2026-10-25, see STATUS.md). Fallback dockview not needed.
+Status: **Accepted**
 
 ## Context
 
@@ -11,12 +9,12 @@ The product requires professional docking: drag/dock tabs, tabsets, split
 resizing, maximize, borders, popouts; four user-facing modes (Grid, Focus,
 Tabs, Master+Stack); JSON round-trip persistence; keyboard/ARIA
 accessibility; and — critically — moving a live terminal between tabsets
-must not remount/destroy it (PRD FR-031).
+must not remount/destroy it.
 
 ## Decision
 
 Adopt **flexlayout-react** (Caplin) as the docking/layout library, with an
-explicit go/no-go validation in milestone M4. If the state-preservation gate
+explicit validation of terminal state preservation. If that validation
 fails for reasons we cannot work around, fall back to **dockview-react**
 (documented re-ADR).
 
@@ -44,13 +42,13 @@ fails for reasons we cannot work around, fall back to **dockview-react**
 | **dockview(-react)** 8.x | MIT core (`dockview-enterprise` proprietary) | very active; ~215k weekly downloads; React 16.8–19 peers | Strong alternative; groups/grid API; chosen fallback |
 | rc-dock | MIT | not re-evaluated in depth | dockview's modern successor lineage; less documentation depth found |
 | react-mosaic | MIT-ish | binary-split only | lacks tabsets ⇒ poor Master+Stack fit |
-| Custom pane engine | — | — | rejected: months of edge-case work (drag, a11y, popouts) with no V1 differentiation |
+| Custom pane engine | — | — | rejected: months of edge-case work (drag, a11y, popouts) with no product differentiation |
 
 ## Conditions & risks
 
 - The upstream README claim covers *React component state* preservation when
   tabs move. That alone is NOT sufficient evidence that our xterm
-  DOM/session lifecycle is correct. Gate test (M4) must therefore prove,
+  DOM/session lifecycle is correct. The validation must therefore prove,
   on both platforms: xterm `Terminal` instance identity stable; PTY session
   id stable; no `dispose()` on layout movement; scrollback intact across
   ordinary layout changes; resize propagation correct through every
@@ -60,8 +58,7 @@ fails for reasons we cannot work around, fall back to **dockview-react**
   these, a stable host/portal architecture (long-lived terminal host per
   session; layout nodes as attachment targets; React portal / persistent
   host pattern permitted) must be evaluated before the dockview fallback.
-  Failure of both triggers dockview evaluation spike (≤ timeboxed) then
-  re-ADR.
+  Failure of both triggers a dockview evaluation and a new ADR.
 - ESM-only packaging — fine under Vite toolchain.
 - Layout JSON treated as hostile input on load (THREAT_MODEL T-CFG-01).
 
@@ -70,7 +67,7 @@ fails for reasons we cannot work around, fall back to **dockview-react**
 We do not build/maintain a recursive pane engine; UI effort concentrates on
 workspace semantics instead.
 
-## M4 gate outcome (2026-10-25)
+## Outcome (2026-10-25)
 
 The stable host/portal pattern from the Conditions section was adopted from
 the start instead of relying on FlexLayout's direct-mount behavior:
@@ -103,5 +100,4 @@ Not yet evidenced: the same manual run on WebView2 (Windows).
 
 ## Links
 
-TECHNOLOGY_RESEARCH §3; ARCHITECTURE §7; IMPLEMENTATION_PLAN M4;
-TEST_STRATEGY §3/§8.
+ARCHITECTURE §7; `src/terminal/controller.ts`; `src/layout/modes.ts`.

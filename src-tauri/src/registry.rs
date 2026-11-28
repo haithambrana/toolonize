@@ -1,9 +1,9 @@
-//! Launcher Registry: normalized records + user decisions (FR-050).
+//! Launcher Registry: normalized records + user decisions.
 //!
 //! Identity (`launcher_id`) and authorization (`descriptor_fingerprint`) are
 //! separate. Decisions are keyed by identity, so they survive descriptor
 //! edits; review approvals record the exact fingerprint they approved, so
-//! any security-relevant edit requires a new review (FR-015, T-DISC-04).
+//! any security-relevant edit requires a new review (T-DISC-04).
 
 use crate::classify::{classify, effective_type};
 use crate::discovery::SourceReport;
@@ -140,7 +140,7 @@ impl Registry {
     }
 
     /// Replace the record set with a fresh scan, updating persisted change
-    /// tracking. Pure data: nothing executes (FR-004).
+    /// tracking. Pure data: nothing executes.
     pub fn apply_scan(
         &mut self,
         raws: Vec<RawLauncher>,

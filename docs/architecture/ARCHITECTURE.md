@@ -1,11 +1,12 @@
 # Architecture
 
-Status: HUMAN APPROVED. Implemented as described (M3–M10, pending review);
-§15 maps each component to its code.
+This document describes how ToolOnize is built; §15 maps each component to
+its code.
 
-Companion documents: DOMAIN_MODEL.md (entities), PLATFORM_ADAPTERS.md
-(OS boundaries), THREAT_MODEL.md (security analysis), TECHNOLOGY_RESEARCH.md
-(evidence for choices).
+Companion documents: [DOMAIN_MODEL.md](DOMAIN_MODEL.md) (entities),
+[PLATFORM_ADAPTERS.md](PLATFORM_ADAPTERS.md) (OS boundaries),
+[THREAT_MODEL.md](../security/THREAT_MODEL.md) (security analysis), and the
+[decision records](../adr/README.md) (why each choice was made).
 
 ---
 
@@ -50,7 +51,7 @@ graph TB
     CORE -->|"spawn/embed"| PTYOS
     CORE -->|"launch authorized apps"| GUIAPP
     PTYOS --> SHELLS
-    CORE -->|"atomic writes/journal"| FS
+    CORE -->|"atomic snapshots"| FS
 ```
 
 Notes:
@@ -90,9 +91,9 @@ graph TB
             WA[Windows Adapter]
         end
 
-        subgraph PtyLayer["PTY layer (ADR-004 spike decides impl)"]
+        subgraph PtyLayer["PTY layer (ADR-004)"]
             PB[PtyBackend trait]
-            IMPL[Chosen backend(s)]
+            IMPL[portable-pty 0.9.0]
         end
     end
 
@@ -134,7 +135,7 @@ T-WEB-01.
 | Terminal Session Manager | process session state machine, PTY handles, lossless output pump, restart/reconnect semantics | trust frontend sizes blindly; drop PTY bytes |
 | Security/Execution Policy | argv construction, authorization checks bound to launcher_id+descriptor_fingerprint+scope, audit log | delegate decisions to frontend |
 | External App Launcher | detached launch of authorized external targets | manage foreign windows |
-| Persistence | atomic state files, journal, migrations, import/export validation | store secrets |
+| Persistence | atomic checksummed snapshots, migrations, import/export validation | store secrets |
 | Platform Adapter API | traits: LauncherSource, FsWatch, ShellResolver | contain business logic |
 | Linux/Windows Adapter | concrete source enumeration + watchers per research docs | leak platform details upward |
 | Layout UI | FlexLayout model, mode transforms, drag/dock — mutates view attachment/layout only | own session lifetime or mutate process state |
@@ -165,11 +166,10 @@ sequenceDiagram
     Note over LR,FE: Nothing executes in this pipeline.<br/>Execution happens only via Execution Policy<br/>for pinned members (separate diagram).
 ```
 
-Design rules (from PLATFORM_DISCOVERY_RESEARCH): Linux Exec parsing follows
-spec quoting/field-code rules — never shell interpretation; Windows `.lnk`
-handling follows the M6-spike policy (stored metadata first where sufficient;
-Resolve only when necessary with conservative flags) so discovery never
-silently re-targets or mutates links.
+Design rules: Linux Exec parsing follows the Desktop Entry spec's quoting and
+field-code rules — never shell interpretation; Windows `.lnk` files are read
+from their stored metadata and `IShellLink::Resolve` is never called
+(ADR-007), so discovery never silently re-targets or mutates links.
 
 ## 6. Terminal PTY data flow
 
@@ -202,18 +202,17 @@ sequenceDiagram
     SM-->>FE: Exited event -> banner + restart affordance
 ```
 
-Lifecycle independence rules (mandatory; ADR-003 remains conditional until
-the M4 lifecycle test passes):
+Lifecycle independence rules (ADR-003):
 
 1. **Process vs view separation.** The *session* lives in Rust keyed by
    sessionId and carries `process_state` (New/Starting/Running/Exited/Failed/
    Stopping/Closed; remote adds Disconnected/Reconnecting). The view carries
    a separate `view_state` (Detached/Attached/Hidden). Layout moves re-parent
    the DOM node and mutate only `view_state`; they never close, reset, or
-   respawn a session (PRD FR-031).
-2. **M4 must prove** — FlexLayout's upstream "preservation of component state
-   when tabs are moved" claim is about React component state and is NOT by
-   itself sufficient evidence for our xterm/session lifecycle:
+   respawn a session.
+2. **Guaranteed by tests** — FlexLayout's own "preservation of component
+   state when tabs are moved" covers React state only, so ToolOnize tests its
+   terminal lifecycle directly:
    - xterm `Terminal` instance identity remains stable across drag, tabset
      move, maximize, restore, tab switch, and all four mode transformations;
    - PTY session id remains stable;
@@ -223,12 +222,9 @@ the M4 lifecycle test passes):
    - Focus → Restore returns the exact running terminal (same instance,
      same session, same scrollback);
    - mode transformations do not respawn processes.
-3. **Stable-host architecture.** If the FlexLayout spike cannot satisfy
-   these obligations with direct mounting, evaluate a stable host/portal
-   pattern: one long-lived terminal host per session; layout nodes act as
-   attachment targets (React portal / persistent host permitted). Do NOT
-   prematurely require the portal implementation if the spike proves it
-   unnecessary.
+3. **Stable-host architecture.** One long-lived terminal host
+   (`TerminalController`) per session owns the xterm.js instance; layout
+   nodes only attach its element, and park it off-screen when they unmount.
 4. Scrollback lives in the xterm buffer while its view exists; if a view is
    destroyed (member removed), scrollback up to the cap is retained
    server-side only if the member is kept in the workspace — otherwise
@@ -240,8 +236,8 @@ sequences and renderer state. The pump uses bounded batching/coalescing with
 high/low water marks and backpressure toward the PTY reader/child via normal
 OS flow-control consequences; per-session isolation prevents one stream from
 blocking others; exceeding a hard safety limit surfaces an explicit
-desynchronization/error state — never silent byte loss (NFR-002). M2/M3
-measurements determine practical chunk sizes and queue limits.
+desynchronization/error state — never silent byte loss. Chunk sizes and
+queue limits come from measurements on Linux and Windows (ADR-004).
 
 ## 7. Layout ownership and modes
 
@@ -255,12 +251,12 @@ size-capped).
 
 ## 8. Workspace persistence flow
 
-Save: engine serializes {schemaVersion, workspaces[{members[], layoutJson,
-policy, meta}], registryDecisions, settings} → validate → temp file → atomic
-rename → fsync dir. Journal appends intent records before mutations to allow
-replay after crash. Load: verify checksums/schema → apply journal replay →
-migrate if needed → hand to engine; corrupt file ⇒ previous snapshot +
-user-visible loss-window report (FS-03).
+Save: the core serializes {schemaVersion, workspaces[{members[], layoutJson,
+policy, meta}], registryDecisions} → validate → checksummed snapshot written
+to a temp file → atomic rename → fsync dir; the previous generations are kept
+(ADR-006). Load: verify checksum and schema → migrate if needed → hand to the
+core; a corrupt newest generation ⇒ previous generation + user-visible
+loss-window report.
 
 Session honesty: persisted state stores *membership and descriptors*, never
 processes. On restore, terminal members start fresh unless policy says ask/
@@ -285,7 +281,7 @@ Two orthogonal state machines (details and invariants: DOMAIN_MODEL §3):
   layout layer. Drag, tab switch, focus, grid, maximize, restore and any
   workspace layout transformation mutate ONLY this machine and layout JSON.
 
-Underlying script changes never signal sessions (FR-038); they only update
+Underlying script changes never signal sessions; they only update
 registry descriptors used at next explicit start.
 
 ## 10. Failure containment
@@ -300,7 +296,8 @@ registry descriptors used at next explicit start.
   transactional), sessions keep running; reload reattaches by sessionId.
 - Watch overflow (inotify queue / ReadDirectoryChangesW buffer) → full rescan
   fallback, UI badge.
-- Persistence failure (disk full) → command returns error; journal intact.
+- Persistence failure (disk full) → command returns error; the previous
+  snapshot stays intact.
 
 ## 11. Platform adapter boundaries
 
@@ -314,54 +311,48 @@ hidden-console spawn flags) live below this line.
 
 App writes only under: Linux `$XDG_CONFIG_HOME/<app>` + `$XDG_STATE_HOME/<app>`
 (or documented fallbacks); Windows `%APPDATA%\<app>` resolved via Known
-Folder APIs. Contents: settings.json, workspaces.json, journal/, and the
-launcher registry state store (storage backend/format deliberately not yet
-chosen — a future ADR decides; no format is implied by this name).
+Folder APIs. Contents: settings (config directory); state snapshot
+generations, the audit log, the diagnostic log, and session memory in a
+private `memory/` folder (state directory).
 Never written: anything under the repository checkout at runtime; secrets
-anywhere (SEC-004). Uninstall story = delete these dirs (documented).
+anywhere. Deleting these directories removes everything ToolOnize stored.
 
-## 13. Dependency decision states
+## 13. Dependencies
 
-Each dependency carries one status, tracked in TECHNOLOGY_RESEARCH +
-ADRs:
-
-| Status | Meaning |
-| --- | --- |
-| Decided | ADR Accepted (tauri/react/ts/xterm.js/flexlayout*) |
-| Proposed+Spike | ADR-004 PTY backend |
-| Candidate-fallback | dockview (if flexlayout gate fails in M4) |
-| Under evaluation | packaged-app enumeration API (M6 spike) |
-| Rejected-for-V1 | PATH-wide scanning default; any AI/cloud dependency |
-
-*flexlayout acceptance is conditional on the M4 state-preservation proof —
-the go/no-go criterion is written into IMPLEMENTATION_PLAN M4.
+Each dependency choice is recorded in an ADR or in
+[DEPENDENCIES.md](../security/DEPENDENCIES.md) with its license and reason.
+PATH-wide scanning and any AI or cloud dependency are deliberately excluded.
 
 ## 14. Deliberately absent abstractions (anti-overengineering)
 
 No plugin API, no scripting engine, no abstraction over "future cloud sync",
-no generic "task runner" concept, no custom widget toolkit, no ORM — each has
-no V1 customer per PRD scope.
+no generic "task runner" concept, no custom widget toolkit, no ORM — each
+would add complexity without a user need today.
 
 ## 15. Implementation map
 
 | Component (§4) | Code |
 | --- | --- |
 | IPC command surface | `src-tauri/src/commands/` — inventory `ALLOWED_COMMANDS`, checked against `build.rs` and `capabilities/default.json` by tests |
-| Application core (transactions, events) | `src-tauri/src/app.rs` |
+| Application core (transactions, events) | `src-tauri/src/app/` (`mod.rs`: `Core`, `mutate`, event bus) |
 | Launcher Registry | `src-tauri/src/registry.rs` |
 | Launcher Classification | `src-tauri/src/classify.rs` |
 | Change Watch | `src-tauri/src/discovery/watch.rs` (`notify`: inotify / ReadDirectoryChangesW) |
 | Platform adapters | `src-tauri/src/discovery/{linux,keyfile,exec,walk}.rs`, `discovery/{windows,lnk}.rs`, `shells.rs` |
-| Workspace Engine | `src-tauri/src/workspace.rs` + `app.rs` |
+| Workspace Engine | `src-tauri/src/workspace.rs` + `app/workspaces.rs` |
 | Security / Execution Policy | `src-tauri/src/policy.rs`, audit in `audit.rs` |
 | External App Launcher | `src-tauri/src/external.rs` |
 | Terminal Session Manager | `src-tauri/src/session/{manager,output,state}.rs` |
 | PTY layer | `src-tauri/src/pty/` (portable-pty 0.9.0 + mitigations, ADR-004) |
-| Persistence | `src-tauri/src/persist.rs` (ADR-006), `transfer.rs` (import/export), `settings.rs` |
+| Persistence | `src-tauri/src/persist.rs` (ADR-006), `transfer.rs` (import/export), `backup.rs` (ADR-014), `settings.rs` |
+| Notes and session memory | `src-tauri/src/notes.rs` (ADR-012), `memory.rs` (ADR-015) |
+| Updates and open at login | `src-tauri/src/updates.rs` (ADR-019), `autostart.rs` (ADR-017) |
+| SSH hosts | `src-tauri/src/sshconfig.rs` (ADR-011) |
 | Layout UI | `src/layout/` (FlexLayout, pure mode presets) |
 | TerminalView | `src/terminal/` (long-lived controller per session; panes attach/park it) |
 | Review Queue UX | `src/views/LaunchersScreen.tsx`, `src/lib/review.tsx` |
 | UI State Store | `src/state/store.ts` (projection of core state, refreshed by core events) |
+| Translations | `src/i18n/` (English keys, Arabic catalog, right-to-left layout; ADR-018) |
 
 Output transport as built: the PTY reader appends to a per-session log with
 absolute offsets; one pump thread sends `[u64 LE offset][bytes]` frames over

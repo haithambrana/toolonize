@@ -1,5 +1,5 @@
 /* ToolOnize chrome. Themes via [data-theme]; motion via [data-motion].
-   Text/background pairs meet WCAG AA (ACC-005). */
+   Text/background pairs meet WCAG AA. */
 :root,
 :root[data-theme="dark"] {
   --bg: #0f1115;

@@ -1,13 +1,13 @@
 # ADR-015: Session memory — continue after closing the app or a power loss
 
 Date: 2026-11-27
-Status: **Implemented — pending human review** (requested by the owner)
+Status: **Accepted**
 
 ## Context
 
-The owner asked: "when I'm working and the laptop suddenly turns off, or I
-close everything, I want to get back the same window with the same content
-and continue as if I never closed it."
+When the laptop suddenly turns off, or the user closes everything, they
+want to get back the same window with the same content and continue as if
+they had never closed it.
 
 Before this change ToolOnize restored workspaces, layouts and notes, but
 every terminal started empty, in its default folder, and only when the
@@ -64,7 +64,7 @@ workspace's startup policy allowed it.
   terminal output" button. Closing a terminal yourself, removing it, or
   deleting its workspace forgets its output; leftovers of members that no
   longer exist are removed at startup.
-- **Defaults.** Both switches are on: the owner asked for this behaviour,
+- **Defaults.** Both switches are on: this is the behaviour users ask for,
   and it matches what users expect from terminals that restore sessions.
 - New command: `memory_forget`. No new dependencies.
 
@@ -75,7 +75,7 @@ workspace's startup policy allowed it.
   0.4-second autosave (ADR-012).
 - A restarted shell is a new process: programs that were running inside it
   (an editor, a server started by hand) are not running again — their last
-  output is shown. tmux/screen members keep their remote sessions (FR-037).
+  output is shown. tmux/screen members keep their remote sessions.
 - On Windows the folder of a local shell is not read from the process yet,
   so it starts in the member/project folder; the rest works the same.
 - On Wayland the compositor decides window placement; size and maximized

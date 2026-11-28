@@ -1,5 +1,5 @@
 /** Renders the top dialog from the dialog service with focus trapping,
- * Escape to cancel and restored focus (ACC-001/003). */
+ * Escape to cancel and restored focus. */
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { closeTop, dialogQueue, subscribeDialogs, type DialogRequest } from "../lib/dialogs";
 

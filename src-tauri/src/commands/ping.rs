@@ -9,7 +9,7 @@ pub struct PingResponse {
     pub status: String,
 }
 
-/// Single M1 IPC command with semantic identity `app::ping`.
+/// Health-check IPC command with semantic identity `app::ping`.
 ///
 /// Tauri invoke identifier is `ping` (Rust function name). The semantic
 /// namespace `app::ping` is documented and enforced by handler registration:

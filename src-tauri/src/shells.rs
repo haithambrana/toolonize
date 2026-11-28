@@ -127,7 +127,7 @@ fn synthetic(
     }
 }
 
-/// Built-in shells available on this machine (T-PTY-001 surface).
+/// Built-in shells available on this machine.
 pub fn system_shells() -> Vec<RawLauncher> {
     let mut out = Vec::new();
     if cfg!(windows) {

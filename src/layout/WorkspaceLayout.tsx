@@ -4,7 +4,7 @@
  * The FlexLayout model is a projection; the Rust workspace engine holds the
  * saved snapshot. Tab components only attach long-lived terminal hosts, so
  * moving, maximizing, or switching tabs never recreates a terminal or
- * touches its PTY session (FR-031).
+ * touches its PTY session.
  */
 import { useEffect, useRef } from "react";
 import {

@@ -1,4 +1,4 @@
-//! Local, redacted audit log of execution decisions (SEC-006, T-SEC-007).
+//! Local, redacted audit log of execution decisions.
 //!
 //! Records who/what/outcome for start, launch, review and authorization
 //! decisions. Never records argv, environment, or terminal output; absolute

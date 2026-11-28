@@ -1,8 +1,8 @@
 /**
- * Layout mode presets over the FlexLayout JSON model (FR-022).
+ * Layout mode presets over the FlexLayout JSON model.
  *
  * Pure functions: they only produce layout JSON. They never touch sessions,
- * so switching modes cannot start, stop, or respawn anything (T-LAYOUT-003).
+ * so switching modes cannot start, stop, or respawn anything.
  */
 import type { LayoutMode } from "../lib/ipc";
 

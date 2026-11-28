@@ -689,7 +689,7 @@ impl SessionManager {
             .insert(id.clone(), session.clone());
         session.spawn_pump();
         // A spawn failure is a session state (Failed + retry), not an error
-        // for the caller: other members are unaffected (FS-02).
+        // for the caller: other members are unaffected.
         let _ = session.spawn_generation();
         Ok(session.info())
     }
@@ -910,7 +910,7 @@ impl SessionManager {
         }
     }
 
-    /// App exit: terminate every local child (FR-037). Persistence of
+    /// App exit: terminate every local child. Persistence of
     /// `detach_expected` members comes from tmux/screen, not from us.
     pub fn shutdown(&self) {
         let sessions: Vec<_> = self.sessions.locked().values().cloned().collect();

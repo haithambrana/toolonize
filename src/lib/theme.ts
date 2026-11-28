@@ -1,5 +1,5 @@
 /**
- * Theme resolution (FR-053, ACC-002/004/005). Chrome colors live in CSS
+ * Theme resolution. Chrome colors live in CSS
  * custom properties keyed by `data-theme`; terminal palettes mirror them.
  */
 import type { ITheme } from "@xterm/xterm";

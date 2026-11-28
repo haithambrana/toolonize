@@ -1,4 +1,4 @@
-//! Deterministic, conservative launcher classification (FR-010..014).
+//! Deterministic, conservative launcher classification.
 //!
 //! Rules are evidence-based and explain themselves; ambiguity resolves to
 //! review, never to execution. `Unknown` never reaches an execution path.
@@ -323,7 +323,10 @@ mod tests {
             "C:\\Windows\\System32\\cmd.exe",
             Some("/c start example & whoami"),
         );
-        assert!(interp.interpreter && interp.needs_review, "T-SEC-002c");
+        assert!(
+            interp.interpreter && interp.needs_review,
+            "interpreter launchers need review"
+        );
         let ps = win(
             "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
             Some("-EncodedCommand AAAA"),

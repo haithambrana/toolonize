@@ -120,7 +120,7 @@ describe("ToolOnize app", () => {
     expect(await screen.findByRole("heading", { name: "Project Phoenix" })).toBeInTheDocument();
   });
 
-  it("asks before starting anything when the policy is Ask (FR-024)", async () => {
+  it("asks before starting anything when the policy is Ask", async () => {
     core.workspaces = [workspace([member("a")])];
     core.active = "ws1";
     handlers.set("workspace_open", (a) =>
@@ -138,7 +138,7 @@ describe("ToolOnize app", () => {
     );
   });
 
-  it("mode switches never recreate terminals or touch sessions (FR-031, T-LAYOUT-003/004)", async () => {
+  it("mode switches never recreate terminals or touch sessions", async () => {
     const members = [member("a"), member("b")];
     core.workspaces = [workspace(members)];
     core.active = "ws1";
@@ -183,7 +183,7 @@ describe("ToolOnize app", () => {
     );
   });
 
-  it("shows the exit banner and restarts only on request (FR-035, T-PTY-010)", async () => {
+  it("shows the exit banner and restarts only on request", async () => {
     core.workspaces = [workspace([member("a")])];
     core.active = "ws1";
     core.sessions = [session({ session_id: "s-a", member_id: "a" })];
@@ -207,7 +207,7 @@ describe("ToolOnize app", () => {
     expect(commandsCalled()).toContain("session_restart");
   });
 
-  it("remote members reconnect with honest SSH semantics (FR-036)", async () => {
+  it("remote members reconnect with honest SSH semantics", async () => {
     core.workspaces = [workspace([member("r", { member_type: "remote_command" })])];
     core.active = "ws1";
     core.sessions = [
@@ -228,7 +228,7 @@ describe("ToolOnize app", () => {
     expect(commandsCalled()).toContain("session_reconnect");
   });
 
-  it("Launchers view: review-required items offer approval but no run control (T-POLICY-005)", async () => {
+  it("Launchers view: review-required items offer approval but no run control", async () => {
     core.entries = [
       entry({
         launcher_id: "linux:desktop:Org.Example.Hostile.desktop",
@@ -269,7 +269,7 @@ describe("ToolOnize app", () => {
     });
   });
 
-  it("changed members explain re-review instead of starting (FR-015)", async () => {
+  it("changed members explain re-review instead of starting", async () => {
     core.workspaces = [
       workspace([
         member("c", {
@@ -289,7 +289,7 @@ describe("ToolOnize app", () => {
     expect(screen.getByRole("button", { name: "Review…" })).toBeInTheDocument();
   });
 
-  it("opens the command palette with the keyboard and runs an action (FR-054)", async () => {
+  it("opens the command palette with the keyboard and runs an action", async () => {
     core.workspaces = [workspace([member("a")])];
     core.active = "ws1";
     render(<App />);
@@ -303,7 +303,7 @@ describe("ToolOnize app", () => {
     expect(screen.getByText(/CRMonize\.com open-source project/)).toBeInTheDocument();
   });
 
-  it("surfaces a recovered-state report on startup (FS-03)", async () => {
+  it("surfaces a recovered-state report on startup", async () => {
     handlers.set("app_startup_info", () => ({
       load_report: {
         generation: 1,

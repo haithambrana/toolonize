@@ -12,7 +12,7 @@ function ev(code: string, mods: Partial<KeyboardEvent> = {}) {
   return { code, key: "", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, ...mods };
 }
 
-describe("keymap (FR-054, T-UI-006)", () => {
+describe("keymap", () => {
   it("defaults are unique and use modifiers", () => {
     expect(conflicts(DEFAULT_KEYMAP).size).toBe(0);
     for (const b of Object.values(DEFAULT_KEYMAP)) expect(b).toMatch(/^(Ctrl|Alt|Meta)\+/);

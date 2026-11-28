@@ -1,22 +1,26 @@
-# Engineering Constitution
+# Guidelines for coding agents
 
-## Project phase
-Discovery and architecture only.
+These rules apply to anyone, human or AI agent, who changes this repository. [CONTRIBUTING.md](CONTRIBUTING.md) has the full contributor guide.
 
-## Current hard rules
-1. Do not implement application features until the PRD, architecture, threat model, and implementation plan are approved.
-2. Never copy machine-specific launchers, SSH configuration, credentials, IP addresses, usernames, tokens, password files, or private paths into the repository.
-3. The repository must remain safe for eventual public release.
-4. Prefer one cross-platform codebase with platform adapters for Linux and Windows.
-5. Product decisions require evidence or an ADR.
-6. Do not silently add dependencies.
-7. Do not weaken security to simplify implementation.
-8. Do not modify the existing Python/GTK prototype.
-9. Do not push or create a public GitHub repository until naming and secret-safety gates pass.
-10. Every implementation milestone must have tests and explicit acceptance criteria.
+## Hard rules
 
-## Current status
-The existing Python/GTK application is a disposable proof of concept and is not part of this repository.
+1. **No secrets or machine-specific data** in the repository: no credentials, tokens, keys, password files, SSH configuration, real hostnames, usernames, IP addresses or private paths. Fixtures use fictional data only ([`docs/testing/FIXTURE_POLICY.md`](docs/testing/FIXTURE_POLICY.md)). The repository is public.
+2. **Never weaken security to simplify an implementation.** The WebView is untrusted; process execution is reachable only through the Rust execution policy.
+3. **One cross-platform codebase** with platform adapters for Linux and Windows; no per-OS forks.
+4. **No silent dependencies.** Every new dependency is justified in the change and recorded in [`docs/security/DEPENDENCIES.md`](docs/security/DEPENDENCIES.md).
+5. **Decisions that change the architecture, the security model or user data handling need an ADR** in [`docs/adr/`](docs/adr/README.md).
+6. **Every change has tests**, and the checks below pass before it is pushed.
 
-## Authority
-Architecture, product scope, security policy, and public-release decisions are human-reviewed gates.
+## Working in the code
+
+- **IPC commands** are registered in four places that tests keep in sync: `ALLOWED_COMMANDS` in `src-tauri/src/commands/mod.rs`, the command list in `src-tauri/build.rs`, `src-tauri/capabilities/default.json`, and `generate_handler!` in `src-tauri/src/lib.rs`.
+- **User-facing strings** use `t()` / `tk()` from `src/i18n`, with an Arabic entry in `src/i18n/ar.ts`.
+- **State files** are written through `persist::Store` (atomic, checksummed); never write state files directly.
+
+## Checks
+
+```bash
+npm run typecheck && npm run lint && npm run format:check && npm test
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+bash tools/check-public-safety.sh
+```

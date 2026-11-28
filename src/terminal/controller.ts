@@ -4,7 +4,7 @@
  * One `TerminalController` exists per session and owns its xterm.js
  * `Terminal` and host element. Layout components only *attach* the element
  * to a container and *park* it when unmounted; layout moves never dispose a
- * terminal or touch the PTY session (FR-031, T-LAYOUT-004). Disposal happens
+ * terminal or touch the PTY session. Disposal happens
  * only when the session is closed or its member is removed.
  *
  * Output delivery is offset-checked and acknowledged after xterm.js has
@@ -33,7 +33,7 @@ export interface ControllerOptions {
   onAttention?: (kind: "bell" | "program", message: string) => void;
   /** Other sessions that should receive this terminal's input (broadcast). */
   broadcastTargets?: () => string[];
-  /** Decide whether a paste may proceed (multi-line warning, FR-033). */
+  /** Decide whether a paste may proceed (multi-line warning). */
   confirmPaste: (text: string, bracketed: boolean) => Promise<boolean>;
   onDesync?: (reason: string) => void;
   onKey?: (event: KeyboardEvent) => boolean;
@@ -252,7 +252,7 @@ export class TerminalController {
       event.preventDefault();
       this.options.onContextMenu(event.clientX, event.clientY);
     });
-    // Paste interception for the multi-line warning (FR-033, T-TERM-02).
+    // Paste interception for the multi-line warning (T-TERM-02).
     this.element.addEventListener(
       "paste",
       (event) => {

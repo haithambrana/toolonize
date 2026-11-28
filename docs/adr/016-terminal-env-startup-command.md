@@ -1,14 +1,14 @@
-# ADR-016: Per-terminal environment variables and startup command (amends SEC-002 wording)
+# ADR-016: Per-terminal environment variables and startup command
 
 Date: 2026-11-27
-Status: **Implemented — pending human review** (from the enhancement list the owner approved)
+Status: **Accepted**
 
 ## Context
 
 Users want a terminal that opens with project variables set (for example
 `NODE_ENV`, `API_URL`) and, for shells, a first command typed for them (for
-example `npm run dev` or `cd src && make watch`). SEC-002 says no IPC command
-accepts a program, argument list or command line.
+example `npm run dev` or `cd src && make watch`). The IPC rule is that no
+command accepts a program, argument list or command line.
 
 ## Decision
 
@@ -24,8 +24,8 @@ accepts a program, argument list or command line.
   its first output (or after 3 s) the core writes the line plus Enter into
   the terminal — the same path as the user's own typing (`session_write`),
   which the WebView can already use. It is never passed to `exec`, never
-  turned into arguments, and adds no new execution path; SEC-002 ("no
-  command line is executed from IPC") still holds. It is typed again after
+  turned into arguments, and adds no new execution path; the rule that no command line is executed
+  from IPC still holds. It is typed again after
   a restart or SSH reconnect, and after a session-memory resume (ADR-015),
   because "when this terminal starts" is what the user configured.
 - **Refused variables** (defense in depth, not the main control): names

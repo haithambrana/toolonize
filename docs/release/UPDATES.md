@@ -25,7 +25,7 @@ Each installed format updates itself in place: AppImage replaces its file,
 deb/rpm install through the system package tool (it asks for the
 administrator password), Windows runs the installer in passive mode.
 
-## One-time setup (owner)
+## One-time setup (maintainers)
 
 Run on your own computer, from a checkout of the repository:
 

@@ -57,7 +57,7 @@ describe("TerminalController", () => {
     core.sessions = [session({ session_id: "s1", member_id: "m1", end_offset: 0 })];
   });
 
-  it("keeps one Terminal instance across mount/unmount/remount (T-LAYOUT-004)", async () => {
+  it("keeps one Terminal instance across mount/unmount/remount", async () => {
     const a = document.createElement("div");
     const b = document.createElement("div");
     document.body.append(a, b);
@@ -73,7 +73,7 @@ describe("TerminalController", () => {
     expect(c2.term).toBe(instance);
     expect(term().dispose).not.toHaveBeenCalled();
     expect(term().opened).toBe(1);
-    // Layout operations only report view transitions (T-STATE-001).
+    // Layout operations only report view transitions.
     const sessionCmds = calls.map((c) => c.cmd).filter((c) => c.startsWith("session_"));
     expect(sessionCmds).not.toContain("session_start");
     expect(sessionCmds).not.toContain("session_stop");
@@ -85,7 +85,7 @@ describe("TerminalController", () => {
     ]);
   });
 
-  it("writes contiguous frames and acknowledges after xterm wrote them (T-UI-001)", async () => {
+  it("writes contiguous frames and acknowledges after xterm wrote them", async () => {
     const c = getController("s1", options);
     await flush();
     const ch = core.attachments.get("s1")!;
@@ -162,7 +162,7 @@ describe("TerminalController", () => {
     expect(calls.filter((x) => x.cmd === "session_ack").at(-1)?.args?.offset).toBe(100);
   });
 
-  it("treats an offset gap as explicit desync and re-attaches from what was written (T-PTY-007)", async () => {
+  it("treats an offset gap as explicit desync and re-attaches from what was written", async () => {
     const opts = options();
     getController("s1", () => opts);
     await flush();
@@ -194,7 +194,7 @@ describe("TerminalController", () => {
     expect(term().text).toBe("early");
   });
 
-  it("suppresses terminal answers while replaying history after reattach (FS-07)", async () => {
+  it("suppresses terminal answers while replaying history after reattach", async () => {
     core.sessions = [session({ session_id: "s1", member_id: "m1", end_offset: 7 })];
     getController("s1", options);
     await flush();
@@ -227,7 +227,7 @@ describe("TerminalController", () => {
     expect(term().text).toContain("trimmed");
   });
 
-  it("asks before multi-line paste and honours the answer (FR-033, T-UI-003)", async () => {
+  it("asks before multi-line paste and honours the answer", async () => {
     const confirm = vi.fn(async () => false);
     const c = getController("s1", () => options(confirm));
     await c.paste("echo one");
@@ -255,7 +255,7 @@ describe("TerminalController", () => {
     expect(term().pasted).toEqual([]);
   });
 
-  it("sends resize only when rows/cols change (T-UI-002)", async () => {
+  it("sends resize only when rows/cols change", async () => {
     const c = getController("s1", options);
     const div = document.createElement("div");
     document.body.append(div);

@@ -1,5 +1,5 @@
 /**
- * Launcher Registry + review queue (FR-012, T-POLICY-005).
+ * Launcher Registry + review queue.
  *
  * Shows everything discovery found, with provenance and full parsed
  * metadata. There is deliberately no "run" control here: launchers only

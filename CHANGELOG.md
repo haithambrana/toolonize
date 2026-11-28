@@ -1,56 +1,59 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to ToolOnize are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and ToolOnize follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
 ## 0.2.0 — 2026-11-28
 
-### Added
-- **In-app updates** (ADR-019): ToolOnize checks GitHub Releases at start and every 6 hours (can be turned off) and updates with one click; every installer is signed and refused unless the signature matches the key built into the release (no downgrades); terminals come back after the update restart. Release workflow signs installers and writes `latest.json`; `scripts/release/setup-updater.sh` sets up the key. New dependency `tauri-plugin-updater` 2.12 (without its vulnerable `zip` feature).
-- **Session memory** (ADR-015): after a power loss or closing the app, ToolOnize opens with the same window and the same terminals in the same folders, each showing its last output (cleaned so nothing in it can act again). Commands with side effects are not re-run unless marked "restart automatically". Logout/shutdown signals exit cleanly. Settings switches, "Forget saved terminal output", private 0700 folder.
-- **Open at login** (ADR-017): XDG autostart / HKCU Run / LaunchAgent, no new dependency. Tray icon deferred (reasons in the ADR).
-- **Sticky notes** per terminal and per workspace (ADR-012), crash-safe, Ctrl+Shift+N / Ctrl+Shift+M.
-- **Full backup and restore**, duplicate workspace, templates (ADR-014); restores land in review, unauthorized.
-- **Terminal settings** (ADR-016): per-terminal environment variables and a startup command (typed into the shell, never executed by ToolOnize), confirmation required for anything restored or edited outside the app.
-- **Arabic interface with right-to-left layout** (ADR-018); terminals stay left-to-right.
-- Split right/down in the same folder, project folder per workspace, per-terminal zoom, terminal fonts/cursor/color schemes, desktop notifications, broadcast typing, snippets, presentation mode (ADR-013).
-- UI: one title row per pane, compact toolbar with a More menu, Activity with names, filters and export, window title follows the workspace, diagnostics export, rotating diagnostic log.
-- Packaging: rpm bundle for Fedora/openSUSE next to deb, AppImage and NSIS.
+The first public release of ToolOnize by [CRMonize.com](https://crmonize.com).
 
-### Fixed
-- The launcher watcher counted read events as changes and rescanned about three times a second forever.
-- Stop followed by Restart/Reconnect from the banner failed ("invalid transition Closed on Restart").
-- Supply chain: url and cookie advisories (RUSTSEC-2026-0592/0594) fixed; vite/vitest/typescript-eslint upgraded; cargo-deny and npm audit gates in CI.
-- SSH connection manager: Launchers › Connections reads the `Host` aliases from `~/.ssh/config` (and Includes inside `~/.ssh`) on request and adds them as SSH connections; nothing else from the ssh config is read (ADR-011).
-- SSH auto-reconnect: a dropped SSH terminal reconnects automatically with backoff (up to 8 attempts) and shows a countdown with "Reconnect now" / "Stop reconnecting"; can be turned off in Settings.
-- Ctrl+click opens links in terminal output (OSC 8 links show their target first).
-- Color tags for terminals and workspaces, shown on tabs, pane headers, the sidebar and search results.
-- "Save output to file" (to the Downloads folder) and "Search all terminals" (Ctrl+Shift+G) across every open terminal.
-- Setup wizard (ADR-009): `./setup.sh` checks every package and toolchain requirement, shows one plan, asks for consent and administrator authorization once, installs everything in one transaction, then verifies. Linux implemented (apt, dnf, pacman, zypper — each verified end to end in CI, including a full build; whiptail or plain text; `--check`, `--dry-run`, `--yes`, `--profile dev|run`); Windows (`scripts/setup/windows.ps1`, winget with one UAC prompt) and macOS (toolchain only) prepared. Node.js and rustup downloads are pinned to SHA-256 digests. CI now installs the Linux build dependencies through the wizard. No new dependencies.
+### Workspaces
 
-- Rename terminals: double-click (or F2 on) a tab, double-click the pane title, the terminal right-click menu, the command palette, or Ctrl+Shift+R. The name is saved with the workspace and shown for the running session without restarting it; an empty name resets to the launcher name.
-- Clipboard that behaves like a local terminal, including over SSH: Ctrl+Shift+C / right-click → Copy puts the selection on this computer's clipboard; Ctrl+Shift+V / right-click → Paste reads it natively (works on WebKitGTK); optional copy-on-select; OSC 52 support so tmux/vim/neovim on a remote host can copy into the local clipboard (write-only, can be turned off). Terminal right-click menu with Copy, Paste, Select all, Clear screen, Find and Rename.
-- V1 implementation of M3–M10 (pending human review; per-milestone pauses waived by the owner on 2026-10-25): Rust session manager on portable-pty with lossless acknowledged output and renderer-reload reattach; Linux and Windows launcher discovery with change watching; conservative classifier, review approvals and member authorizations bound to descriptor fingerprints; execution policy, detached external launches, audit log; atomic checksummed persistence with recovery; non-secret import/export; FlexLayout workspaces with Grid/Focus/Tabs/Master+Stack; launchers review queue, settings, command palette, themes incl. high contrast; deb/AppImage/NSIS packaging and a draft-only release workflow with SHA-256 sums and build provenance. ADR-006..008 added; ADR-003 gate passed in automated tests.
-- New dependencies: `notify` 8, `sha2` 0.10, `windows-sys` 0.59 (Windows), `libc` (Unix, now non-optional), `flexlayout-react` 0.10.8, `@xterm/addon-search` 0.15.0; dev: `proptest`, `tempfile`. See `docs/security/DEPENDENCIES.md`.
-- M2 PTY Backend Technical Spike on `m2-pty-spike`: throwaway portable/direct backend harness, explicit platform reports, exact SHA-256 output checks, child-observed resize, readiness-synchronized Ctrl+C, split-aware DSR handling, safe bounded ConPTY ownership/teardown, real slow-consumer backpressure, and a fail-closed real Tauri/WebKitGTK/xterm.js auto-run. Fresh Linux xvfb and Windows hosted evidence pass, including 31/31 Windows records for both backends and exact 256 KiB SHA-256 delivery. `HUMAN_M2_GATE=APPROVED` and ADR-004 is accepted: ToolOnize V1 selects `portable-pty` 0.9.0 with ToolOnize-owned mitigations on Linux and Windows. Direct native implementations remain spike-verified fallback/reference paths only; patched forks are not selected. Dependency upgrades require the relevant M2 Linux and Windows regression matrix. Node24 GitHub Actions maintenance uses immutable verified pins.
-- M1 Cross-Platform Framework Shell (complete, human-approved, and merged): Tauri 2 + React + TypeScript framework shell with single hardened IPC command `app::ping` (mapped to Tauri command `ping`), capability-restricted IPC, typed frontend wrapper `src/lib/ipc.ts`, and minimal professional UI shell displaying app identity and sanitized IPC data. No terminal, workspace, launcher, PTY, layout, SSH, tmux, or persistence features - deferred to M3+.
-- M1 CI matrix (`.github/workflows/ci.yml`): ubuntu + windows, Node LTS + stable Rust, deterministic `npm ci`, frontend and Rust quality gates, and Tauri build smoke.
-- Repository foundation (M0): `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, dual licensing (`LICENSE-MIT`, `LICENSE-APACHE`), ADR index, fixture policy, secret-scanning config (`.gitleaks.toml`), repository-safety workflow (`.github/workflows/repository-safety.yml`), documentation traceability checker (`tools/check-doc-traceability.py` with tests), and public-safety checker (`tools/check-public-safety.sh`).
-- Product identity finalized as **ToolOnize** (human-approved; former discovery-phase codename was "Dev Command Center"). Tauri identifier direction `com.toolonize.desktop`, CLI/binary `toolonize`, config-directory direction `toolonize`.
-- Architecture, PRD, threat model, implementation plan, test strategy, and roadmap marked human-approved for progression into M0/M1.
+- Workspaces group terminals, SSH sessions and apps per project, with four layouts (Grid, Focus, Tabs, Master + Stack). Moving, maximizing or switching layouts never restarts a terminal.
+- Startup policy per workspace: ask, restore the layout only, start the terminals, or also launch the apps.
+- **Session memory:** after a power loss or closing the app, ToolOnize reopens with the same window and the same terminals in the same folders, each showing its last output. Saved output is cleaned so nothing in it can run again; commands with side effects are not re-run unless you mark them "restart automatically".
+- Sticky notes per terminal and per workspace, saved within a fraction of a second and safe across crashes (Ctrl+Shift+N / Ctrl+Shift+M).
+- Full backup and restore, duplicate a workspace, workspace templates, and non-secret import/export (imports wait for review; nothing runs).
+- Project folder per workspace, color tags for workspaces and terminals.
 
-### Changed
-- ToolOnize is presented as a CRMonize.com open-source project (ADR-010): README, package and installer metadata, copyright line "CRMonize.com and the ToolOnize contributors". Tauri identifier is now `com.crmonize.toolonize` (was `com.toolonize.desktop`; no release had shipped).
-- ADR-004 accepted `portable-pty` 0.9.0 behind `PtyBackend` for Linux and Windows with mandatory split-DSR, input-writer lifetime, bounded-lossless transport, resize, integrity, Ctrl+C, UTF-8/VT, cleanup, concurrency, and explicit-timeout regressions. Direct native implementations remain non-production fallback/reference spike paths.
-- Repository safety controls transitioned from M0 (forbid all app artifacts) to M1 (allow `src/`, `src-tauri/`, manifests, lockfiles; retain secret/path scanning).
+### Terminals
 
-### Notes
-- First public release. Tested by hand on Ubuntu; the Windows build is built and tested in CI but has not been tested by hand yet. Installers are not code-signed (Windows SmartScreen may warn); every installer and update is signed with the ToolOnize update key and listed in `SHA256SUMS.txt` with a build-provenance attestation.
-- Preliminary naming research is not legal trademark clearance; formal review remains a later release gate if required.
+- Embedded terminals for bash, zsh, fish and sh, PowerShell, cmd, WSL distributions, your own `ssh`, and tmux. Lossless output with backpressure; terminals survive a window reload.
+- Rename terminals (double-click, F2 or Ctrl+Shift+R), split right or down in the same folder, zoom per terminal, fonts, cursor styles and color schemes.
+- Clipboard that works like a local terminal, including over SSH: Ctrl+Shift+C / Ctrl+Shift+V, right-click menu, optional copy-on-select, and OSC 52 so tmux or vim on a server can copy to your clipboard.
+- Search in a terminal (Ctrl+Shift+F) or across all open terminals (Ctrl+Shift+G); Ctrl+click opens links; save a terminal's output to a file.
+- Broadcast typing to several terminals, snippets, presentation mode, and desktop notifications when a terminal you are not looking at exits, disconnects or asks for attention.
+- Per-terminal environment variables and a startup command (typed into the shell for you; anything restored or edited outside the app needs your confirmation first).
 
-### Security
-- Sensitive-information review of the tree and full git history: no credentials, keys, tokens, private IPs or machine-specific files found. With the owner's approval, all branches were rewritten to remove the owner's personal account name from file contents and commit metadata (now `CRMonize.com`), then force-pushed; gitleaks 8.30.1 reports no leaks over the full history (ADR-010).
+### SSH
 
+- Pick hosts from your `~/.ssh/config` (only the `Host` aliases are read).
+- Dropped SSH sessions reconnect automatically with backoff and a visible countdown.
+
+### Launchers
+
+- Finds the launchers you already have without running them: Linux application entries (including Flatpak and Snap) and your Desktop folder; Windows Start Menu and Desktop shortcuts.
+- Every launcher is classified with readable evidence; anything ambiguous or user-writable needs your review of the exact command before it can run, and a changed launcher needs review again.
+- Local, redacted audit log of every decision, with filters and export.
+
+### App
+
+- **In-app updates:** ToolOnize checks for a new release at start and every 6 hours (can be turned off) and updates with one click. Updates are signed and refused if the signature does not match; downgrades are refused. Your terminals come back after the update restart.
+- **Open at login**, so a reboot brings your last session straight back.
+- **English and Arabic** interface with a full right-to-left layout; terminals stay left-to-right.
+- Command palette (Ctrl+Shift+P), remappable shortcuts, dark, light and high-contrast themes, reduced motion.
+- Diagnostics export and a rotating diagnostic log for bug reports.
+
+### Installation
+
+- Packages for Linux (`.deb`, `.rpm`, AppImage) and Windows (installer), each with SHA-256 checksums and a build-provenance attestation.
+- `./setup.sh` prepares a development machine with one plan, one confirmation and one administrator prompt (apt, dnf, pacman, zypper; winget on Windows).
+
+### Known limitations
+
+- The Windows build is built and tested automatically but has not yet been tested by hand.
+- Installers are not code-signed, so Windows SmartScreen may show a warning.
+- macOS is not supported yet, and there is no tray icon yet.

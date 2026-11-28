@@ -3,7 +3,7 @@
 # ToolOnize environment setup wizard — macOS (preparatory).
 # ToolOnize is a CRMonize.com open-source project — https://crmonize.com
 #
-# macOS is NOT a supported ToolOnize V1 platform (PRD: Linux and Windows).
+# macOS is not a supported ToolOnize platform yet (Linux and Windows are).
 # This wizard prepares a contributor toolchain for a future port: Xcode
 # Command Line Tools, Node.js LTS and Rust. Same flow as Linux: one check,
 # one plan, one consent. No step needs sudo: Node.js and Rust install at

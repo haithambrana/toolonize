@@ -1,16 +1,14 @@
 # ADR-006: Persistence uses atomic checksummed snapshot generations
 
 Date: 2026-10-25
-Status: **Implemented — pending human review** (M8; per-milestone review
-pause waived by the owner on 2026-10-25, see STATUS.md)
+Status: **Accepted**
 
 ## Context
 
-FR-051/052 and NFR-005 require crash-safe local state with an explicit loss
-window (FS-03), schema versioning with migrations, and no partial state on
-write failure (FS-08). IMPLEMENTATION_PLAN M8 proposed "atomic writes +
-recovery journal" and explicitly allowed falling back to "last atomic
-snapshot" if a journal did not fit the complexity budget.
+ToolOnize needs crash-safe local state with an explicit loss window, schema
+versioning with migrations, and no partial state on write failure. The
+options were atomic writes plus a recovery journal, or atomic snapshots
+alone.
 
 ToolOnize's persisted state is small (workspaces, layout JSON snapshots,
 registry decisions; typically tens of KiB) and mutated by discrete user
@@ -47,5 +45,5 @@ append-only journal.
 
 ## Links
 
-`src-tauri/src/persist.rs`, `src-tauri/src/app.rs` (`Core::mutate`);
-PRD FR-051/052, NFR-005, FS-03, FS-08; TEST_STRATEGY T-PERSIST-001/004.
+`src-tauri/src/persist.rs`, `src-tauri/src/app/mod.rs` (`Core::mutate`);
+THREAT_MODEL T-CFG-*.

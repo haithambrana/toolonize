@@ -186,7 +186,7 @@ pub struct Launcher {
     pub comment: Option<String>,
 }
 
-/// Hash over every execution-relevant field (FR-015). Any change here
+/// Hash over every execution-relevant field. Any change here
 /// suspends prior authorization.
 pub fn descriptor_fingerprint(origin: OriginKind, launcher_id: &str, d: &Descriptor) -> String {
     #[derive(Serialize)]

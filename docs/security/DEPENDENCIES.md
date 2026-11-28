@@ -1,8 +1,8 @@
-# Dependency inventory and license review (M10 supply-chain gate)
+# Dependency inventory and license review
 
-Snapshot: 2026-10-25, from `src-tauri/Cargo.lock` and `package-lock.json`.
-Lockfiles are authoritative; nothing is upgraded automatically. Advisory
-gating (cargo/npm audit as a blocking check) remains a human decision.
+From `src-tauri/Cargo.lock` and `package-lock.json`. Lockfiles are
+authoritative; nothing is upgraded automatically. `cargo deny` and
+`npm audit` run as blocking checks in CI (see "Supply-chain checks").
 
 ## Direct Rust dependencies
 
@@ -10,17 +10,16 @@ gating (cargo/npm audit as a blocking check) remains a human decision.
 | --- | --- | --- | --- |
 | tauri | 2.11.5 | Apache-2.0 OR MIT | App framework (ADR-001) |
 | tauri-build | 2.6.3 | Apache-2.0 OR MIT | Build-time manifest/ACL generation |
-| portable-pty | =0.9.0 (pinned) | MIT | PTY backend (ADR-004; upgrades require the M2 matrix) |
-| notify | 8.2.1 | CC0-1.0 | inotify / ReadDirectoryChangesW watching (FR-005) — added in M5 |
-| sha2 | 0.10.9 | MIT OR Apache-2.0 | Descriptor fingerprints, state checksums — added in M3/M8 |
+| portable-pty | =0.9.0 (pinned) | MIT | PTY backend (ADR-004; upgrades must pass the PTY regression tests on Linux and Windows) |
+| notify | 8.2.1 | CC0-1.0 | inotify / ReadDirectoryChangesW watching for launcher changes |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 | Descriptor fingerprints, state checksums |
 | serde, serde_json | 1.x | MIT OR Apache-2.0 | IPC and state serialization |
 | anyhow | 1.x | MIT OR Apache-2.0 | Error type returned by portable-pty |
 | libc (unix) | 0.2.189 | MIT OR Apache-2.0 | Process-group signals for session cleanup |
-| windows-sys (windows) | 0.59.0 | MIT OR Apache-2.0 | `SHGetKnownFolderPath`, Lxss registry read, `ShellExecuteW` — added in M6 |
+| windows-sys (windows) | 0.59.0 | MIT OR Apache-2.0 | `SHGetKnownFolderPath`, Lxss registry read, `ShellExecuteW`, Run key for open at login |
 | gtk (linux) | 0.18.2 | MIT | Native clipboard read for terminal paste (WebKitGTK blocks the web API); already in Tauri's tree — added with the clipboard feature |
 | tauri-plugin-notification | 2.4.0 | Apache-2.0 OR MIT | Desktop notifications (terminal exited, bell, program request), called from Rust only — no JS capability granted; pulls notify-rust (Linux D-Bus) — added 2026-11-26 |
 | tauri-plugin-updater | 2.12.0 (`~2.12.0`, default features off: `rustls-tls`, `system-proxy`; **no `zip`**) | Apache-2.0 OR MIT | In-app updates (ADR-019), called from Rust only — no JS capability granted; signature check (minisign/Ed25519) against the public key built into release builds. The default `zip` feature is disabled: it pulled `zip` 4.6.1 with six RustSec advisories and is only needed for archive-format updates. Pulls reqwest/rustls; `webpki-root-certs` (Mozilla root list) is CDLA-Permissive-2.0, allowed for that crate only in `deny.toml`. Pinned to 2.12.x because 2.14 requires Tauri 2.12 — added 2026-11-27 |
-| nix (optional, `spike` feature only) | 0.28.0 | MIT | M2 spike harness; not in production builds |
 
 Dev-only: `proptest` 1.12 (MIT OR Apache-2.0, property tests),
 `tempfile` 3.27 (MIT OR Apache-2.0), `tauri` with the `test` feature.
@@ -33,10 +32,8 @@ Dev-only: `proptest` 1.12 (MIT OR Apache-2.0, property tests),
 | @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT | IPC client |
 | @xterm/xterm | 5.5.0 | MIT | Terminal renderer (ADR-002) |
 | @xterm/addon-fit | 0.10.0 | MIT | Terminal sizing |
-| @xterm/addon-search | 0.15.0 (exact) | MIT | Scrollback search (FR-034) — added in M3 |
-| flexlayout-react | 0.10.8 (exact) | MIT | Docking layout (ADR-003) — added in M4 |
-
-Removed in M10: `@xterm/addon-serialize`, `@xterm/addon-webgl` (unused).
+| @xterm/addon-search | 0.15.0 (exact) | MIT | Scrollback search |
+| flexlayout-react | 0.10.8 (exact) | MIT | Docking layout (ADR-003) |
 
 Dev-only tooling (all MIT except TypeScript, Apache-2.0): vite, vitest,
 jsdom, Testing Library, eslint + plugins, prettier, typescript,
@@ -57,8 +54,8 @@ distributing ToolOnize under MIT OR Apache-2.0 as unmodified dependencies:
 | r-efi | MIT OR Apache-2.0 OR LGPL-2.1-or-later | Used under MIT/Apache-2.0. |
 | target-lexicon | Apache-2.0 WITH LLVM-exception | Build-time. |
 
-Bundled installers must include third-party notices; generating an
-aggregated `THIRD_PARTY_LICENSES` file is part of the release checklist.
+Third-party license notices for bundled dependencies are listed in the
+release checklist ([RELEASE_CHECKLIST.md](../release/RELEASE_CHECKLIST.md)).
 
 ## Setup-wizard downloads (not app dependencies)
 
@@ -67,12 +64,12 @@ Node.js `v24.22.1` and rustup-init `1.29.2` by SHA-256 digest; system
 packages come from the distribution's package manager, Windows tools from
 winget. Nothing here is linked into or shipped with ToolOnize.
 
-## Supply-chain gate (2026-11-26)
+## Supply-chain checks
 
 - CI job `supply-chain`: `npm audit --audit-level=high` and
   `cargo deny check` (RustSec advisories, licenses, sources; policy in
   `src-tauri/deny.toml`). Both fail the build.
-- Fixed when the gate was introduced: dev tooling `vite` 6.4.3 → 6.4.6,
+- Fixed when the checks were introduced (2026-11-26): dev tooling `vite` 6.4.3 → 6.4.6,
   `vitest` 3.2 → 4.1.12 (pulls fixed `tinypool`), `typescript-eslint` →
   8.74 (fixed `minimatch`/`brace-expansion`); Rust transitive `url` 2.5.8 →
   2.5.9 (RUSTSEC-2026-0592) and `cookie` 0.18.2 → 0.18.3
@@ -81,7 +78,8 @@ winget. Nothing here is linked into or shipped with ToolOnize.
 
 ## Policy
 
-- No dependency is added without recording it here and in the commit
-  message (AGENTS.md rule 6).
+- No dependency is added without recording it here, with its license and
+  reason, and in the commit message.
 - GitHub Actions are pinned to full commit SHAs.
-- `portable-pty` stays at `=0.9.0` until a reviewed ADR-004 upgrade.
+- `portable-pty` stays at `=0.9.0` until an upgrade passes the ADR-004
+  regression tests.

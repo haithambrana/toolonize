@@ -1,9 +1,8 @@
 # Threat Model
 
-Status: HUMAN APPROVED; mitigations implemented (M3–M10, pending review —
-see §7). Structured as
-Assets → Trust Boundaries → Threats (STRIDE-informed) → Mitigations →
-Explicit non-goals. IDs are stable for traceability from PRD SEC-* and tests.
+Structured as Assets → Trust Boundaries → Threats (STRIDE-informed) →
+Mitigations → Explicit non-goals; §7 maps each mitigation to its code and
+tests. Threat IDs are stable and referenced from code and tests.
 
 Context: local-first desktop app; the *user's own machine* is the primary
 environment. We assume a hostile-capable input surface: launcher metadata is
@@ -53,9 +52,9 @@ graph LR
   `Evil.Tool.desktop` or Start Menu `.lnk`).
   - Impact if unmitigated: misleading entries; possible user-initiated
     execution of attacker code.
-  - Mitigations: discovery never executes (SEC-001); classification marks
+  - Mitigations: discovery never executes (ADR-005); classification marks
     unknown origins Needs Review; review UI shows origin path + full parsed
-    fields; execution requires explicit pin (FR-013). Residual: user approves
+    fields; execution requires an explicit pin. Residual: user approves
     a convincing fake — mitigated by origin labeling (system vs user vs
     flatpak) and change-detection re-review on target change.
 - **T-DISC-02 Unsafe Desktop Entry parsing** (huge files, deep nesting,
@@ -98,14 +97,14 @@ graph LR
     `Changed / Re-review Required`, invalidates prior execution authorization
     for the next start, and forbids silent execution with the changed
     descriptor. Membership stays visible; running sessions are never touched;
-    watcher events mark the registry dirty (FR-038). Changing primary IDs is
+    watcher events mark the registry dirty. Changing primary IDs is
     never used as the security mechanism.
 - **T-DISC-05 Symlink/path attacks** (symlink inside watched root pointing
     outside; path traversal in ids).
   - Mitigations: adapters do not follow symlinks outside declared roots;
     ids validated against grammar; traversal attempts rejected at parse.
 - **T-DISC-06 PATH spoofing** (fake tool earlier in PATH than real one).
-  - Mitigations: V1 avoids PATH-wide discovery entirely (FR-006); where Exec
+  - Mitigations: ToolOnize avoids PATH-wide discovery entirely; where Exec
     uses bare names (spec-permitted), resolution is deferred to launch time
     by the OS with origin recorded as "PATH-resolved" and surfaced in review
     UI; docs warn about PATH-order trust.
@@ -126,17 +125,16 @@ graph LR
 - **T-WIN-01 .lnk resolution risks**: Resolve heuristics can silently re-point
   to same-timestamp/different-name objects and may mutate link data
   (documented IShellLink behavior).
-  - Mitigations: M6 spike decides between reading stored link metadata
-    without `Resolve` (preferred where sufficient) and calling Resolve only
-    when necessary with conservative flags — at minimum
-    NO_UI|NOSEARCH|NOTRACK, with an explicit documented decision on
-    NOUPDATE/NOLINKINFO; heuristic matches displayed as unresolved→needs_
-    review; discovery never mutates a link.
+  - Mitigations (ADR-007): only the stored link metadata is read;
+    `Resolve` is never called, so no heuristic re-targeting happens;
+    unresolvable targets become needs_review; discovery never mutates a
+    link.
 - **T-WIN-02 Icon/parse abuse** (crafted icon paths, oversized lnk).
   - Mitigations: bounds + optional icon loading; malformed ⇒ needs_review.
 - **T-WIN-03 Console-window flash abuse**: spawning consoles visibly could
   be abused for clickjacking-style tricks.
-  - Mitigation: hidden-console spawn flags validated in M2 spike (also UX).
+  - Mitigation: terminals run in a ConPTY pseudoconsole and detached
+    launches use hidden-console spawn flags, so no console window appears.
 
 ### Configuration / import
 
@@ -144,7 +142,7 @@ graph LR
   layout JSON or descriptors aiming at execution or path traversal).
   - Mitigations: schema validation, size caps, unknown-node rejection;
     imports land in staging requiring per-item approval; no import step
-    executes anything (FS-06 tested).
+    executes anything (tested).
 - **T-CFG-03 Malicious backup file** (crafted full backup aiming at
   execution, smuggled data or state corruption).
   - Mitigations (ADR-014): 16 MiB cap, unknown fields refused, every part
@@ -157,12 +155,13 @@ graph LR
     checked against the public key built into the release before anything
     is written; `requireSignedVersion` binds signature and version (no
     downgrade); HTTPS endpoint; WebView cannot choose URLs or call the plugin;
-    drafts only reach users once the owner publishes; private key only in
+    drafts only reach users once a maintainer publishes them; private key only in
     the repository secret store, generated outside the repository.
     Residual: compromise of the private key and the release channel together.
 - **T-CFG-02 State corruption** (disk fault/bad migration).
-  - Mitigations: atomic writes+journal; checksums; migrations versioned and
-    tested; corrupt ⇒ previous snapshot + explicit loss report (FS-03).
+  - Mitigations: atomic checksummed snapshot generations (ADR-006);
+    migrations versioned and tested; corrupt ⇒ previous generation +
+    explicit loss report.
 
 ### WebView / IPC
 
@@ -171,15 +170,15 @@ graph LR
   - Mitigations: no generic exec command exists (static inventory test);
     every command narrowly scoped + parameter-validated; Tauri capabilities
     deny-by-default posture; session.spawn accepts descriptor ids + typed
-    options only — never raw command lines (SEC-002/003).
+    options only — never raw command lines.
 - **T-WEB-02 Tauri IPC abuse** (flooding, oversized payloads).
   - Mitigations: bounded payload sizes; per-channel accounting; PTY session
     data is never silently dropped to absorb floods — session streams use
-    lossless backpressure (NFR-002) so a flood cannot corrupt terminal byte
+    lossless backpressure so a flood cannot corrupt terminal byte
     integrity; rate-limit non-idempotent commands (spawn/launch) in core.
 - **T-WEB-03 Compromised frontend dependency** (supply chain in npm tree).
-  - Mitigations: minimal frontend deps; lockfile + audit gates in CI
-    (advisory gating decision documented at M10); capability system limits
+  - Mitigations: minimal frontend deps; lockfile, `npm audit` and
+    `cargo deny` checks in CI; capability system limits
     blast radius of renderer compromise (defense in depth, not prevention —
     stated honestly).
 
@@ -188,7 +187,7 @@ graph LR
 - **T-TERM-01 Sensitive data in terminal output** (tokens printed in
   scrollback; logs capture).
   - Mitigation: default logging records no output content; scrollback stays
-    in-memory capped; no cloud anything (V1). Residual: screen/clipboard
+    in-memory capped; nothing goes to any cloud service. Residual: screen/clipboard
     exposure is inherent to terminals — documented.
   - Amended by ADR-015 (session memory): the last ≤ 256 KiB of each
     terminal's cleaned output is kept on disk so it can be shown after a
@@ -220,8 +219,8 @@ graph LR
     restart goes through the execution policy (authorization, fingerprint,
     staging) and refusals are reported.
 - **T-TERM-02 Clipboard risk** (paste jacking; multi-line paste executing).
-  - Mitigations: bracketed-paste aware warnings for multi-line paste
-    (FR-033); copy actions user-driven only.
+  - Mitigations: bracketed-paste aware warnings for multi-line paste;
+    copy actions user-driven only.
 - **T-TERM-03 SSH credential boundary**.
   - Mitigations (amended by ADR-011): ToolOnize reads only `Host` aliases
     from `~/.ssh/config` (and Includes inside `~/.ssh`), only when the user
@@ -238,7 +237,7 @@ graph LR
 
 - **T-EXT-01 Unsafe URL/application opening** (renderer tricked into
   opening scheme handlers).
-  - Mitigations: OS opener with http/https allowlist (SEC-007); external
+  - Mitigations: OS opener with http/https allowlist; external
     app launching only through Execution Policy authorization; no
     shell-open of raw strings.
 
@@ -246,21 +245,19 @@ graph LR
 
 - **T-SEC-01 Secrets leaking into repository/config/logs**.
   - Mitigations: secret-shaped scanning in CI (repo history included); log
-    redaction rules (SEC-006); export linter best-effort scan before writing
-    bundles; PUBLIC_REPOSITORY_SAFETY.md checklist gates releases.
+    redaction rules; export linter best-effort scan before writing bundles;
+    `tools/check-public-safety.sh` runs on every push.
 - **T-SEC-02 Update/supply-chain risks** (artifact tampering, malicious
     dependency update).
-  - Mitigations (layered; SEC-008): SHA-256 checksums published for release
-    artifacts; GitHub build provenance / artifact attestations
-    (Sigstore-based) evaluated as the no-secret-in-repo provenance mechanism
-    for public GitHub releases; platform-native code signing (Windows
-    Authenticode/MSIX; Linux package/artifact signing if adopted) is decided
-    by a future feasibility gate — no signed-binaries claim is made before
-    provisioning exists. Dependency inventory + license table at M10;
-    auto-updater out of V1 until an integrity-verified update design is
-    approved.
+  - Mitigations (layered): SHA-256 checksums published for release
+    artifacts; GitHub build-provenance attestations (Sigstore-based); every
+    installer and update signed with the update key and verified by the app
+    (T-UPD-01); dependency inventory and license review
+    ([DEPENDENCIES.md](DEPENDENCIES.md)); `cargo deny` and `npm audit` in CI.
+    Platform-native code signing (Windows Authenticode) is not in place yet,
+    and no such claim is made.
 
-## 4. What V1 intentionally does NOT protect against
+## 4. What ToolOnize intentionally does NOT protect against
 
 Stated plainly to keep trust honest:
 
@@ -282,18 +279,18 @@ Stated plainly to keep trust honest:
 
 | Risk | Sev | Status |
 | --- | --- | --- |
-| R1 PTY backend instability on Windows | High | ADR-004 accepted; mitigations implemented; ConPTY regression tests on Windows CI; manual WebView2 run pending |
-| R2 flexlayout state preservation | Med | Stable terminal-host architecture; automated M4 gate passes (ADR-003) |
-| R3 WebKitGTK variance across distros | Med | M1 smoke + documented min versions |
-| R4 npm/Rust supply chain | Med | CI audit gates + minimal deps |
-| R5 Packaged-app discovery gap vs user expectation | Low | M6 spike decides messaging |
+| R1 PTY backend instability on Windows | High | ADR-004 mitigations implemented; ConPTY regression tests on Windows CI |
+| R2 flexlayout state preservation | Med | Stable terminal-host architecture; covered by automated tests (ADR-003) |
+| R3 WebKitGTK variance across distros | Med | CI builds on an older glibc baseline; documented minimum versions |
+| R4 npm/Rust supply chain | Med | `cargo deny` + `npm audit` in CI; minimal deps |
+| R5 Packaged-app discovery gap vs user expectation | Low | Not enumerated; documented (ADR-007) |
 
 ## 6. Review cadence
 
-Threat model re-reviewed at each milestone security gate and before any new
-IPC command, dependency adoption, or format support.
+The threat model is reviewed before any new IPC command, dependency
+adoption, file format, or network feature.
 
-## 7. Implementation status of mitigations (2026-10-25, pending review)
+## 7. Mitigations in code
 
 | Threat | Implemented mitigation | Tests |
 | --- | --- | --- |
@@ -324,4 +321,4 @@ IPC command, dependency adoption, or format support.
 | T-CFG-03 | Backup restore validated as hostile input, staged, unauthorized, all-or-nothing | `backup.rs` tests, `backup_restores_everything_staged_and_unauthorized`, `failed_restore_changes_nothing` |
 | T-EXT-01 | http/https-only URL opener | `external.rs` |
 | T-SEC-01 | Export linter (key headers, token prefixes, long tokens, home paths); audit log never records argv/env/output; repo safety checks | `transfer.rs`, `audit.rs` |
-| T-SEC-02 | Draft-only releases with SHA-256 sums and build provenance; no signing claim | `release.yml` |
+| T-SEC-02 | Draft-then-publish releases with SHA-256 sums, build provenance and signed installers; `cargo deny` / `npm audit` | `release.yml`, `ci.yml`, `deny.toml` |

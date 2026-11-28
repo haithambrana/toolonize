@@ -1,5 +1,5 @@
 /**
- * Full parsed metadata of a launcher (FR-012): everything a reviewer needs
+ * Full parsed metadata of a launcher: everything a reviewer needs
  * to decide, including provenance, exact argv, evidence and issues.
  */
 import type { LauncherType, RegistryEntry } from "../lib/ipc";

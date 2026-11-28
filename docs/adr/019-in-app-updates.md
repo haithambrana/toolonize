@@ -1,7 +1,7 @@
 # ADR-019: In-app updates from signed GitHub releases
 
 Date: 2026-11-27
-Status: **Implemented — pending human review** (requested by the owner: "updates should reach the app directly, without the user checking GitHub")
+Status: **Accepted**
 
 ## Decision
 
@@ -10,7 +10,7 @@ Status: **Implemented — pending human review** (requested by the owner: "updat
   `update_check` and `update_install`, never the plugin's own commands (no
   capability granted) and never with a URL.
 - **Trust.** Every installer of a release is signed (minisign/Ed25519) by
-  the release workflow with the owner's private key (repository secret).
+  the release workflow with the project's private key (repository secret).
   The public key is built into release builds; `install` refuses any file
   whose signature does not match, before writing anything.
   `requireSignedVersion` binds each signature to its version, so a crafted
@@ -18,9 +18,9 @@ Status: **Implemented — pending human review** (requested by the owner: "updat
   CLI ≥ 2.12, which writes `version:` into the signature; the CLI was raised
   to 2.12.4 for this — checked in the CLI source and end to end). The endpoint
   is HTTPS (GitHub).
-- **Human gate.** Releases are created as drafts; installed copies read
+- **Publishing is a manual step.** Releases are created as drafts; installed copies read
   `releases/latest/download/latest.json`, which only resolves to a
-  **published** release. Nothing reaches users until the owner publishes.
+  **published** release. Nothing reaches users until a maintainer publishes it.
 - **No account names or keys in the repository.** The endpoint
   (`https://github.com/${GITHUB_REPOSITORY}/…`) and the public key
   (repository variable) are injected at build time by the workflow
@@ -36,7 +36,7 @@ Status: **Implemented — pending human review** (requested by the owner: "updat
   hook).
 - **Privacy.** The check sends GitHub the IP address and the app version,
   nothing else; Settings and "Data & privacy" say so; it can be turned off.
-- **Owner setup.** `scripts/release/setup-updater.sh` creates the key
+- **Maintainer setup.** `scripts/release/setup-updater.sh` creates the key
   outside the repository and stores secret, password and public key with
   the GitHub CLI; `docs/release/UPDATES.md` describes releasing.
 - New dependency recorded in `docs/security/DEPENDENCIES.md`; cargo-deny

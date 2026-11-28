@@ -1,12 +1,12 @@
 # ADR-014: Full backup and restore, duplicate workspace, templates
 
 Date: 2026-11-27
-Status: **Implemented — pending human review** (requested by the owner)
+Status: **Accepted**
 
 ## Context
 
-Workspace exports (ADR-008, FR-025) move one workspace at a time and
-deliberately leave out notes and machine details. The owner asked for a way
+Workspace exports (ADR-008) move one workspace at a time and
+deliberately leave out notes and machine details. Users also need a way
 to move *everything* to a new machine or recover after a disk loss, to copy
 a workspace, and to start new workspaces from a saved shape.
 

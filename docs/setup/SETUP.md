@@ -12,7 +12,7 @@ everything in one go and verify the result. Design and security rules:
 |---|---|
 | Linux | `./setup.sh` (same as `bash scripts/setup/linux.sh`) |
 | Windows | `powershell -ExecutionPolicy Bypass -File scripts\setup\windows.ps1` |
-| macOS (toolchain only, not a V1 platform) | `./setup.sh` (same as `bash scripts/setup/macos.sh`) |
+| macOS (toolchain only; macOS is not supported yet) | `./setup.sh` (same as `bash scripts/setup/macos.sh`) |
 
 The wizard pages are: **Welcome → Check results → (optional tools?) →
 Install plan → one authorization → Finished**. Nothing changes until you

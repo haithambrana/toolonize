@@ -1,4 +1,4 @@
-/** Settings (FR-053/054): appearance, terminal, discovery, keyboard, data. */
+/** Settings: appearance, terminal, discovery, keyboard, data. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, TERMINAL_SCHEMES, type Settings, type Snippet } from "../lib/ipc";
 import {

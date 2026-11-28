@@ -1,11 +1,11 @@
-//! Crash-safe local persistence (FR-051/052, NFR-005, ADR-006).
+//! Crash-safe local persistence (ADR-006).
 //!
 //! Every committed mutation writes a complete snapshot atomically:
 //! temp file -> fsync -> rotate generations -> rename -> fsync dir. Each
 //! snapshot carries a schema version and a SHA-256 checksum. Loading takes
 //! the newest generation that verifies; if that is not the latest file, the
-//! loss window is reported (FS-03) and the corrupt file is kept aside for
-//! inspection. A failed write leaves the previous state untouched (FS-08).
+//! loss window is reported and the corrupt file is kept aside for
+//! inspection. A failed write leaves the previous state untouched.
 
 use crate::model::{hex, now_ms};
 use serde::de::DeserializeOwned;

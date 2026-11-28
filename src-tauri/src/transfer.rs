@@ -1,4 +1,4 @@
-//! Workspace import/export (FR-025, T-CFG-01, SEC-004).
+//! Workspace import/export (T-CFG-01).
 //!
 //! Exports are non-secret JSON: members travel as portable hints, never as
 //! command lines, and machine-specific absolute paths are refused unless the
@@ -92,7 +92,7 @@ pub fn portable_hint(launcher_id: &str, display_name: &str) -> PortableHint {
     hint("name", display_name)
 }
 
-/// Best-effort secret-shaped content scan (TEST_STRATEGY §2 export linter).
+/// Best-effort secret-shaped content scan (the export linter).
 pub fn lint(text: &str, machine_bound: bool) -> Vec<String> {
     let mut findings = Vec::new();
     let lower = text.to_ascii_lowercase();

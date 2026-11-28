@@ -1,4 +1,4 @@
-//! Security / Execution Policy (SEC-001, SEC-003, FR-013, FR-015).
+//! Security / Execution Policy.
 //!
 //! The only path from "a member exists" to "a process starts". Plans are
 //! built in Rust from reviewed descriptors; the frontend can only name a

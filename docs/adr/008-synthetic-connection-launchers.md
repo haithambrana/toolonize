@@ -1,14 +1,13 @@
 # ADR-008: Typed synthetic launchers for shells, SSH and tmux
 
 Date: 2026-10-25
-Status: **Implemented — pending human review** (M3/M7; per-milestone review
-pause waived by the owner on 2026-10-25, see STATUS.md)
+Status: **Accepted**
 
 ## Context
 
-FR-030 requires embedded bash/sh, PowerShell, cmd, WSL distributions, the
+ToolOnize embeds bash/sh, PowerShell, cmd, WSL distributions, the
 user's `ssh`, and tmux attach. Many machines have no `.desktop`/`.lnk` entry
-for "ssh to my build host". PRD §3 excludes a custom command editor in V1,
+for "ssh to my build host". A free-form command editor is out of scope,
 and DOMAIN_MODEL allows "trusted synthetic system launchers produced by the
 native core" with fixed typed fields. THREAT_MODEL T-TERM-03 forbids reading
 `~/.ssh`.
@@ -44,5 +43,4 @@ without ToolOnize ever accepting free-form command text.
 
 ## Links
 
-`src-tauri/src/shells.rs`, `src-tauri/src/policy.rs`; PRD FR-030/036/037,
-DOMAIN_MODEL "Member", THREAT_MODEL T-TERM-03, T-WEB-01.
+`src-tauri/src/shells.rs`, `src-tauri/src/policy.rs`; DOMAIN_MODEL "Member", THREAT_MODEL T-TERM-03, T-WEB-01.

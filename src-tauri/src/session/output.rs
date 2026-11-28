@@ -1,4 +1,4 @@
-//! Lossless per-session output log (NFR-002, ADR-004 mitigation 3).
+//! Lossless per-session output log (ADR-004 mitigation 3).
 //!
 //! Every byte the PTY produces is appended with a monotonically increasing
 //! absolute offset. Attached views read by offset and acknowledge what xterm.js
@@ -26,9 +26,9 @@ pub struct FlowLimits {
 
 impl Default for FlowLimits {
     fn default() -> Self {
-        // Informed by the M2 transport spike (64 KiB capacity sustained a
-        // slow consumer with zero breaches); larger values here only buy
-        // throughput headroom while staying far below NFR-003 memory budgets.
+        // Measured on Linux and Windows (ADR-004): a 64 KiB capacity sustained
+        // a slow consumer with zero breaches; larger values here only buy
+        // throughput headroom while keeping memory use small.
         Self {
             retention: 4 * 1024 * 1024,
             high_water: 2 * 1024 * 1024,

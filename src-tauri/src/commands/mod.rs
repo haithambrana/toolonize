@@ -1,4 +1,4 @@
-//! IPC command surface (SEC-002, T-WEB-01).
+//! IPC command surface (T-WEB-01).
 //!
 //! Every command takes typed, validated identifiers or values. None accepts a
 //! program, argument list, or command line: execution is only reachable via
@@ -11,8 +11,6 @@ pub mod clipboard;
 pub mod ping;
 pub mod registry;
 pub mod session;
-#[cfg(feature = "spike")]
-pub mod spike;
 pub mod workspace;
 
 pub use ping::ping;

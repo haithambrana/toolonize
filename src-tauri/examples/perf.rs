@@ -1,10 +1,10 @@
-//! Measurement harness for NFR-001/002 (PT-2, PT-4 core path).
+//! Performance measurement harness (terminal output path and discovery).
 //!
 //! `cargo run --release --example perf` prints JSON lines. It measures what
 //! can be measured without a display: the PTY -> session manager -> acked
 //! consumer path (byte-exact, SHA-256 checked) and discovery scan time over
 //! synthetic entries. WebView/xterm.js stages and keystroke latency need a
-//! real window and are recorded separately (docs/research/perf/).
+//! real window and are measured separately.
 
 #[cfg(unix)]
 fn main() {

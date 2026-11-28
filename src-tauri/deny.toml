@@ -1,4 +1,4 @@
-# cargo-deny policy (supply-chain gate, AGENTS.md rule 6). Run: cargo deny check
+# cargo-deny policy (supply-chain checks, see docs/security/DEPENDENCIES.md). Run: cargo deny check
 [graph]
 all-features = false
 

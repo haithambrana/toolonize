@@ -11,7 +11,7 @@ function usedKeys(): Set<string> {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name);
       if (statSync(path).isDirectory()) {
-        if (!["test", "spike", "i18n"].includes(name)) walk(path);
+        if (!["test", "i18n"].includes(name)) walk(path);
       } else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) {
         const src = readFileSync(path, "utf8");
         for (const m of src.matchAll(/(?<![\w.])tk?\(\s*"((?:[^"\\]|\\.)*)"/g)) {

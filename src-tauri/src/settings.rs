@@ -1,4 +1,4 @@
-//! User settings (FR-053, FR-054). ToolOnize has no telemetry; its only
+//! User settings. ToolOnize has no telemetry; its only
 //! network request of its own is the optional update check (ADR-019).
 
 use serde::{Deserialize, Serialize};
@@ -64,17 +64,17 @@ pub struct Settings {
     pub theme: Theme,
     pub motion: MotionPreference,
     pub font_size: u8,
-    /// xterm.js scrollback lines per terminal (NFR-003 cap).
+    /// xterm.js scrollback lines per terminal (capped to bound memory).
     pub scrollback_lines: u32,
     /// Server-side replay window per session, in MiB.
     pub replay_buffer_mib: u8,
-    /// Warn before pasting multi-line text (FR-033).
+    /// Warn before pasting multi-line text.
     pub paste_warning: bool,
     /// Launcher id preferred for "New terminal".
     pub default_shell: Option<String>,
-    /// Action id -> key binding overrides (FR-054).
+    /// Action id -> key binding overrides.
     pub keymap: BTreeMap<String, String>,
-    /// Watch launcher roots for changes (FR-005).
+    /// Watch launcher roots for changes.
     pub live_updates: bool,
     pub confirm_close_running: bool,
     /// Copy terminal selections to the clipboard as soon as they are made.

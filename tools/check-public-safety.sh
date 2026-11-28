@@ -69,9 +69,9 @@ if [ -d "secrets" ] || [ -d "private" ] || [ -d ".ssh" ]; then
   if [ -d "private" ]; then err "private/ directory present"; fi
 fi
 
-# 6. M1 application artifact guard (M0 prohibition removed)
-#    Legitimate M1 sources are allowed: src/, src-tauri/, package.json,
-#    package-lock.json, Cargo manifests/locks. Only verify that
+# 6. Build-artifact guard
+#    Sources (src/, src-tauri/, package.json, package-lock.json, Cargo
+#    manifests and locks) are expected. Only verify that
 #    untracked local artifacts are gitignored, not committed.
 #    Secret/privacy detection above remains authoritative.
 #

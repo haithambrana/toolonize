@@ -1,7 +1,7 @@
 //! Launcher discovery: read-only metadata pipelines per platform.
 //!
 //! Discovery never executes, resolves scripts, or touches the network
-//! (FR-004). Adapters return raw records; classification and registry
+//!. Adapters return raw records; classification and registry
 //! diffing happen in shared code.
 
 pub mod exec;
@@ -109,7 +109,7 @@ pub fn watch_roots(config: &DiscoveryConfig) -> Vec<PathBuf> {
     roots
 }
 
-/// Validate a user-declared custom root (FR-008): absolute, existing
+/// Validate a user-declared custom root: absolute, existing
 /// directory, not a filesystem root or the whole home directory.
 pub fn validate_custom_root(path: &str) -> Result<PathBuf, String> {
     let p = PathBuf::from(path);

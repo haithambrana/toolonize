@@ -1,4 +1,4 @@
-/** Local command palette (M9): actions, workspaces, members. ARIA combobox. */
+/** Local command palette: actions, workspaces, members. ARIA combobox. */
 import { useMemo, useState } from "react";
 import { ACTION_LABELS, ACTIONS, effectiveKeymap } from "../lib/keymap";
 import { paletteItems, runAction, type PaletteItem } from "../lib/commands";

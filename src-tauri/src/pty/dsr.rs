@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn retains_request_split_across_reads() {
-        // T-PTY-004: every split position must be answered exactly once.
+        // Every split position must be answered exactly once.
         for split in 0..=REQUEST.len() {
             let mut scanner = DsrScanner::new();
             let mut data = b"abc".to_vec();

@@ -19,12 +19,11 @@ tauri-build = { version = "2.6.3", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.11.5", features = [] }
-# ADR-004: portable-pty is pinned exactly; upgrades require the M2 regression matrix.
+# ADR-004: portable-pty is pinned exactly; an upgrade must pass the PTY regression tests on Linux and Windows.
 portable-pty = "=0.9.0"
 sha2 = "0.10"
 notify = { version = "8", default-features = false }
 anyhow = "1"
-nix = { version = "0.28", features = ["signal", "process", "fs", "poll"], optional = true }
 tauri-plugin-notification = "2"
 tauri-plugin-updater = { version = "~2.12.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
@@ -47,12 +46,8 @@ windows-sys = { version = "0.59", features = [
   "Win32_UI_Shell",
 ] }
 
-[features]
-default = []
-spike = ["dep:nix"]
-
 [dev-dependencies]
-# Enables tauri::test utilities for negative IPC security test (M1 gate).
+# Enables tauri::test utilities for the negative IPC security tests.
 # Feature unification will also enable the `test` module in normal builds,
 # but it is test-only helpers and does not weaken the production IPC surface.
 tauri = { version = "2.11.5", features = ["test"] }

@@ -1,4 +1,4 @@
-/** Member review/re-authorization dialog (FR-015 re-review flow). */
+/** Member review/re-authorization dialog (re-review after a launcher changed). */
 import { api, type MemberView, type RegistryEntry, type WorkspaceView } from "./ipc";
 import { memberTitle } from "./actions";
 import { openDialog } from "./dialogs";

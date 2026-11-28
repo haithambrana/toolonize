@@ -1,7 +1,7 @@
 # ADR-013: Split, folders, zoom, appearance, notifications, broadcast, snippets, presentation
 
 Date: 2026-11-26
-Status: **Implemented — pending human review** (features approved by the owner)
+Status: **Accepted**
 
 ## Decisions
 

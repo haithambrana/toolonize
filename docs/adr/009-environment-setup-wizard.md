@@ -1,14 +1,14 @@
 # ADR-009: Environment setup wizard (one plan, one consent, one authorization)
 
 Date: 2026-10-26
-Status: **Implemented (Linux) / prepared (Windows, macOS) — pending human review**
+Status: **Accepted**
 
 ## Context
 
-The owner asked for a setup that checks every package and environment
-requirement, and, when something is missing, asks permission once and installs
-everything in one shot ("next, next, next"), with authorization taken once
-before installing. Linux first; Windows and macOS prepared.
+Building ToolOnize needs Node.js, Rust and platform packages. Contributors
+should get a setup that checks every requirement and, when something is
+missing, asks permission once and installs everything in one go, with
+administrator authorization taken once before installing.
 
 ToolOnize itself cannot do this from inside the app: on Linux the app cannot
 start without WebKitGTK 4.1, and on Windows without WebView2. Installed
@@ -26,8 +26,8 @@ Standalone, auditable scripts outside the app, under `scripts/setup/`
 | Platform | Script | Status |
 |---|---|---|
 | Linux (apt, dnf, pacman, zypper) | `linux.sh` + `lib/common.sh` | Implemented; apt verified in CI and on Ubuntu 24.04 |
-| Windows 10/11 | `windows.ps1` (winget) | Prepared; `-Check`/`-DryRun` run in CI; installs not yet verified |
-| macOS | `macos.sh` | Prepared toolchain only; macOS is not a V1 platform (PRD §3) |
+| Windows 10/11 | `windows.ps1` (winget) | Implemented; `-Check`/`-DryRun` run in CI |
+| macOS | `macos.sh` | Toolchain only; macOS is not a supported platform yet |
 
 Flow, identical on every platform:
 

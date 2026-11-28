@@ -223,7 +223,7 @@ impl Core {
         }
     }
 
-    /// Startup policy executor (FR-024). Failures isolate per member.
+    /// Startup policy executor. Failures isolate per member.
     pub fn open_workspace(
         &self,
         workspace_id: &str,
@@ -354,7 +354,7 @@ impl Core {
         if !auto {
             return;
         }
-        // Opt-in auto restart (FR-035), bounded to avoid restart storms.
+        // Opt-in auto restart, bounded to avoid restart storms.
         let allowed = {
             let mut restarts = self.restarts.locked();
             let history = restarts.entry(info.session_id.clone()).or_default();

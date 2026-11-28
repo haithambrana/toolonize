@@ -387,7 +387,7 @@ export function WorkspaceScreen() {
   const pending = useAppState((s) => (w ? s.pendingChoice[w.id] : false));
   const opened = useAppState((s) => (w ? s.opened[w.id] : true));
 
-  // Run the startup policy once per workspace per app session (FR-024).
+  // Run the startup policy once per workspace per app session.
   useEffect(() => {
     // Read the store synchronously so a double-invoked effect cannot open twice.
     if (!w || opened || getState().opened[w.id]) return;

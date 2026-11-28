@@ -1,9 +1,9 @@
-//! Change watching for launcher roots (FR-005).
+//! Change watching for launcher roots.
 //!
 //! Uses the OS-native backend (inotify / ReadDirectoryChangesW via `notify`).
 //! Every event, overflow, or rescan hint collapses into one debounced
 //! "rescan" callback; the registry diff decides what actually changed.
-//! Failure to watch degrades to manual rescan with a visible status (FS-01).
+//! Failure to watch degrades to manual rescan with a visible status.
 
 use crate::sync::Locked;
 use notify::event::{EventKind, MetadataKind, ModifyKind};

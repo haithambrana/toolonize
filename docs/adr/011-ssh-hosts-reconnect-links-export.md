@@ -1,11 +1,11 @@
 # ADR-011: SSH connection manager, auto-reconnect, terminal links, output export
 
 Date: 2026-10-26
-Status: **Implemented — pending human review** (features chosen by the owner)
+Status: **Accepted**
 
 ## Context
 
-The owner picked five additions: Ctrl+click links, an SSH connection manager,
+Five additions for daily use: Ctrl+click links, an SSH connection manager,
 SSH auto-reconnect, color tags, and scrollback export/global search. Three of
 them touch security rules: THREAT_MODEL T-TERM-03 said ToolOnize never reads
 `~/.ssh`; opening links turns untrusted terminal output into an action; and
@@ -40,8 +40,7 @@ export writes files on the user's disk.
   `reconnect_session` path, so the execution policy re-checks authorization.
 - The UI shows the countdown with "Reconnect now" and "Stop reconnecting"
   (`session_cancel_reconnect`). Setting `ssh_auto_reconnect` (default on).
-- Plain SSH still starts a *new* remote shell; only tmux/screen persist
-  (FR-036 wording unchanged).
+- Plain SSH still starts a *new* remote shell; only tmux/screen persist.
 
 ### Terminal links
 

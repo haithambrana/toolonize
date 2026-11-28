@@ -1,7 +1,7 @@
-# ADR-017: Open at login (tray icon deferred)
+# ADR-017: Open at login
 
 Date: 2026-11-27
-Status: **Implemented (open at login) — tray icon deferred; pending human review**
+Status: **Accepted**
 
 ## Context
 
@@ -26,16 +26,16 @@ proposed a tray icon with "close to tray".
   shows the system's real state. Changes are recorded in the audit log.
 - Commands `autostart_get`, `autostart_set`.
 
-## Deferred: tray icon / close to tray
+## Not included: tray icon / close to tray
 
-Not implemented in this pass, on purpose:
+Left out on purpose:
 
 - it needs Tauri's `tray-icon` feature, i.e. new crates (`tray-icon`,
   `libappindicator`), and on Linux a runtime library
   (libayatana-appindicator) that is missing on several desktops — without a
   load check the app can panic at start;
 - "close to tray" changes what closing the window means (terminals keep
-  running in the background), which is a product decision for the owner.
+  running in the background), which deserves its own decision.
 
 Session memory plus open-at-login already cover "continue where I left
 off". The tray can follow as its own change with the dependency recorded in

@@ -1,59 +1,63 @@
 # Release checklist
 
-Releases are **drafts** created by `.github/workflows/release.yml` when a
-`v*` tag is pushed. A human publishes them only after every box below is
-checked. Nothing here may be claimed in release notes until it is true.
+How a ToolOnize release is made. Pushing a `vX.Y.Z` tag runs
+`.github/workflows/release.yml`, which builds every installer, signs it with
+the update key, writes `latest.json`, `SHA256SUMS.txt` and a build-provenance
+attestation, and creates a **draft** release whose notes come from
+`CHANGELOG.md`. Nothing reaches users until a maintainer publishes the draft.
+The update key is set up once, as described in [UPDATES.md](UPDATES.md).
 
-## 1. Gates (AGENTS.md rule 9, PRD §18)
+## 1. Prepare
 
-- [ ] Human review of the milestones and ADRs marked "pending review" in
-      `docs/product/STATUS.md` is complete.
-- [ ] Naming-collision / trademark gate passed for the release name.
-- [ ] Public-safety review: `tools/check-public-safety.sh` clean, gitleaks
-      history scan clean, `docs/security/PUBLIC_REPOSITORY_SAFETY.md`
-      checklist passed.
-- [ ] CI green on the tagged commit (ubuntu + windows + macOS + setup
-      distros + Windows install), repository-safety green.
-- [ ] Decide where the public repository lives (ADR-010: a fresh repository
-      under a CRMonize.com organization avoids the residual old PR refs).
-- [ ] Setup wizard: the UAC relaunch path verified once on a real Windows
-      machine with a standard user (CI runners are already elevated).
-- [ ] `docs/security/DEPENDENCIES.md` refreshed; third-party notices
-      aggregated into the installers / release assets.
+- [ ] Version bumped in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`
+      and `package.json` (with `Cargo.lock` and `package-lock.json`).
+- [ ] `CHANGELOG.md` has a `## X.Y.Z — YYYY-MM-DD` section written for users;
+      it becomes the release notes.
+- [ ] CI green on the release commit (`ci` and `repository-safety`).
+- [ ] `tools/check-public-safety.sh` clean; a gitleaks scan of the history is
+      clean.
+- [ ] [DEPENDENCIES.md](../security/DEPENDENCIES.md) lists every new
+      dependency with its license.
 
-## 2. Integrity (SEC-008)
+## 2. Build
 
-- [ ] `SHA256SUMS.txt` attached to the draft and verified locally.
-- [ ] Build-provenance attestation present:
-      `gh attestation verify <file> --repo <owner>/toolonize`.
-- [ ] Release notes state that binaries are **not code-signed** (unless the
-      signing-feasibility gate has provisioned signing).
+- [ ] Tag the release commit and push the tag:
+      `git tag vX.Y.Z <commit> && git push origin vX.Y.Z`.
+- [ ] The release workflow finished and the draft has the deb, rpm, AppImage
+      and Windows installer, a `.sig` for each, `latest.json` and
+      `SHA256SUMS.txt`.
 
-## 3. Manual smoke matrix (clean VMs)
+## 3. Verify the draft
 
-Use fictional data only. Record results (pass/fail + notes, no personal data)
-in the release PR.
+- [ ] `sha256sum -c SHA256SUMS.txt --ignore-missing` passes for downloaded
+      files, and `gh attestation verify <file> --repo OWNER/REPO` succeeds.
+- [ ] `latest.json` names the new version and has a signature for every
+      platform.
+- [ ] Smoke test on clean machines, with fictional data only:
 
-| Check | Ubuntu (deb) | Fedora/other (AppImage) | Windows 11 (NSIS) |
+| Check | Ubuntu (deb) | Fedora (rpm) / other (AppImage) | Windows 11 |
 | --- | --- | --- | --- |
-| Install, first launch shows the empty state | | | |
+| Install over the previous release; workspaces and notes are kept | | | |
 | Launchers view lists entries; nothing ran during discovery | | | |
-| Create workspace, add default shell, type, resize, search | | | |
-| Grid → Focus → Tabs → Master+Stack keeps the same running terminals | | | |
-| Window reload (context menu → Reload) reattaches running terminals | | | |
-| Quit and relaunch: layout restored, Ask prompt shown, nothing auto-started | | | |
-| Desktop-folder / custom-root entry requires review before it can be added | | | |
-| Edit a pinned launcher's command → member shows "re-review required" and cannot start | | | |
-| External app member launches detached | | | |
-| SSH member (fictional loopback host) → stop sshd → Disconnected → Reconnect copy is honest | | | |
+| Create a workspace, add a shell, type, resize, search | | | |
+| Grid → Focus → Tabs → Master + Stack keeps the same running terminals | | | |
+| Close and reopen: same window, terminals in the same folders with their output | | | |
+| Kill the app (`kill -9`), reopen: same result, with the "did not close normally" notice | | | |
+| A Desktop-folder or custom-folder launcher needs review before it can be added | | | |
+| Editing a pinned launcher's command → "re-review required"; it cannot start | | | |
+| SSH member: drop the connection → automatic reconnect with countdown | | | |
 | WSL distribution terminal | n/a | n/a | |
-| Export (portable) contains no absolute paths/secrets; import lands in review | | | |
-| Keyboard-only: palette, mode switch, member navigation | | | |
+| Export contains no absolute paths or secrets; import lands in review | | | |
+| Keyboard only: command palette, layout switch, member navigation | | | |
+| Arabic interface: right-to-left layout, terminals left-to-right | | | |
 | High-contrast theme and reduced motion | | | |
-| Screen reader smoke (Orca / NVDA): navigation, dialogs, buttons announced | | | |
-| Uninstall leaves only the documented state/config folders | | | |
+| Uninstall leaves only the documented state and config folders | | | |
 
 ## 4. Publish
 
-- [ ] Edit the draft notes (what changed, known limitations from STATUS.md).
-- [ ] Publish.
+- [ ] Review the generated notes, then **Publish release** (mark it as the
+      latest release).
+- [ ] `https://github.com/OWNER/REPO/releases/latest/download/latest.json`
+      shows the new version.
+- [ ] An installed previous release offers the update (Settings › Updates ›
+      Check now) and comes back on the new version with its terminals.

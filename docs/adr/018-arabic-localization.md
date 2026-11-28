@@ -1,7 +1,7 @@
 # ADR-018: Arabic interface and right-to-left layout
 
 Date: 2026-11-27
-Status: **Implemented (main screens) — pending human review**
+Status: **Accepted**
 
 ## Decision
 

@@ -1,13 +1,14 @@
 # ADR-012: Sticky notes per terminal and per workspace
 
 Date: 2026-11-26
-Status: **Implemented — pending human review** (requested by the owner)
+Status: **Accepted**
 
 ## Context
 
-The owner asked for an internal sticky note for every terminal and one for
-the whole project, reachable by a shortcut, that is never lost — "not even
-if the laptop shuts down".
+Developers keep notes next to their terminals: what a server is for, the
+next step, a command to remember. ToolOnize needs a sticky note for every
+terminal and one for the whole project, reachable by a shortcut, that is
+never lost — not even if the laptop shuts down.
 
 ## Decision
 

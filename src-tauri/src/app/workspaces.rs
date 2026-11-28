@@ -187,7 +187,7 @@ impl Core {
     }
 
     /// Pin a launcher into a workspace: the explicit authorization of its
-    /// current fingerprint for this member (FR-013, FR-015).
+    /// current fingerprint for this member.
     pub fn add_member(
         &self,
         workspace_id: &str,

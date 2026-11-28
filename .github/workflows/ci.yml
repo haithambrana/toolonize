@@ -71,10 +71,7 @@ jobs:
       - name: Install npm dependencies (deterministic)
         run: npm ci
 
-      - name: Documentation traceability
-        run: python3 tools/check-doc-traceability.py
-
-      - name: Unit tests (traceability)
+      - name: Unit tests (release tools)
         run: python3 -m unittest discover -s tools/tests -v
 
       - name: Public-safety scan
@@ -120,7 +117,7 @@ jobs:
         shell: bash
 
   setup-macos:
-    # macOS is not a V1 platform; this only proves the preparatory wizard runs
+    # macOS is not a supported platform yet; this only proves the toolchain wizard runs
     # (bash 3.2) and detects the runner's toolchain.
     runs-on: macos-latest
     steps:

@@ -1,14 +1,14 @@
 name: release
 
 # Tagged builds -> installable artifacts -> DRAFT GitHub Release with SHA-256
-# checksums and GitHub build-provenance attestations (SEC-008). Publishing the
-# draft is a human decision — and it is what makes an update reach users: the
+# checksums and GitHub build-provenance attestations. A maintainer publishes
+# the draft by hand — and that is what makes an update reach users: the
 # in-app updater (ADR-019) reads latest.json from the latest *published*
 # release. The only secret is the update signing key
 # (TAURI_SIGNING_PRIVATE_KEY + password, with the public key in the repository
 # variable TAURI_UPDATER_PUBKEY; see docs/release/UPDATES.md). Without them
 # the release builds and works but cannot update itself. Binaries are NOT
-# code-signed until the signing-feasibility gate provisions it.
+# code-signed (Windows Authenticode is not set up).
 
 on:
   push:
@@ -166,7 +166,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          python3 tools/make-release-notes.py --version "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" --dir artifacts > "${RUNNER_TEMP}/release-notes.md"
           gh release create "${GITHUB_REF_NAME}" artifacts/* \
             --draft \
             --title "ToolOnize ${GITHUB_REF_NAME}" \
-            --notes "Draft build from ${GITHUB_SHA}. Verify downloads with SHA256SUMS.txt and \`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`. Binaries are not code-signed. See docs/release/RELEASE_CHECKLIST.md before publishing."
+            --notes-file "${RUNNER_TEMP}/release-notes.md"

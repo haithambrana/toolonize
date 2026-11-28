@@ -60,7 +60,6 @@ pub fn run() {
     } else {
         builder
     };
-    #[cfg(not(feature = "spike"))]
     let builder = builder.invoke_handler(tauri::generate_handler![
         crate::commands::ping::ping,
         crate::commands::app::app_startup_info,
@@ -135,15 +134,6 @@ pub fn run() {
         crate::commands::session::session_close,
         crate::commands::session::session_list
     ]);
-    #[cfg(feature = "spike")]
-    let builder = builder.invoke_handler(tauri::generate_handler![
-        crate::commands::ping::ping,
-        crate::commands::spike::spike_pty_stream,
-        crate::commands::spike::spike_resize,
-        crate::commands::spike::spike_input_echo,
-        crate::commands::spike::spike_complete,
-        crate::commands::spike::spike_fail
-    ]);
     let title_core = std::sync::Arc::downgrade(&exit_core);
     let builder = builder.on_window_event(|window, event| {
         if matches!(
@@ -172,7 +162,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(move |_app, event| {
             if let tauri::RunEvent::Exit = event {
-                // FR-037: closing the app terminates local child processes.
+                // Closing the app terminates local child processes.
                 exit_core.shutdown();
             }
         });

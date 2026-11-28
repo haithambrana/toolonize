@@ -1,5 +1,5 @@
 //! Workspace Engine data: workspaces, members, layout snapshots, startup
-//! policy (FR-020..025). Layout JSON is validated as hostile input
+//! policy. Layout JSON is validated as hostile input
 //! (T-CFG-01) before it is stored or loaded.
 
 use crate::model::{now_ms, LauncherType};
@@ -233,7 +233,7 @@ impl MemberType {
     }
 }
 
-/// Portable description used by non-secret exports (FR-025).
+/// Portable description used by non-secret exports.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PortableHint {
     pub kind: String,
@@ -255,7 +255,7 @@ pub struct Member {
     pub authorized_at: Option<u64>,
     #[serde(default)]
     pub auto_restart: bool,
-    /// Persistence is delegated to tmux/screen (FR-037), shown in the UI.
+    /// Persistence is delegated to tmux/screen, shown in the UI.
     #[serde(default)]
     pub detach_expected: bool,
     pub added_at: u64,
@@ -299,7 +299,7 @@ pub struct Workspace {
     pub layout: LayoutState,
     #[serde(default)]
     pub startup_policy: StartupPolicy,
-    /// Imported and not yet reviewed (FR-025).
+    /// Imported and not yet reviewed.
     #[serde(default)]
     pub staged_import: bool,
     /// Color tag from [`COLORS`].

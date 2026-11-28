@@ -1,8 +1,8 @@
-//! Linux launcher sources (FR-001, FR-007, FR-008).
+//! Linux launcher sources.
 //!
 //! Registered XDG application entries (incl. Flatpak/Snap exports), the
 //! user's Desktop directory resolved via xdg-user-dirs, and opt-in custom
-//! roots. Read-only metadata discovery: nothing is executed (FR-004).
+//! roots. Read-only metadata discovery: nothing is executed.
 
 use super::exec::{expand, tokenize, ExpandContext};
 use super::keyfile::{locale_candidates, KeyFile, MAX_FILE_BYTES};
@@ -194,7 +194,7 @@ fn is_executable(path: &Path) -> bool {
     }
 }
 
-/// Availability check only (stat + mode). Never executes (FR-004).
+/// Availability check only (stat + mode). Never executes.
 pub fn find_program(name: &str, path_var: Option<&str>) -> Option<PathBuf> {
     if name.contains('/') {
         let p = PathBuf::from(name);
@@ -422,7 +422,7 @@ fn context(env: &LinuxEnv) -> EntryContext<'_> {
     }
 }
 
-/// Registered application entries with spec precedence (FR-001).
+/// Registered application entries with spec precedence.
 pub fn scan_applications(env: &LinuxEnv) -> (Vec<RawLauncher>, Vec<SourceReport>) {
     let ctx = context(env);
     let mut out = Vec::new();
