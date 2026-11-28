@@ -1,28 +1,48 @@
-# ToolOnize
+<p align="center">
+  <img src="docs/images/logo-512.png" width="112" alt="ToolOnize logo">
+</p>
 
-**Your existing dev tools. One persistent workspace.**
+<h1 align="center">ToolOnize</h1>
 
-*ToolOnize is one of the [CRMonize.com](https://crmonize.com) open-source projects.*
+<p align="center">
+  <b>Your dev tools. One persistent workspace.</b><br>
+  Terminals, SSH sessions and apps for every project, in one window that comes back exactly as you left it.
+</p>
 
-ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows**. It discovers the launchers and tools you already have — without running any of them — lets you review them, and composes terminals, SSH/tmux sessions and GUI applications into persistent docking workspaces.
+<p align="center">
+  <a href="../../releases/latest"><img alt="Download the latest release" src="https://img.shields.io/badge/Download-latest%20release-3b6cff?style=for-the-badge"></a>
+</p>
 
-> **Status: 0.2.0, the first public release.** Tested by hand on Ubuntu. The Windows build is built and tested in CI but has not been tested by hand yet. Installers are not code-signed. See [`docs/product/STATUS.md`](docs/product/STATUS.md) for evidence and the honest list of open items.
+<p align="center">
+  <img alt="Platforms: Linux and Windows" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-0b1430">
+  <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-3b6cff">
+  <img alt="Built with Tauri 2 and Rust" src="https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust-1a3fd6">
+  <img alt="Interface in English and Arabic" src="https://img.shields.io/badge/UI-English%20%7C%20Arabic-555">
+</p>
 
-## What it does
+<p align="center">A <a href="https://crmonize.com"><b>CRMonize.com</b></a> product</p>
 
-- **Launcher discovery (read-only).** Linux XDG application entries with spec precedence (incl. Flatpak/Snap exports), the user's Desktop folder via `xdg-user-dirs`, and opt-in custom folders; Windows Start Menu and Desktop shortcuts via Known Folders. `.lnk` files are read from their stored metadata — ToolOnize never calls `IShellLink::Resolve`. Discovery never executes anything, never scans `PATH`, never uses the network. Folders are watched for changes.
-- **Conservative review.** Every launcher is classified (Terminal, Local command, Remote/SSH, External app, or Needs review) with human-readable evidence. Entries from user-writable places, interpreter launchers (`sh -c`, `cmd /c`, PowerShell `-Command`, scripts) and anything ambiguous need an explicit review of the exact command before they can run.
-- **Workspaces.** Members, a docking layout (Grid / Focus / Tabs / Master + Stack) and a startup policy (Ask / layout only / start terminals / also launch apps), restored after restart.
-- **Embedded terminals.** bash/zsh/fish/sh, PowerShell, cmd, WSL distributions, your own `ssh`, tmux. Moving, maximizing, switching tabs or modes never restarts a terminal. Output delivery is lossless (acknowledged, with backpressure); terminals survive a window reload. Search, copy/paste with a multi-line paste warning, exit banner with restart, honest reconnect semantics (plain SSH starts a new remote shell; tmux/screen persist).
-- **SSH comfort.** Pick hosts straight from your `~/.ssh/config` (only the `Host` aliases are read), automatic reconnect with backoff when a connection drops, and clipboard copy/paste that works like a local terminal (incl. OSC 52 from tmux/vim on the server).
-- **Find things fast.** Ctrl+click links in terminal output, color tags for terminals and workspaces, save a terminal's output to a file, and search across all open terminals (Ctrl+Shift+G).
-- **Continue where you left off.** If the laptop loses power or you close the app, ToolOnize reopens with the same window and terminals, in the same folders, showing what they showed (session memory); it can open at login. Sticky notes per terminal and per project are saved within a fraction of a second and survive crashes.
-- **Workspace tools.** Split panes in the same folder, project folders, zoom per terminal, broadcast typing, snippets, per-terminal environment variables and a startup command, full backup/restore, duplicate and templates.
-- **Arabic and English.** Full right-to-left interface in Arabic; terminals stay left-to-right.
-- **External apps.** Authorized GUI members launch detached through the OS; ToolOnize does not manage their windows.
-- **Trust model.** Execution authorization is bound to `launcher_id + descriptor_fingerprint + workspace member`. If a launcher's command changes, its members keep their place but need re-review before the next start; running sessions are untouched. All decisions are recorded in a local, redacted audit log.
-- **Local-first.** No account, no cloud, no telemetry. Non-secret workspace export/import (imports land in review; nothing runs).
-- **Updates inside the app.** ToolOnize checks for a new release by itself and updates with one click; updates are signed and refused unless the signature matches (the check can be turned off).
+<p align="center">
+  <img src="docs/images/workspace.png" alt="ToolOnize: a project workspace with a dev server, tests, git and staging logs in a Master + Stack layout, next to the project's sticky note" width="100%">
+</p>
+
+## Why ToolOnize
+
+Every project needs the same handful of terminals: the dev server, the tests, git, a shell on the staging box. ToolOnize keeps them together per project, so you switch projects in one click. They survive a reboot, a crash or a power cut. And it finds the tools you already have without ever running anything on its own.
+
+## Features
+
+- **A workspace per project.** Group terminals, SSH sessions and apps, and arrange them as Grid, Focus, Tabs or Master + Stack. Moving or maximizing a pane never restarts its terminal.
+- **Comes back exactly as you left it.** After closing the app or losing power, ToolOnize reopens the same window with the same terminals, in the same folders, showing their last output. Commands with side effects are never re-run on their own.
+- **Real terminals.** bash, zsh, fish, PowerShell, cmd, WSL distributions, your own `ssh`, and tmux. Output is lossless, even under heavy load.
+- **SSH that just works.** Pick hosts from your `~/.ssh/config`, reconnect automatically when the connection drops, and copy and paste like a local terminal, including from tmux or vim on the server (OSC 52).
+- **Sticky notes.** One note per terminal and one per project, saved instantly and safe across crashes.
+- **Finds your tools, runs nothing on its own.** ToolOnize lists the launchers already on your system (application entries, Desktop, Start Menu), explains what each one would run, and asks you to review anything unusual. A launcher whose command changes needs your review again.
+- **Find anything.** Search one terminal or all of them at once, Ctrl+click links, and save any terminal's output to a file.
+- **Power tools.** Split in the same folder, zoom per terminal, broadcast typing, snippets, per-terminal environment variables and startup commands, full backup and restore, workspace templates, and a command palette for everything.
+- **Updates itself, safely.** New versions install with one click. Every update is signed, and ToolOnize refuses anything that doesn't match its key.
+- **Private by design.** No account, no cloud, no telemetry. Your data stays on your computer.
+- **English and Arabic,** with a full right-to-left interface.
 
 ## Install
 
@@ -33,79 +53,90 @@ Download the file for your system from the [latest release](../../releases/lates
 | Ubuntu, Debian, Linux Mint | `.deb` | `sudo apt install ./ToolOnize_*_amd64.deb` |
 | Fedora, openSUSE | `.rpm` | `sudo dnf install ./ToolOnize-*.rpm` (openSUSE: `sudo zypper install ./ToolOnize-*.rpm`) |
 | Other Linux | `.AppImage` | `chmod +x ToolOnize_*.AppImage`, then run it (needs FUSE 2, e.g. `libfuse2`) |
-| Windows 10/11 | `_x64-setup.exe` | Run it. Windows may show a SmartScreen warning because the installer is not code-signed. |
+| Windows 10 / 11 | `_x64-setup.exe` | Run the installer. Windows may show a SmartScreen warning because the installer is not code-signed. |
 
-- **Updates come to you.** ToolOnize checks for a new release by itself and installs it with one click (Settings › Updates). Every update is signed and refused if the signature does not match.
-- **Upgrading by hand** works the same way as installing: your workspaces, notes and settings stay.
-- **Check a download** with `SHA256SUMS.txt` from the same release (`sha256sum -c SHA256SUMS.txt --ignore-missing`) or with the `gh attestation verify` command shown in the release notes.
-- **Uninstall:** `sudo apt remove tool-onize` (deb), `sudo dnf remove tool-onize` (rpm), delete the AppImage, or use Windows *Installed apps*. Your data stays in the folders listed under [Build and run](#build-and-run) until you delete them.
+- **Updates come to you.** ToolOnize checks for new releases and installs them with one click (Settings › Updates).
+- **Upgrading by hand** works the same way as installing; your workspaces, notes and settings are kept.
+- **Check a download** with `SHA256SUMS.txt` from the same release (`sha256sum -c SHA256SUMS.txt --ignore-missing`) or with the `gh attestation verify` command in the release notes.
+- **Uninstall** with `sudo apt remove tool-onize` (deb) or `sudo dnf remove tool-onize` (rpm), delete the AppImage, or use *Installed apps* on Windows. Your data stays in the folders listed under [Build from source](#build-from-source) until you delete them.
 
-## Set up your computer (to build from source)
+## Keyboard shortcuts
 
-One command checks everything ToolOnize needs, shows a single plan, asks for your consent and administrator authorization **once**, then installs everything in one go:
+| Action | Shortcut |
+|---|---|
+| Command palette | `Ctrl+Shift+P` |
+| New terminal | `Ctrl+Shift+T` |
+| Split right / down | `Ctrl+Shift+E` / `Ctrl+Shift+O` |
+| Search this terminal / all terminals | `Ctrl+Shift+F` / `Ctrl+Shift+G` |
+| Terminal note / project note | `Ctrl+Shift+N` / `Ctrl+Shift+M` |
+| Copy / paste | `Ctrl+Shift+C` / `Ctrl+Shift+V` |
+| Rename terminal | `Ctrl+Shift+R` or `F2` |
+| Layouts: Grid, Focus, Tabs, Master + Stack | `Ctrl+Shift+1` … `Ctrl+Shift+4` |
+| Settings | `Ctrl+,` |
+
+Every shortcut can be changed in Settings.
+
+## Security and privacy
+
+- The interface is untrusted by design: it cannot start a program by itself. Everything that runs goes through an execution policy in the Rust core, bound to the exact command you approved.
+- ToolOnize stores no passwords or keys; SSH uses your own `ssh`, agent and config.
+- Saved terminal output stays in a folder only you can read and never leaves your computer.
+
+Found a vulnerability? Please report it privately, as described in [SECURITY.md](SECURITY.md). The full analysis is in the [threat model](docs/security/THREAT_MODEL.md).
+
+## Build from source
+
+One command checks everything ToolOnize needs, shows a single plan, asks for your consent and administrator password **once**, then installs it all:
 
 ```bash
-./setup.sh              # Linux (and macOS toolchain)
+./setup.sh              # Linux (and the macOS toolchain)
 ./setup.sh --check      # report only, change nothing
 ```
 
-On Windows: `powershell -ExecutionPolicy Bypass -File scripts\setup\windows.ps1`. Details, flags and what is installed: [`docs/setup/SETUP.md`](docs/setup/SETUP.md).
-
-## Build and run
-
-Prerequisites (installed by the setup wizard): Node.js ≥ 20, Rust ≥ 1.77.2, and on Linux the WebKitGTK 4.1 development packages.
+On Windows: `powershell -ExecutionPolicy Bypass -File scripts\setup\windows.ps1`. Details: [`docs/setup/SETUP.md`](docs/setup/SETUP.md).
 
 ```bash
 npm ci
-npm run tauri -- dev      # development window
-npm run tauri -- build    # installers: deb + AppImage (Linux), NSIS (Windows)
+npm run tauri -- dev      # development window with hot reload
+npm run tauri -- build    # installers: deb, rpm, AppImage (Linux) / NSIS (Windows)
 ```
 
 Tests and checks:
 
 ```bash
 npm test && npm run lint && npm run typecheck
-cd src-tauri && cargo test && cargo clippy --all-targets --all-features -- -D warnings
-cargo run --release --example perf    # measurement harness (Linux)
+cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
-State lives in `$XDG_STATE_HOME/toolonize` and settings in `$XDG_CONFIG_HOME/toolonize` (Linux) or `%APPDATA%\toolonize` (Windows); `TOOLONIZE_STATE_DIR` / `TOOLONIZE_CONFIG_DIR` override them. Deleting those folders removes everything ToolOnize stored.
+ToolOnize keeps its state in `$XDG_STATE_HOME/toolonize` and settings in `$XDG_CONFIG_HOME/toolonize` on Linux, or `%APPDATA%\toolonize` on Windows (`TOOLONIZE_STATE_DIR` and `TOOLONIZE_CONFIG_DIR` override them). Deleting those folders removes everything ToolOnize stored.
 
-## Architecture in one paragraph
+## How it works
 
-A Rust core (Tauri 2) owns all privileged work: discovery, registry, classification, execution policy, PTY sessions (portable-pty 0.9.0 with ToolOnize mitigations), persistence. The React/TypeScript frontend is treated as untrusted: it can only call a fixed inventory of typed commands — none takes a program, arguments or command text — and execution is reachable only by naming a workspace member that the Rust policy then checks. Each terminal session has one long-lived xterm.js host that layout changes merely attach or park. Details: [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) (§15 maps components to code).
+A Rust core (Tauri 2) does all privileged work: launcher discovery and classification, the execution policy, terminal sessions (portable-pty) and persistence. The React and TypeScript interface is treated as untrusted. It can only call a fixed set of typed commands, none of which accepts a program, arguments or a command line. Each terminal has one long-lived xterm.js view that layout changes only move, so a terminal never restarts because you rearranged the window.
 
 ## Documentation
 
-| Document | Purpose |
+| Document | What it covers |
 |---|---|
-| [`docs/product/STATUS.md`](docs/product/STATUS.md) | Milestone status, evidence, open items |
-| [`docs/product/PRD.md`](docs/product/PRD.md) | Product requirements and V1 scope |
-| [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and code map |
-| [`docs/architecture/DOMAIN_MODEL.md`](docs/architecture/DOMAIN_MODEL.md) | Entities, invariants, state machines |
-| [`docs/architecture/PLATFORM_ADAPTERS.md`](docs/architecture/PLATFORM_ADAPTERS.md) | Linux/Windows adapter contracts |
-| [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) | Threats, mitigations, implementation status |
-| [`docs/security/DEPENDENCIES.md`](docs/security/DEPENDENCIES.md) | Dependency inventory and licenses |
-| [`docs/product/TEST_STRATEGY.md`](docs/product/TEST_STRATEGY.md) | Test layers, traceability, where suites live |
-| [`docs/research/perf/BASELINE.md`](docs/research/perf/BASELINE.md) | Measured performance baseline |
-| [`docs/release/RELEASE_CHECKLIST.md`](docs/release/RELEASE_CHECKLIST.md) | Release gates and manual smoke matrix |
-| [`docs/setup/SETUP.md`](docs/setup/SETUP.md) | Setup wizard for Linux, Windows, macOS |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records |
+| [Architecture](docs/architecture/ARCHITECTURE.md) | Components, data flows and where each part lives in the code |
+| [Decision records](docs/adr/README.md) | Why each significant technical choice was made |
+| [Threat model](docs/security/THREAT_MODEL.md) | Threats, mitigations and the code that implements them |
+| [Platform adapters](docs/architecture/PLATFORM_ADAPTERS.md) | How Linux and Windows differences are handled |
+| [Domain model](docs/architecture/DOMAIN_MODEL.md) | Workspaces, members, launchers and session states |
+| [Setup](docs/setup/SETUP.md) | Preparing a development machine |
+| [Updates](docs/release/UPDATES.md) and [releases](docs/release/RELEASE_CHECKLIST.md) | How signed updates and releases work |
+| [Dependencies](docs/security/DEPENDENCIES.md) | Every dependency, its license and why it is used |
 
-## Non-goals (V1)
+## Contributing
 
-IDE/editor, cloud sync, collaboration, plugin system, AI assistant, password manager, embedding foreign GUI windows, macOS, PATH-wide discovery, auto-updater, free-form custom commands. See [`docs/product/PRD.md`](docs/product/PRD.md) §3.
+Bug reports, ideas, translations and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-## Security
+## About CRMonize.com
 
-See [`SECURITY.md`](SECURITY.md) for reporting vulnerabilities and [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md) for the model, including what V1 intentionally does not protect against.
+ToolOnize is developed and maintained by [CRMonize.com](https://crmonize.com) and released as free, open-source software. Visit [crmonize.com](https://crmonize.com) to learn more about the company and its other products.
 
-## About
+## License
 
-ToolOnize is developed as one of the [CRMonize.com](https://crmonize.com) open-source projects, together with its contributors. Copyright © 2026 CRMonize.com and the ToolOnize contributors.
+Licensed under either of the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), at your option.
 
-## Licensing
-
-Dual-licensed at your option under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE). Unless explicitly stated otherwise, contributions are licensed under either at your option. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Former discovery-phase codename was "Dev Command Center" — see [`docs/research/NAMING_RESEARCH.md`](docs/research/NAMING_RESEARCH.md). Preliminary naming research is not legal trademark clearance.
+Copyright © CRMonize.com and the ToolOnize contributors.

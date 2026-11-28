@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Changed
+
+- New ToolOnize app icon, replacing the framework's default icon.
+
 ## 0.2.0 — 2026-11-28
 
 The first public release of ToolOnize by [CRMonize.com](https://crmonize.com).
