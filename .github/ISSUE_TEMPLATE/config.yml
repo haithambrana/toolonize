@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: CRMonize.com
+    url: https://crmonize.com
+    about: ToolOnize is a CRMonize.com product. Security problems go through the Security tab, never a public issue (see SECURITY.md).

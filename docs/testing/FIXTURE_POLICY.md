@@ -13,4 +13,4 @@ All test fixtures in this repository must be **fictional and synthetic**.
 7. **No real `.desktop`/`user-dirs.dirs` content.** Linux fixtures must be hand-crafted fictional entries; never snapshot a developer's `~/.local/share/applications` or `user-dirs.dirs`.
 8. **No screenshots/videos from a real environment.** Manual-system evidence (counts, dry-run notes) must stay outside Git unless fully sanitized to fictional data.
 9. **Provenance documented.** Each fixture directory must have a manifest describing expected classifications and the fictional data contract it exercises.
-10. **Public-safety review.** New fixtures are reviewed against `docs/security/PUBLIC_REPOSITORY_SAFETY.md` and `tools/check-public-safety.sh` before merge.
+10. **Public-safety review.** New fixtures must pass `tools/check-public-safety.sh` (run in CI on every push) and review before merge.

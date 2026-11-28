@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Scripted Example
+Exec=sh -c "example-watch \\$PWD"
+Terminal=true

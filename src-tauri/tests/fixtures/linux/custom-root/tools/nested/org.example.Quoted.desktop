@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Quoted Example
+Exec=example-tool "foo; rm -rf ~"

@@ -1,0 +1,3 @@
+# Fictional user-dirs fixture: a relocated, localized Desktop directory.
+XDG_DOCUMENTS_DIR="$HOME/Documents"
+XDG_DESKTOP_DIR="$HOME/Bureau"

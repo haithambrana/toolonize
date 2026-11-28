@@ -5,7 +5,7 @@ Status: **Accepted**
 
 ## Context
 
-We need one cross-platform codebase (Linux + Windows V1) for a desktop
+We need one cross-platform codebase (Linux and Windows) for a desktop
 product whose frontend is a rich docking workspace UI with embedded
 terminals, and whose backend must hold all privileged capability (PTY
 spawning, launcher execution policy, discovery). The WebView must not
@@ -31,16 +31,16 @@ undesired (size/supply-chain surface).
    permissions + scopes + capabilities attached to windows/webviews,
    platform-targetable (linux/windows) and deny-by-default configurable
    [v2.tauri.app/blog/tauri-20; /security/capabilities; /security/
-   permissions]. This is the enforcement point for SEC-002/003.
+   permissions]. This is the enforcement point for the IPC boundary.
 4. **IPC fit for terminals**: v2 IPC rewrite adds raw payloads and Channel
    streaming suitable for high-volume PTY output [official blog,
    2024-10-08].
 5. **Packaging support** for Linux and Windows distribution channels is a
-   documented Tauri capability (bundle targets; verified during M10).
+   documented Tauri capability (bundle targets).
 6. Stable since 2024-10-08 — mature enough to bet on.
 
 Known constraints we accept and mitigate: system-WebView variance
-(WebKitGTK across distros → M1 smoke gate; min versions documented);
+(WebKitGTK across distros → smoke tests in CI; minimum versions documented);
 capability system explicitly does not protect against our own Rust bugs or
 lax scopes [capabilities doc] → threat model owns those layers.
 
@@ -57,8 +57,8 @@ lax scopes [capabilities doc] → threat model owns those layers.
 - Frontend compromise blast-radius depends entirely on our capability
   discipline (tests enforce).
 - Two-language stack (TS+Rust) — accepted; boundary keeps each side simple.
-- M1 must validate WebKitGTK/WebView2 baselines before deeper work.
+- WebKitGTK and WebView2 baselines are validated in CI on every change.
 
 ## Links
 
-THREAT_MODEL T-WEB-*; PRD SEC-002/003; IMPLEMENTATION_PLAN M1/M10.
+THREAT_MODEL T-WEB-*; ARCHITECTURE §4.

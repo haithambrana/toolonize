@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in ToolOnize does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please use **fictional data only**: no real hostnames, usernames, IP addresses, paths, keys or tokens.
+        Security problems must not be reported here — see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: ToolOnize version
+      description: Settings › Updates shows it.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install ToolOnize?
+      options:
+        - .deb (Ubuntu, Debian, Mint)
+        - .rpm (Fedora, openSUSE)
+        - AppImage
+        - Windows installer
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 24.04, GNOME on Wayland"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a workspace with two bash terminals
+        2. Switch to Tabs
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional)
+      description: Settings › Data & privacy › Export diagnostics creates a report without terminal output or secrets. Please read it before attaching.

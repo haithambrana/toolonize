@@ -35,7 +35,7 @@ these invariants:
    resolution beyond existence checks (`TryExec` stat), no network.
 2. Classification is conservative and deterministic; anything ambiguous is
    `Unknown/Needs Review` and structurally non-executable.
-3. Only explicit human pinning into a workspace authorizes a launcher for
+3. Only explicit user pinning into a workspace authorizes a launcher for
    execution; authorization is bound to launcher_id + descriptor_fingerprint
    + workspace/member scope and enforced in the Rust Execution Policy, never
    in UI state alone. Stable launcher identity (`launcher_id`) is separate
@@ -63,14 +63,13 @@ these invariants:
   (THREAT_MODEL T-DISC-01..06). Making discovery read-only and execution
   authorization explicit collapses most of that risk surface while keeping
   the product's core value.
-- Competitive evidence: no surveyed product articulates this trust posture;
-  it is part of our defensible differentiation (COMPETITIVE_ANALYSIS §5).
+- No comparable product we surveyed offers this trust posture; it is part
+  of what sets ToolOnize apart.
 
 ## Consequences
 
 - First-run UX shows a review step rather than a ready-to-run list — a
-  deliberate friction/for-safety trade accepted by product principles
-  (PRD §6 principle 2).
+  deliberate trade of a little friction for safety.
 - Review queue and provenance labeling become core UX, not polish.
 
 ## Alternatives considered
@@ -83,5 +82,4 @@ these invariants:
 
 ## Links
 
-PRD FR-001..014, SEC-001; ARCHITECTURE §5; PLATFORM_ADAPTERS; THREAT_MODEL
-§3 discovery section; TEST_STRATEGY §7 negative tests.
+ARCHITECTURE §5; PLATFORM_ADAPTERS; THREAT_MODEL §3 (discovery).

@@ -1,0 +1,161 @@
+/** Right-click menu for terminals: clipboard, search, rename (ARIA menu). */
+import { useEffect, useRef } from "react";
+import { pasteInto } from "../lib/commands";
+import {
+  memberTitle,
+  renameMember,
+  saveOutput,
+  setMemberColor,
+  splitTerminal,
+} from "../lib/actions";
+import { snippetPicker } from "../lib/snippets";
+import { terminalSettings } from "../lib/terminalSettings";
+import { ColorSwatches } from "../lib/colors";
+import { peekController } from "../terminal/controller";
+import { activeWorkspace, getState, notify, setState, useAppState } from "../state/store";
+import { t } from "../i18n";
+
+export function TerminalMenu() {
+  const menu = useAppState((s) => s.termMenu);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    ref.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setState({ termMenu: null });
+    };
+    window.addEventListener("mousedown", close, true);
+    return () => window.removeEventListener("mousedown", close, true);
+  }, [menu]);
+  if (!menu) return null;
+  const controller = peekController(menu.sessionId);
+  const workspace = activeWorkspace(getState());
+  const member = workspace?.members.find((m) => m.id === menu.memberId);
+  const hasSelection = controller?.hasSelection() ?? false;
+  const run = (fn: () => void | Promise<void>) => () => {
+    setState({ termMenu: null });
+    void Promise.resolve(fn()).finally(() => controller?.focus());
+  };
+  const items: { label: string; hint?: string; disabled?: boolean; action: () => void }[] = [
+    {
+      label: t("Copy"),
+      hint: "Ctrl+Shift+C",
+      disabled: !hasSelection,
+      action: run(async () => {
+        if (!(await controller?.copyToClipboard()))
+          notify("error", t("Could not copy to the clipboard"));
+      }),
+    },
+    {
+      label: t("Paste"),
+      hint: "Ctrl+Shift+V",
+      action: run(() => controller && pasteInto(controller)),
+    },
+    { label: t("Select all"), hint: "Ctrl+Shift+A", action: run(() => controller?.selectAll()) },
+    { label: t("Clear screen"), action: run(() => controller?.clearScreen()) },
+    {
+      label: t("Find…"),
+      hint: "Ctrl+Shift+F",
+      action: run(() => setState({ searchOpen: menu.sessionId })),
+    },
+    {
+      label: t("Split right"),
+      hint: "Ctrl+Shift+E",
+      action: run(() => splitTerminal("right", menu.memberId)),
+    },
+    {
+      label: t("Split down"),
+      hint: "Ctrl+Shift+O",
+      action: run(() => splitTerminal("bottom", menu.memberId)),
+    },
+    {
+      label: t("Insert snippet…"),
+      hint: "Ctrl+Shift+S",
+      action: run(() => controller && snippetPicker(controller)),
+    },
+    {
+      label: t("Search all terminals…"),
+      hint: "Ctrl+Shift+G",
+      action: run(() => setState({ globalSearchOpen: true })),
+    },
+    {
+      label: t("Save output to file"),
+      action: run(
+        () =>
+          controller &&
+          saveOutput(controller.textContent(), member ? memberTitle(member) : "terminal")
+      ),
+    },
+    {
+      label: t("Rename terminal…"),
+      hint: "Ctrl+Shift+R",
+      action: run(() => {
+        const w = activeWorkspace(getState());
+        if (w) return renameMember(w.id, menu.memberId);
+      }),
+    },
+    {
+      label: t("Terminal settings…"),
+      disabled: !member || member.member_type === "external_app",
+      action: run(() => {
+        const w = activeWorkspace(getState());
+        if (w && member) return terminalSettings(w, member);
+      }),
+    },
+  ];
+  const x = Math.min(menu.x, window.innerWidth - 230);
+  const y = Math.max(8, Math.min(menu.y, window.innerHeight - 470));
+  return (
+    <div
+      ref={ref}
+      className="context-menu"
+      role="menu"
+      aria-label={t("Terminal actions")}
+      style={{ left: x, top: y }}
+      onKeyDown={(e) => {
+        const buttons = [
+          ...(ref.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []),
+        ];
+        const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        if (e.key === "Escape") {
+          setState({ termMenu: null });
+          controller?.focus();
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          buttons[(i + 1) % buttons.length]?.focus();
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          buttons[(i - 1 + buttons.length) % buttons.length]?.focus();
+        }
+      }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          role="menuitem"
+          className="context-item"
+          disabled={item.disabled}
+          onClick={item.action}
+        >
+          <span>{item.label}</span>
+          {item.hint && <kbd>{item.hint}</kbd>}
+        </button>
+      ))}
+      {workspace && member && (
+        <div className="context-colors">
+          <span className="small muted">{t("Color")}</span>
+          <ColorSwatches
+            label={t("Terminal color")}
+            value={member.color}
+            onPick={(color) => {
+              setState({ termMenu: null });
+              void setMemberColor(workspace.id, member.id, color);
+              controller?.focus();
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

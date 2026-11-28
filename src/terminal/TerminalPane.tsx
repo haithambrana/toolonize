@@ -1,0 +1,273 @@
+/**
+ * TerminalView for one session: mounts the session's long-lived controller,
+ * shows process state, the exit/disconnect banner, and scrollback search.
+ */
+import { useEffect, useRef, useState } from "react";
+import type { MemberView, SessionInfo, WorkspaceView } from "../lib/ipc";
+import { closeSession, memberTitle, reconnectSession, restartSession } from "../lib/actions";
+import { processLabel } from "../lib/labels";
+import { api } from "../lib/ipc";
+import { MemberNoteOverlay } from "../components/MemberNote";
+import { setState, useAppState } from "../state/store";
+import { getController, peekController } from "./controller";
+import { controllerOptions } from "./options";
+import { t } from "../i18n";
+
+function SearchBar({ sessionId }: { sessionId: string }) {
+  const [query, setQuery] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [found, setFound] = useState<boolean | null>(null);
+  const run = (backwards: boolean, incremental = false) => {
+    const c = peekController(sessionId);
+    if (!c || !query) {
+      setFound(null);
+      return;
+    }
+    const opts = { caseSensitive, incremental };
+    setFound(backwards ? c.search.findPrevious(query, opts) : c.search.findNext(query, opts));
+  };
+  const close = () => {
+    peekController(sessionId)?.search.clearDecorations();
+    setState({ searchOpen: null });
+    peekController(sessionId)?.focus();
+  };
+  return (
+    <div className="term-search" role="search">
+      <input
+        className="input input-sm"
+        placeholder={t("Search scrollback")}
+        aria-label={t("Search scrollback")}
+        autoFocus
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setFound(null);
+        }}
+        onKeyUp={(e) => {
+          if (e.key.length === 1 || e.key === "Backspace") run(false, true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            run(e.shiftKey);
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+          }
+        }}
+      />
+      <label className="check-inline">
+        <input
+          type="checkbox"
+          checked={caseSensitive}
+          onChange={(e) => setCaseSensitive(e.target.checked)}
+        />
+        {t("Aa")}
+      </label>
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => run(true)}
+        aria-label={t("Previous match")}
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => run(false)}
+        aria-label={t("Next match")}
+      >
+        ↓
+      </button>
+      {found === false && (
+        <span className="muted small" role="status">
+          {t("No match")}
+        </span>
+      )}
+      <button type="button" className="btn btn-sm" onClick={close} aria-label={t("Close search")}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** Seconds left until `at`, refreshed every second. */
+function useCountdown(at: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (at === undefined) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [at]);
+  return at === undefined ? 0 : Math.max(0, Math.ceil((at - now) / 1000));
+}
+
+function ExitBanner({ info, member }: { info: SessionInfo; member: MemberView }) {
+  const s = info.process_state;
+  const retry = useAppState((st) => st.reconnecting[info.session_id]);
+  const seconds = useCountdown(retry?.at);
+  if (!["exited", "failed", "disconnected", "closed"].includes(s.kind)) return null;
+  const remote = info.remote;
+  if (retry && s.kind === "disconnected") {
+    return (
+      <div className="exit-banner exit-banner-warn" role="status">
+        <span>
+          <strong>{t("Connection lost")}</strong>
+          <span className="muted">
+            {" "}
+            {seconds > 0
+              ? t("— reconnecting in {s} s (attempt {n} of {max})", {
+                  s: seconds,
+                  n: retry.attempt,
+                  max: retry.max,
+                })
+              : t("— reconnecting now (attempt {n} of {max})", {
+                  n: retry.attempt,
+                  max: retry.max,
+                })}
+          </span>
+        </span>
+        <span className="exit-actions">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => void reconnectSession(info.session_id, info.detach_expected)}
+          >
+            {t("Reconnect now")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void api.cancelReconnect(info.session_id).catch(() => undefined)}
+          >
+            {t("Stop reconnecting")}
+          </button>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`exit-banner ${s.kind === "exited" && s.code === 0 ? "" : "exit-banner-warn"}`}
+      role="status"
+    >
+      <span>
+        <strong>{processLabel(info)}</strong>
+        {remote && s.kind === "disconnected" && (
+          <span className="muted">
+            {" "}
+            —{" "}
+            {info.detach_expected
+              ? "your tmux/screen session keeps running on the remote side."
+              : "plain SSH cannot resume the old remote shell."}
+          </span>
+        )}
+      </span>
+      <span className="exit-actions">
+        {remote ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => void reconnectSession(info.session_id, info.detach_expected)}
+          >
+            {t("Reconnect")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => void restartSession(info.session_id)}
+          >
+            {t("Restart")}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => void closeSession(info.session_id)}
+        >
+          {t("Close")}
+        </button>
+        {member.auto_restart && <span className="muted small">{t("Auto-restart on")}</span>}
+      </span>
+    </div>
+  );
+}
+
+export function TerminalPane({
+  workspace,
+  member,
+  session,
+}: {
+  workspace: WorkspaceView;
+  member: MemberView;
+  session: SessionInfo;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const settings = useAppState((s) => s.settings);
+  const theme = useAppState((s) => s.resolvedTheme);
+  const searchOpen = useAppState((s) => s.searchOpen === session.session_id);
+  const isFocused = useAppState((s) => s.focused === member.id);
+  const sessionId = session.session_id;
+  const generation = useRef(session.generation);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const controller = getController(sessionId, () =>
+      controllerOptions(settings, theme, { sessionId, memberId: member.id })
+    );
+    controller.mount(node);
+    return () => controller.unmount(node);
+    // Options are applied separately; remounting must not depend on them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    const t = setTimeout(() => peekController(sessionId)?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [sessionId, isFocused]);
+
+  const presentation = useAppState((s) => s.presentation);
+  useEffect(() => {
+    peekController(sessionId)?.applyOptions(
+      controllerOptions(settings, theme, { sessionId, memberId: member.id })
+    );
+  }, [sessionId, settings, theme, member.id, member.zoom, presentation]);
+
+  useEffect(() => {
+    if (session.generation > generation.current) peekController(sessionId)?.markRestart();
+    generation.current = session.generation;
+  }, [sessionId, session.generation]);
+
+  return (
+    <div
+      className="term-pane"
+      onFocusCapture={() => setState({ focused: member.id })}
+      onMouseDown={() => setState({ focused: member.id })}
+    >
+      {searchOpen && <SearchBar sessionId={sessionId} />}
+      <div className="term-stage">
+        <div
+          ref={ref}
+          className="term-container"
+          dir="ltr"
+          data-session={sessionId}
+          data-workspace={workspace.id}
+          aria-label={`Terminal: ${memberTitle(member)}`}
+        />
+        <MemberNoteOverlay
+          workspaceId={workspace.id}
+          memberId={member.id}
+          title={memberTitle(member)}
+          sessionId={sessionId}
+        />
+      </div>
+      <ExitBanner info={session} member={member} />
+    </div>
+  );
+}

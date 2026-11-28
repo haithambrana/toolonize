@@ -21,5 +21,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
+  },
+  {
+    // Service modules (dialogs, actions) render small private components as
+    // part of a promise-returning API; they are not hot-reloaded views.
+    files: ["src/lib/**/*.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
   }
 );

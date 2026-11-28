@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Flat Example
+Exec=/usr/bin/flatpak run --branch=stable org.example.Flat

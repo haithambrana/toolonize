@@ -1,8 +1,9 @@
 [package]
 name = "toolonize"
-version = "0.1.0"
-description = "ToolOnize — Your existing dev tools. One persistent workspace. (M1 framework shell)"
-authors = ["ToolOnize"]
+version = "0.2.0"
+description = "ToolOnize — Your existing dev tools. One persistent workspace."
+authors = ["CRMonize.com", "ToolOnize contributors"]
+homepage = "https://crmonize.com"
 edition = "2021"
 rust-version = "1.77.2"
 license = "MIT OR Apache-2.0"
@@ -18,17 +19,37 @@ tauri-build = { version = "2.6.3", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.11.5", features = [] }
-anyhow = { version = "1", optional = true }
-portable-pty = { version = "0.9.0", optional = true }
-nix = { version = "0.28", features = ["signal", "process", "fs", "poll"], optional = true }
-libc = { version = "0.2", optional = true }
+# ADR-004: portable-pty is pinned exactly; an upgrade must pass the PTY regression tests on Linux and Windows.
+portable-pty = "=0.9.0"
+sha2 = "0.10"
+notify = { version = "8", default-features = false }
+anyhow = "1"
+tauri-plugin-notification = "2"
+tauri-plugin-updater = { version = "~2.12.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
-[features]
-default = []
-spike = ["dep:anyhow", "dep:portable-pty", "dep:nix", "dep:libc"]
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Native clipboard read for terminal paste (WebKitGTK blocks the web API).
+# Already part of Tauri's dependency tree on Linux; pinned to the same version.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+] }
 
 [dev-dependencies]
-# Enables tauri::test utilities for negative IPC security test (M1 gate).
+# Enables tauri::test utilities for the negative IPC security tests.
 # Feature unification will also enable the `test` module in normal builds,
 # but it is test-only helpers and does not weaken the production IPC surface.
 tauri = { version = "2.11.5", features = ["test"] }
+tempfile = "3"
+proptest = { version = "1", default-features = false, features = ["std"] }

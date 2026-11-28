@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Example Editor
+Name[de]=Beispiel-Editor
+Comment=A fictional graphical editor
+Exec=/opt/example/bin/example-editor --new-window %F
+Icon=org.example.Editor
+Terminal=false
+Categories=Development;IDE;

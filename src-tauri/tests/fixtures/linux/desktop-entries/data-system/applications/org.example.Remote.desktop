@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Build Server (SSH)
+Exec=ssh build-server.example.com
+Terminal=true

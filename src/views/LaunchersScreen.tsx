@@ -1,0 +1,560 @@
+/**
+ * Launcher Registry + review queue.
+ *
+ * Shows everything discovery found, with provenance and full parsed
+ * metadata. There is deliberately no "run" control here: launchers only
+ * become runnable as workspace members, and only after review when their
+ * classification requires it.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { api, type HostList, type RegistryEntry, type SyntheticSpec } from "../lib/ipc";
+import { addLauncher } from "../lib/actions";
+import { Badges, LauncherDetails, TypeChip } from "../components/LauncherDetails";
+import { entryName } from "../lib/labels";
+import { confirmDialog, openDialog, promptDialog } from "../lib/dialogs";
+import { attempt, getState, notify, useAppState } from "../state/store";
+import { t, tk } from "../i18n";
+
+type Filter = "review" | "all" | "changes" | "terminal" | "gui" | "hidden" | "unavailable";
+
+const FILTERS: { id: Filter; label: string; test: (e: RegistryEntry) => boolean }[] = [
+  {
+    id: "review",
+    label: tk("Needs review"),
+    test: (e) =>
+      !e.decision.hidden &&
+      (e.review_pending || (e.classification.blocked && e.origin !== "synthetic")),
+  },
+  { id: "all", label: tk("All"), test: (e) => !e.decision.hidden && !e.no_display },
+  { id: "changes", label: tk("New & changed"), test: (e) => e.change !== "unchanged" },
+  {
+    id: "terminal",
+    label: tk("Terminal"),
+    test: (e) =>
+      !e.decision.hidden &&
+      ["embedded_terminal", "local_command", "remote_ssh"].includes(e.classification.proposed),
+  },
+  {
+    id: "gui",
+    label: tk("Apps"),
+    test: (e) => !e.decision.hidden && e.classification.proposed === "external_gui",
+  },
+  { id: "unavailable", label: tk("Unavailable"), test: (e) => e.parse_status === "unavailable" },
+  {
+    id: "hidden",
+    label: tk("Hidden"),
+    test: (e) => e.decision.hidden || e.no_display || e.not_shown_here,
+  },
+];
+
+async function addToWorkspace(entry: RegistryEntry) {
+  const s = getState();
+  if (s.workspaces.length === 0) {
+    notify("info", t("Create a workspace first."));
+    return;
+  }
+  const id =
+    s.workspaces.length === 1
+      ? s.workspaces[0].id
+      : await openDialog<string>(`Add ${entryName(entry)} to…`, (close) => (
+          <>
+            <div className="dialog-body">
+              <ul className="picker-list">
+                {s.workspaces.map((w, i) => (
+                  <li key={w.id} className="picker-item">
+                    <span className="picker-name">{w.name}</span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => close(w.id)}
+                      data-autofocus={i === 0 || undefined}
+                    >
+                      {t("Add here")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="btn" onClick={() => close(undefined)}>
+                {t("Cancel")}
+              </button>
+            </div>
+          </>
+        ));
+  const w = getState().workspaces.find((x) => x.id === id);
+  if (w) {
+    await addLauncher(w, entry, false);
+    notify("info", `Added ${entryName(entry)} to ${w.name}`);
+  }
+}
+
+function Detail({ entry }: { entry: RegistryEntry }) {
+  const blocked = entry.classification.blocked || entry.parse_status !== "ok";
+  useEffect(() => {
+    if (entry.change !== "unchanged")
+      void api.acknowledge([entry.launcher_id]).catch(() => undefined);
+  }, [entry.launcher_id, entry.change]);
+  return (
+    <aside className="detail" aria-label={`Details for ${entryName(entry)}`}>
+      <h2 className="detail-title">{entryName(entry)}</h2>
+      <Badges entry={entry} />
+      {entry.issues.length > 0 && (
+        <div className="alert alert-warn">
+          <strong>{t("Problems found")}</strong>
+          <ul>
+            {entry.issues.map((i, n) => (
+              <li key={n}>{i}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <LauncherDetails entry={entry} />
+      <div className="detail-actions">
+        {entry.review_pending && !blocked && (
+          <button
+            type="button"
+            className={entry.classification.interpreter ? "btn btn-danger" : "btn btn-primary"}
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: t("Approve this launcher?"),
+                body: (
+                  <p>
+                    {t("Approving lets")} <strong>{t("exactly this version")}</strong>{" "}
+                    {t(
+                      "of the command run when you add it to a workspace and start it. Any later change to it requires a new review."
+                    )}
+                  </p>
+                ),
+                confirm: t("Approve"),
+                danger: entry.classification.interpreter,
+              });
+              if (ok)
+                await attempt(
+                  () => api.approve(entry.launcher_id, entry.fingerprint),
+                  t("Approval failed")
+                );
+            }}
+          >
+            {t("Approve this version")}
+          </button>
+        )}
+        {entry.decision.approved_fingerprint && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void attempt(() => api.revoke(entry.launcher_id))}
+          >
+            {t("Revoke approval")}
+          </button>
+        )}
+        {entry.executable && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void addToWorkspace(entry)}
+          >
+            {t("Add to workspace…")}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn"
+          onClick={async () => {
+            const alias = await promptDialog({
+              title: t("Rename launcher"),
+              label: t("Display name (empty to reset)"),
+              initial: entry.decision.alias ?? "",
+              validate: (v) => (v.length > 120 ? "Too long" : null),
+            });
+            if (alias !== undefined)
+              await attempt(() => api.setAlias(entry.launcher_id, alias || null));
+          }}
+        >
+          {t("Rename")}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={() =>
+            void attempt(() => api.setHidden(entry.launcher_id, !entry.decision.hidden))
+          }
+        >
+          {entry.decision.hidden ? "Unhide" : "Hide"}
+        </button>
+        {entry.origin === "synthetic" &&
+          !entry.launcher_id.startsWith("sys:shell:") &&
+          !entry.launcher_id.startsWith("sys:wsl:") && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void attempt(() => api.removeSynthetic(entry.launcher_id))}
+            >
+              {t("Remove connection")}
+            </button>
+          )}
+      </div>
+      {blocked && entry.origin !== "synthetic" && (
+        <p className="muted small">
+          {t(
+            "This entry is malformed, unavailable or unsupported, so it cannot be approved. Fix the launcher file and ToolOnize will pick up the change."
+          )}
+        </p>
+      )}
+    </aside>
+  );
+}
+
+/** SSH connection manager: host aliases from ~/.ssh/config (ADR-011). */
+function SshHosts() {
+  const synthetic = useAppState((s) => s.registry?.synthetic ?? []);
+  const [list, setList] = useState<HostList | null>(null);
+  const [filter, setFilter] = useState("");
+  const added = useMemo(
+    () => new Set(synthetic.flatMap((s) => (s.kind === "ssh" ? [s.host] : []))),
+    [synthetic]
+  );
+  const read = async () => {
+    const result = await attempt(() => api.sshHosts(), t("Could not read your ssh config"));
+    if (result) setList(result);
+  };
+  const add = async (host: string) => {
+    const id = await attempt(
+      () => api.addSynthetic({ kind: "ssh", host }),
+      t("Could not add host")
+    );
+    if (id) notify("info", `${host} added. Add it to a workspace to connect.`);
+  };
+  const q = filter.trim().toLowerCase();
+  const hosts = (list?.hosts ?? []).filter((h) => !q || h.toLowerCase().includes(q));
+  return (
+    <section className="ssh-hosts" aria-label={t("SSH hosts")}>
+      <div className="row-gap">
+        <button type="button" className="btn btn-sm" onClick={() => void read()}>
+          {list ? "Reload hosts from ssh config" : "Read hosts from ~/.ssh/config"}
+        </button>
+        {list && list.hosts.length > 8 && (
+          <input
+            className="input input-sm"
+            placeholder={t("Filter hosts")}
+            aria-label={t("Filter SSH hosts")}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
+      </div>
+      <p className="muted small">
+        {t("Only the")} <code>{t("Host")}</code>{" "}
+        {t(
+          "aliases are read — never host names, users, keys, proxy commands or any other setting. Each host you add still needs to be added to a workspace, and connects with your own"
+        )}{" "}
+        <code>ssh</code>.
+      </p>
+      {list && (
+        <>
+          <p className="muted small">
+            {list.hosts.length} host{list.hosts.length === 1 ? "" : "s"} in{" "}
+            <code className="break">{list.source}</code>
+            {list.notes.length > 0 && ` — ${list.notes.join("; ")}`}
+          </p>
+          <ul className="plain-list">
+            {hosts.map((h) => (
+              <li key={h} className="row-gap">
+                <code>{h}</code>
+                {added.has(h) ? (
+                  <span className="chip chip-info">added</span>
+                ) : (
+                  <button type="button" className="btn btn-sm" onClick={() => void add(h)}>
+                    {t("Add")}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ConnectionForm() {
+  const [kind, setKind] = useState<SyntheticSpec["kind"]>("ssh");
+  const [host, setHost] = useState("");
+  const [session, setSession] = useState("main");
+  const submit = async () => {
+    const spec: SyntheticSpec =
+      kind === "ssh"
+        ? { kind, host }
+        : kind === "ssh_tmux"
+          ? { kind, host, session }
+          : { kind, session };
+    const id = await attempt(() => api.addSynthetic(spec), t("Could not add connection"));
+    if (id) {
+      notify("info", t("Connection added. Add it to a workspace to use it."));
+      setHost("");
+    }
+  };
+  return (
+    <form
+      className="conn-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <select
+        className="input input-sm"
+        value={kind}
+        onChange={(e) => setKind(e.target.value as SyntheticSpec["kind"])}
+        aria-label={t("Connection kind")}
+      >
+        <option value="ssh">{t("SSH host")}</option>
+        <option value="ssh_tmux">{t("SSH host + tmux session")}</option>
+        <option value="tmux">{t("Local tmux session")}</option>
+      </select>
+      {kind !== "tmux" && (
+        <input
+          className="input input-sm"
+          placeholder={t("host alias from your ssh config")}
+          aria-label={t("SSH host")}
+          value={host}
+          onChange={(e) => setHost(e.target.value)}
+        />
+      )}
+      {kind !== "ssh" && (
+        <input
+          className="input input-sm"
+          placeholder="session"
+          aria-label={t("tmux session")}
+          value={session}
+          onChange={(e) => setSession(e.target.value)}
+        />
+      )}
+      <button type="submit" className="btn btn-sm">
+        {t("Add")}
+      </button>
+      <p className="muted small full">
+        {t("ToolOnize runs your own")} <code>ssh</code>{" "}
+        {t(
+          "with your config and agent; it never reads keys or stores credentials. Plain SSH reconnects start a new remote shell; tmux sessions persist."
+        )}
+      </p>
+    </form>
+  );
+}
+
+function Sources() {
+  const registry = useAppState((s) => s.registry);
+  const [root, setRoot] = useState("");
+  if (!registry) return null;
+  return (
+    <section className="sources" aria-label={t("Launcher sources")}>
+      <h3 className="subhead">{t("Sources")}</h3>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>{t("Origin")}</th>
+            <th>{t("Folder")}</th>
+            <th>{t("Entries")}</th>
+            <th>{t("Notes")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {registry.reports.map((r) => (
+            <tr key={r.root}>
+              <td>{r.origin.replace(/_/g, " ")}</td>
+              <td className="mono small break">{r.root}</td>
+              <td>{r.entries}</td>
+              <td className="small">
+                {r.truncated && <span className="chip chip-warn">{t("limit reached")}</span>}{" "}
+                {r.errors.join("; ")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h3 className="subhead">{t("Custom roots (opt-in)")}</h3>
+      <p className="muted small">
+        {t(
+          "Folders you add are scanned read-only for launchers, bounded in depth and size, and every entry found there needs review before it can run."
+        )}
+      </p>
+      <ul className="plain-list">
+        {registry.custom_roots.map((r) => (
+          <li key={r} className="row-gap">
+            <code className="break">{r}</code>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => void attempt(() => api.removeCustomRoot(r))}
+            >
+              {t("Remove")}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="row-gap"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!root.trim()) return;
+          const ok = await attempt(() => api.addCustomRoot(root.trim()), t("Could not add folder"));
+          if (ok !== undefined) setRoot("");
+        }}
+      >
+        <input
+          className="input input-sm grow"
+          placeholder={t("Absolute folder path")}
+          aria-label={t("Custom root folder")}
+          value={root}
+          onChange={(e) => setRoot(e.target.value)}
+        />
+        <button type="submit" className="btn btn-sm">
+          {t("Add folder")}
+        </button>
+      </form>
+      <h3 className="subhead">{t("Connections")}</h3>
+      <ConnectionForm />
+      <SshHosts />
+      {registry.removed.length > 0 && (
+        <>
+          <h3 className="subhead">{t("Recently removed")}</h3>
+          <ul className="plain-list small">
+            {registry.removed.slice(-20).map((r) => (
+              <li key={r.launcher_id}>
+                {r.display_name}{" "}
+                <span className="muted">· {new Date(r.removed_at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function LaunchersScreen() {
+  const registry = useAppState((s) => s.registry);
+  const [chosen, setFilter] = useState<Filter | null>(null);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const entries = useMemo(() => registry?.entries ?? [], [registry]);
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(FILTERS.map((f) => [f.id, entries.filter(f.test).length])) as Record<
+        Filter,
+        number
+      >,
+    [entries]
+  );
+  // Open on the review queue when it has work, otherwise on everything.
+  const filter: Filter = chosen ?? (counts.review > 0 ? "review" : "all");
+  const shown = useMemo(() => {
+    const f = FILTERS.find((x) => x.id === filter)!;
+    const q = query.toLowerCase();
+    return entries
+      .filter(f.test)
+      .filter(
+        (e) =>
+          !q ||
+          entryName(e).toLowerCase().includes(q) ||
+          (e.descriptor.program ?? "").toLowerCase().includes(q)
+      )
+      .sort((a, b) => entryName(a).localeCompare(entryName(b)));
+  }, [entries, filter, query]);
+  const current = shown.find((e) => e.launcher_id === selected) ?? shown[0];
+
+  return (
+    <section className="launchers" aria-label={t("Launchers")}>
+      <header className="ws-header">
+        <h1 className="ws-title">{t("Launchers")}</h1>
+        <span className="muted small">
+          {t("{n} found · nothing was executed during discovery", { n: entries.length })}
+          {registry?.last_scan_ms
+            ? ` · scanned ${new Date(registry.last_scan_ms).toLocaleTimeString()}`
+            : ""}
+        </span>
+        <div className="ws-actions">
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={scanning}
+            onClick={async () => {
+              setScanning(true);
+              await attempt(() => api.rescan(), t("Rescan failed"));
+              setScanning(false);
+            }}
+          >
+            {scanning ? "Scanning…" : "Rescan"}
+          </button>
+        </div>
+      </header>
+      <div className="filters" role="tablist" aria-label={t("Filter launchers")}>
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.id}
+            className={filter === f.id ? "seg seg-active" : "seg"}
+            onClick={() => setFilter(f.id)}
+          >
+            {t(f.label)} <span className="count">{counts[f.id]}</span>
+          </button>
+        ))}
+        <input
+          className="input input-sm"
+          placeholder={t("Search")}
+          aria-label={t("Search launchers")}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      <div className="split">
+        <ul className="launcher-list" role="listbox" aria-label={t("Launchers")}>
+          {shown.map((e) => (
+            <li
+              key={e.launcher_id}
+              role="option"
+              aria-selected={current?.launcher_id === e.launcher_id}
+              tabIndex={0}
+              className={
+                current?.launcher_id === e.launcher_id
+                  ? "launcher-row launcher-row-active"
+                  : "launcher-row"
+              }
+              onClick={() => setSelected(e.launcher_id)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter" || ev.key === " ") {
+                  ev.preventDefault();
+                  setSelected(e.launcher_id);
+                }
+                if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+                  ev.preventDefault();
+                  const sib = ev.currentTarget[
+                    ev.key === "ArrowDown" ? "nextElementSibling" : "previousElementSibling"
+                  ] as HTMLElement | null;
+                  sib?.focus();
+                  sib?.click();
+                }
+              }}
+            >
+              <span className="launcher-name">{entryName(e)}</span>
+              <TypeChip type={e.review_pending ? e.classification.proposed : e.effective_type} />
+              <Badges entry={e} />
+              <span className="muted small launcher-origin">{e.origin_label}</span>
+            </li>
+          ))}
+          {shown.length === 0 && <li className="muted empty-list">{t("Nothing here.")}</li>}
+        </ul>
+        {current ? (
+          <Detail key={current.launcher_id} entry={current} />
+        ) : (
+          <aside className="detail muted">{t("Select a launcher.")}</aside>
+        )}
+      </div>
+      <Sources />
+    </section>
+  );
+}

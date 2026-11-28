@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Example Tool
+Exec=example-tool %U

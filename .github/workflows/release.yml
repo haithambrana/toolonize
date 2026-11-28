@@ -1,0 +1,175 @@
+name: release
+
+# Tagged builds -> installable artifacts -> DRAFT GitHub Release with SHA-256
+# checksums and GitHub build-provenance attestations. A maintainer publishes
+# the draft by hand — and that is what makes an update reach users: the
+# in-app updater (ADR-019) reads latest.json from the latest *published*
+# release. The only secret is the update signing key
+# (TAURI_SIGNING_PRIVATE_KEY + password, with the public key in the repository
+# variable TAURI_UPDATER_PUBKEY; see docs/release/UPDATES.md). Without them
+# the release builds and works but cannot update itself. Binaries are NOT
+# code-signed (Windows Authenticode is not set up).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Older glibc baseline so the AppImage/deb run on more distributions.
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Node (LTS)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            patchelf \
+            libssl-dev
+
+      - name: Install npm dependencies (deterministic)
+        run: npm ci
+
+      - name: Tests before packaging
+        run: |
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml --all-targets
+        shell: bash
+
+      - name: Build installers
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY}" ] && [ -n "${UPDATER_PUBKEY}" ]; then
+            # Endpoint and public key are added here, so the repository holds
+            # neither an account name nor a key (ADR-019).
+            node -e '
+              const fs = require("fs");
+              fs.writeFileSync("src-tauri/updater.conf.json", JSON.stringify({
+                bundle: { createUpdaterArtifacts: true },
+                plugins: { updater: {
+                  pubkey: process.env.UPDATER_PUBKEY.trim(),
+                  endpoints: ["https://github.com/" + process.env.GITHUB_REPOSITORY + "/releases/latest/download/latest.json"],
+                  requireSignedVersion: true,
+                  windows: { installMode: "passive" }
+                } }
+              }));'
+            npm run tauri -- build --config src-tauri/updater.conf.json
+          else
+            echo "::warning::Update signing key or TAURI_UPDATER_PUBKEY not set: this release cannot update itself (docs/release/UPDATES.md)."
+            npm run tauri -- build
+          fi
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          bundle=src-tauri/target/release/bundle
+          shopt -s nullglob
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            cp "$bundle"/deb/*.deb "$bundle"/rpm/*.rpm "$bundle"/appimage/*.AppImage dist-release/
+            sigs=("$bundle"/deb/*.deb.sig "$bundle"/rpm/*.rpm.sig "$bundle"/appimage/*.AppImage.sig)
+          else
+            cp "$bundle"/nsis/*.exe dist-release/
+            sigs=("$bundle"/nsis/*.exe.sig)
+          fi
+          # Update signatures (only when the signing key was available).
+          for sig in "${sigs[@]}"; do cp "$sig" dist-release/; done
+          ls -l dist-release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: toolonize-${{ matrix.platform }}
+          path: dist-release/*
+          if-no-files-found: error
+
+  draft-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Updater manifest (latest.json)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          if compgen -G "artifacts/*.sig" > /dev/null; then
+            python3 tools/make-update-manifest.py --dir artifacts --tag "${GITHUB_REF_NAME}" \
+              --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" \
+              > artifacts/latest.json
+            cat artifacts/latest.json
+          else
+            echo "::warning::No update signatures: no latest.json, installed copies will not see this release."
+          fi
+
+      - name: SHA-256 checksums
+        working-directory: artifacts
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "artifacts/*"
+
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 tools/make-release-notes.py --version "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" --dir artifacts > "${RUNNER_TEMP}/release-notes.md"
+          gh release create "${GITHUB_REF_NAME}" artifacts/* \
+            --draft \
+            --title "ToolOnize ${GITHUB_REF_NAME}" \
+            --notes-file "${RUNNER_TEMP}/release-notes.md"

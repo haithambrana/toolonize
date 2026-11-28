@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Missing Example
+TryExec=toolonize-fixture-definitely-missing
+Exec=toolonize-fixture-definitely-missing

@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
 
-# M0 scope only — no writes, no deploys, no releases, no secrets.
+# Read-only: no writes, no deploys, no releases, no secrets.
 permissions:
   contents: read
 
@@ -12,9 +12,8 @@ jobs:
   safety:
     runs-on: ubuntu-latest
     steps:
-      # Action SHAs are pinned to immutable commits. Before the first push,
-      # re-validate each SHA against its upstream release tag and update
-      # as needed. See note at the bottom of this file.
+      # Action SHAs are pinned to immutable commits; re-validate each SHA
+      # against its upstream release tag when updating it.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0 (node24, verified 2026-08-27 via git ls-remote + action.yml using: node24; runner >=2.327.1 required; alt verified: v5.1.0 fbc6f39, v7.0.1 3d3c42e)
         with:
           fetch-depth: 0
@@ -24,20 +23,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Documentation traceability
-        run: python3 tools/check-doc-traceability.py
-
-      - name: Unit tests (traceability)
+      - name: Unit tests (release tools)
         run: python3 -m unittest discover -s tools/tests -v
 
       - name: Public-safety scan
         run: bash tools/check-public-safety.sh
 
-      - name: M1 application-artifact guard (M0 prohibition lifted)
+      - name: Build-artifact guard
         run: |
           set -euo pipefail
-          echo "M1 artifact guard: legitimate sources src/, src-tauri/, package.json, Cargo manifests allowed"
-          # Only blocked lockfiles must be absent
+          # Only npm's lockfile is used; other package managers' lockfiles must be absent
           forbidden=0
           for f in pnpm-lock.yaml yarn.lock bun.lockb; do
             if [ -e "$f" ]; then echo "blocked lockfile present: $f" >&2; forbidden=1; fi
@@ -47,7 +42,7 @@ jobs:
           if git ls-files --error-unmatch node_modules 2>/dev/null | grep -q .; then echo "node_modules/ should not be tracked" >&2; forbidden=1; fi
           if git ls-files --error-unmatch dist 2>/dev/null | grep -q .; then echo "dist/ should not be tracked" >&2; forbidden=1; fi
           if [ "$forbidden" -ne 0 ]; then exit 1; fi
-          echo "M1 artifact guard: clean"
+          echo "artifact guard: clean"
 
       - name: Repository structure
         run: |
@@ -55,21 +50,8 @@ jobs:
           test -f README.md
           test -f LICENSE-MIT
           test -f LICENSE-APACHE
-          test -f docs/product/PRD.md
+          test -f SECURITY.md
+          test -f CHANGELOG.md
           test -f docs/architecture/ARCHITECTURE.md
           test -f docs/security/THREAT_MODEL.md
           echo "structure: ok"
-
-      # Secret scanning: use gitleaks via the official pinned action once its SHA
-      # is verified. Until then this workflow runs the local filesystem checks
-      # above. Action pin SHAs must be validated against upstream tags before the
-      # first push; placeholder SHAs must not be invented — see docs/security/PUBLIC_REPOSITORY_SAFETY.md.
-      # When enabling, add:
-      # - uses: gitleaks/gitleaks-action@<verified-SHA>
-      #   with:
-      #     config-path: .gitleaks.toml
-
-# Note: third-party Action SHAs pinned above were taken from upstream release
-# tags at workflow-authoring time. Before the first push, re-validate each SHA
-# against its tag via `git ls-remote` or the provider's release notes and
-# update if needed. Do not invent SHAs.
