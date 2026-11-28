@@ -300,7 +300,7 @@ describe("ToolOnize app", () => {
     fireEvent.change(input, { target: { value: "settings" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText(/CRMonize\.com open-source project/)).toBeInTheDocument();
+    expect(screen.getByText(/open-source product by CRMOnize/)).toBeInTheDocument();
   });
 
   it("surfaces a recovered-state report on startup", async () => {

@@ -759,7 +759,7 @@ export function SettingsScreen() {
           </div>
           <p className="muted small">
             {t(
-              "ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR Apache-2.0."
+              "ToolOnize is an open-source product by CRMOnize (crmonize.com), licensed MIT OR Apache-2.0."
             )}
           </p>
         </fieldset>

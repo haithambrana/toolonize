@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.2.1",
   "type": "module",
-  "description": "ToolOnize — Your existing dev tools. One persistent workspace. A CRMonize.com open-source project.",
-  "author": "CRMonize.com",
+  "description": "ToolOnize — Your existing dev tools. One persistent workspace. An open-source product by CRMOnize.",
+  "author": "CRMOnize",
   "homepage": "https://crmonize.com",
   "license": "MIT OR Apache-2.0",
   "scripts": {

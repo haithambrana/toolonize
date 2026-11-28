@@ -368,8 +368,8 @@ export const ar: Record<string, string> = {
     "عثر ToolOnize على المشغّلات في هذا الجهاز دون تشغيل أي منها. أنشئ مساحة عمل، وأضف الأدوات التي تستخدمها في مشروع واحد، وسيستعيد ToolOnize التخطيط في المرة القادمة.",
   "ToolOnize has no account, no cloud and no telemetry. Nothing leaves this machine except what your own terminals do and, if you keep it on, the update check.":
     "ToolOnize بلا حساب ولا سحابة ولا قياس عن بُعد. لا يخرج شيء من هذا الجهاز إلا ما تفعله تيرمنالاتك أنت، وفحص التحديثات إذا تركته مفعّلاً.",
-  "ToolOnize is a CRMonize.com open-source project (crmonize.com), licensed MIT OR Apache-2.0.":
-    "ToolOnize مشروع مفتوح المصدر من CRMonize.com (crmonize.com)، بترخيص MIT أو Apache-2.0.",
+  "ToolOnize is an open-source product by CRMOnize (crmonize.com), licensed MIT OR Apache-2.0.":
+    "ToolOnize منتج مفتوح المصدر من CRMOnize (crmonize.com)، بترخيص MIT أو Apache-2.0.",
   "ToolOnize runs your own": "يشغّل ToolOnize أداة",
   "ToolOnize {version} is available.": "الإصدار {version} من ToolOnize متاح.",
   "ToolOnize {version} is the latest version.": "ToolOnize {version} هو أحدث إصدار.",

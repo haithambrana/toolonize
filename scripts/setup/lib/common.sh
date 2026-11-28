@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034 # exit codes and versions are used by the sourcing scripts
 # Shared helpers for the ToolOnize setup wizards (Linux, macOS).
-# ToolOnize is a CRMonize.com open-source project — https://crmonize.com
+# ToolOnize is an open-source project by CRMOnize — https://crmonize.com
 #
 # Must stay compatible with bash 3.2 (macOS): no associative arrays, no
 # mapfile, no ${var,,}. Nothing here runs with elevated privileges.

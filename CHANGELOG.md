@@ -6,9 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Changed
+
+- The company name is written CRMOnize everywhere, including the About section in Settings and the installer metadata.
+
 ## 0.2.1 — 2026-11-28
 
-The first public release of ToolOnize by [CRMonize.com](https://crmonize.com).
+The first public release of ToolOnize by [CRMOnize](https://crmonize.com).
 
 ### Workspaces
 

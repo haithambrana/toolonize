@@ -20,7 +20,7 @@
   <img alt="Interface in English and Arabic" src="https://img.shields.io/badge/UI-English%20%7C%20Arabic-555">
 </p>
 
-<p align="center">A <a href="https://crmonize.com"><b>CRMonize.com</b></a> product</p>
+<p align="center">A <a href="https://crmonize.com"><b>CRMOnize</b></a> product</p>
 
 <p align="center">
   <img src="docs/images/workspace.png" alt="ToolOnize: a project workspace with a dev server, tests, git and staging logs in a Master + Stack layout, next to the project's sticky note" width="100%">
@@ -131,12 +131,16 @@ A Rust core (Tauri 2) does all privileged work: launcher discovery and classific
 
 Bug reports, ideas, translations and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
-## About CRMonize.com
+## About CRMOnize
 
-ToolOnize is developed and maintained by [CRMonize.com](https://crmonize.com) and released as free, open-source software. Visit [crmonize.com](https://crmonize.com) to learn more about the company and its other products.
+[CRMOnize](https://crmonize.com) builds business software for the people who sell, support customers and plan work. Based in Egypt, the team is building a modular business operating platform on a shared foundation, starting with CRM and followed by Contact Center, Human Resources, Workforce Management and satellite products such as Salezy, Lead Miner and PulseOps.
+
+ToolOnize is the developer workspace the CRMOnize engineering team uses every day to build those products, released as free, open-source software for every developer.
+
+[crmonize.com](https://crmonize.com) · [CRMOnize on GitHub](https://github.com/CRMOnize-com)
 
 ## License
 
 Licensed under either of the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), at your option.
 
-Copyright © CRMonize.com and the ToolOnize contributors.
+Copyright © CRMOnize and the ToolOnize contributors.

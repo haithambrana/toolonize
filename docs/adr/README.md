@@ -13,7 +13,7 @@ Each record explains one significant decision: the context, what was decided, th
 | [007](007-windows-shortcut-policy.md) | Windows shortcut discovery reads stored metadata only | Accepted |
 | [008](008-synthetic-connection-launchers.md) | Typed synthetic launchers for shells, SSH and tmux | Accepted |
 | [009](009-environment-setup-wizard.md) | Environment setup wizard (one plan, one consent, one authorization) | Accepted |
-| [010](010-crmonize-product.md) | ToolOnize is a CRMonize.com product | Accepted |
+| [010](010-crmonize-product.md) | ToolOnize is a CRMOnize product | Accepted |
 | [011](011-ssh-hosts-reconnect-links-export.md) | SSH connection manager, auto-reconnect, terminal links, output export | Accepted |
 | [012](012-sticky-notes.md) | Sticky notes per terminal and per workspace | Accepted |
 | [013](013-terminal-power-features.md) | Split, folders, zoom, appearance, notifications, broadcast, snippets, presentation | Accepted |
