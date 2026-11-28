@@ -40,7 +40,7 @@ else
 fi
 chmod 600 "$key"
 
-read -r -s -p "Password of the key: " password
+read -r -s -p "Type the same password again (it is stored as a GitHub secret for release builds): " password
 echo
 gh secret set TAURI_SIGNING_PRIVATE_KEY < "$key"
 printf '%s' "$password" | gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD

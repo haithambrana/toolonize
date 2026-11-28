@@ -1,6 +1,6 @@
 [package]
 name = "toolonize"
-version = "0.1.0"
+version = "0.2.0"
 description = "ToolOnize — Your existing dev tools. One persistent workspace."
 authors = ["CRMonize.com", "ToolOnize contributors"]
 homepage = "https://crmonize.com"

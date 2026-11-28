@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-28
+
 ### Added
 - **In-app updates** (ADR-019): ToolOnize checks GitHub Releases at start and every 6 hours (can be turned off) and updates with one click; every installer is signed and refused unless the signature matches the key built into the release (no downgrades); terminals come back after the update restart. Release workflow signs installers and writes `latest.json`; `scripts/release/setup-updater.sh` sets up the key. New dependency `tauri-plugin-updater` 2.12 (without its vulnerable `zip` feature).
 - **Session memory** (ADR-015): after a power loss or closing the app, ToolOnize opens with the same window and the same terminals in the same folders, each showing its last output (cleaned so nothing in it can act again). Commands with side effects are not re-run unless marked "restart automatically". Logout/shutdown signals exit cleanly. Settings switches, "Forget saved terminal output", private 0700 folder.
