@@ -79,10 +79,13 @@ pub async fn check(app: &AppHandle) -> Result<UpdateStatus, String> {
         return Ok(not_configured(current));
     }
     let updater = app.updater().map_err(|e| e.to_string())?;
-    let found = updater
-        .check()
-        .await
-        .map_err(|e| format!("could not check for updates: {e}"))?;
+    let found = match updater.check().await {
+        Ok(found) => found,
+        // Nothing published yet at the endpoint (HTTP 404 and the like):
+        // there is simply no newer release. Network errors stay errors.
+        Err(tauri_plugin_updater::Error::ReleaseNotFound) => None,
+        Err(e) => return Err(format!("could not check for updates: {e}")),
+    };
     crate::logging::info(
         "update",
         &format!(
