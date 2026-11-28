@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ToolOnize environment setup — a CRMonize.com open-source project.
+# ToolOnize environment setup — an open-source project by CRMOnize.
 # Dispatches to the wizard for this OS. Run with --help for options.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

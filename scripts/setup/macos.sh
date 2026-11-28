@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck source-path=SCRIPTDIR
 # ToolOnize environment setup wizard — macOS (preparatory).
-# ToolOnize is a CRMonize.com open-source project — https://crmonize.com
+# ToolOnize is an open-source project by CRMOnize — https://crmonize.com
 #
 # macOS is not a supported ToolOnize platform yet (Linux and Windows are).
 # This wizard prepares a contributor toolchain for a future port: Xcode
@@ -127,7 +127,7 @@ if [ "$MODE" = dry-run ]; then
   exit "$EXIT_OK"
 fi
 
-ui_page "Welcome" "This wizard prepares this Mac for building ToolOnize, a CRMonize.com open-source project.
+ui_page "Welcome" "This wizard prepares this Mac for building ToolOnize, an open-source project by CRMOnize.
 
 $NOTICE
 

@@ -1,6 +1,6 @@
 # Setting up a computer for ToolOnize
 
-ToolOnize is a [CRMonize.com](https://crmonize.com) open-source project. The
+ToolOnize is an open-source project by [CRMOnize](https://crmonize.com). The
 setup wizards check everything ToolOnize needs, show **one plan**, ask for
 your **consent once**, take **administrator authorization once**, install
 everything in one go and verify the result. Design and security rules:

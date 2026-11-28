@@ -60,7 +60,8 @@ class TestReleaseNotes(unittest.TestCase):
         self.assertNotIn("AppImage", out)
         self.assertNotIn(".rpm", out)
         self.assertIn("gh attestation verify <file> --repo example/toolonize", out)
-        self.assertIn("CRMonize.com", out)
+        self.assertIn("CRMOnize", out)
+        self.assertIn("| Windows 10 / 11 | `ToolOnize_0.3.0_x64-setup.exe` | Run the installer |", out)
 
     def test_repo_name_is_validated(self):
         with self.assertRaises(ValueError):

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck source-path=SCRIPTDIR
 # ToolOnize environment setup wizard — Linux.
-# ToolOnize is a CRMonize.com open-source project — https://crmonize.com
+# ToolOnize is an open-source project by CRMOnize — https://crmonize.com
 #
 # Checks everything ToolOnize needs, shows ONE plan, asks ONE consent, then
 # authorizes ONCE (a single sudo/pkexec call that runs the package manager)
@@ -301,7 +301,7 @@ if [ "$MODE" = dry-run ]; then
   exit "$EXIT_OK"
 fi
 
-ui_page "Welcome" "This wizard prepares this computer for ToolOnize, a CRMonize.com open-source project.
+ui_page "Welcome" "This wizard prepares this computer for ToolOnize, an open-source project by CRMOnize.
 
 1. Check what is already installed.
 2. Show one plan with everything that is missing.

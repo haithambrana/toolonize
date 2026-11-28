@@ -1,6 +1,6 @@
 # Contributing to ToolOnize
 
-Thank you for your interest in ToolOnize. ToolOnize is developed by [CRMonize.com](https://crmonize.com) as an open-source product, and contributions of every size are welcome: bug reports, documentation fixes, translations, and code.
+Thank you for your interest in ToolOnize. ToolOnize is developed by [CRMOnize](https://crmonize.com) as an open-source product, and contributions of every size are welcome: bug reports, documentation fixes, translations, and code.
 
 ## Getting set up
 

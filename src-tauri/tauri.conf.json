@@ -36,11 +36,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "CRMonize.com",
+    "publisher": "CRMOnize",
     "category": "DeveloperTool",
     "shortDescription": "Your existing dev tools. One persistent workspace.",
-    "longDescription": "ToolOnize discovers the launchers already on your machine without running them, lets you review them, and organizes terminals, SSH/tmux sessions and GUI tools into persistent docking workspaces. Local-first: no account, no cloud, no telemetry. A CRMonize.com open-source project.",
-    "copyright": "Copyright (c) 2026 CRMonize.com and the ToolOnize contributors. Licensed under MIT OR Apache-2.0.",
+    "longDescription": "ToolOnize discovers the launchers already on your machine without running them, lets you review them, and organizes terminals, SSH/tmux sessions and GUI tools into persistent docking workspaces. Local-first: no account, no cloud, no telemetry. An open-source product by CRMOnize.",
+    "copyright": "Copyright (c) 2026 CRMOnize and the ToolOnize contributors. Licensed under MIT OR Apache-2.0.",
     "license": "MIT OR Apache-2.0",
     "homepage": "https://crmonize.com",
     "linux": {

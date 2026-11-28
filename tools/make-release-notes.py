@@ -18,12 +18,12 @@ from pathlib import Path
 
 VERSION = re.compile(r"^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
 
-# (filename pattern, system, install command template)
+# (filename pattern, system, install command template or None for "run it")
 INSTALLERS = [
     (re.compile(r"\.deb$"), "Ubuntu, Debian, Linux Mint", "sudo apt install ./{name}"),
     (re.compile(r"\.rpm$"), "Fedora, openSUSE", "sudo dnf install ./{name}"),
     (re.compile(r"\.AppImage$"), "Any Linux", "chmod +x {name} && ./{name}"),
-    (re.compile(r"-setup\.exe$"), "Windows 10 / 11", "run the installer"),
+    (re.compile(r"-setup\.exe$"), "Windows 10 / 11", None),
 ]
 
 
@@ -56,7 +56,8 @@ def install_rows(folder: Path | None) -> list[str]:
     for pattern, system, command in INSTALLERS:
         for name in names:
             if pattern.search(name):
-                rows.append(f"| {system} | `{name}` | `{command.format(name=name)}` |")
+                how = f"`{command.format(name=name)}`" if command else "Run the installer"
+                rows.append(f"| {system} | `{name}` | {how} |")
     return rows
 
 
@@ -80,7 +81,7 @@ def notes(version: str, repo: str, changelog: str, folder: Path | None) -> str:
         "```"
     )
     parts.append(
-        "---\n\nToolOnize is an open-source product by [CRMonize.com](https://crmonize.com), "
+        "---\n\nToolOnize is an open-source product by [CRMOnize](https://crmonize.com), "
         "licensed MIT OR Apache-2.0."
     )
     return "\n\n".join(parts) + "\n"

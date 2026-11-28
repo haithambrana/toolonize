@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   ToolOnize environment setup wizard - Windows.
-  ToolOnize is a CRMonize.com open-source project - https://crmonize.com
+  ToolOnize is an open-source project by CRMOnize - https://crmonize.com
 
 .DESCRIPTION
   Checks what ToolOnize needs, shows ONE plan, asks ONE consent, then elevates
@@ -221,7 +221,7 @@ if ($DryRun) {
   exit 0
 }
 
-Wait-Next 'Welcome' "This wizard prepares this PC for ToolOnize, a CRMonize.com open-source project.`n1. Check  2. One plan  3. One consent + one UAC prompt  4. Install and verify.`nNothing is changed until you accept the plan."
+Wait-Next 'Welcome' "This wizard prepares this PC for ToolOnize, an open-source project by CRMOnize.`n1. Check  2. One plan  3. One consent + one UAC prompt  4. Install and verify.`nNothing is changed until you accept the plan."
 Wait-Next 'Check results' "$header`n$report"
 
 if ($missingRequired -eq 0 -and $missingOptional -eq 0) { Write-Host 'Everything ToolOnize needs is already installed.'; exit 0 }
