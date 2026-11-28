@@ -6,11 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
-### Changed
-
-- New ToolOnize app icon, replacing the framework's default icon.
-
-## 0.2.0 — 2026-11-28
+## 0.2.1 — 2026-11-28
 
 The first public release of ToolOnize by [CRMonize.com](https://crmonize.com).
 
@@ -61,3 +57,7 @@ The first public release of ToolOnize by [CRMonize.com](https://crmonize.com).
 - The Windows build is built and tested automatically but has not yet been tested by hand.
 - Installers are not code-signed, so Windows SmartScreen may show a warning.
 - macOS is not supported yet, and there is no tray icon yet.
+
+## 0.2.0 — 2026-11-28
+
+Release candidate with the same features as 0.2.1 and the framework's default app icon; it was not published. Copies of 0.2.0 update to 0.2.1 by themselves.
