@@ -1,6 +1,9 @@
 # Project Status
 
-Phase: **V1 implemented (M3–M10) — pending human review and verification**
+Phase: **0.2.0 released — V1 (M3–M10) implemented.** The owner installed
+0.2.0 on Ubuntu over 0.1.0, verified workspaces, session memory (normal close
+and kill -9) and the update channel, and approved merging to `main` and
+publishing the release (2026-11-28). Milestone reviews below remain open.
 
 Architecture: HUMAN APPROVED for progression into M0.
 Naming: ToolOnize — HUMAN APPROVED. ToolOnize is the approved
@@ -21,9 +24,9 @@ M6:  IMPLEMENTED — pending human review and Windows runtime verification (ADR-
 M7:  IMPLEMENTED — pending human review
 M8:  IMPLEMENTED — pending human review (ADR-006)
 M9:  IMPLEMENTED — pending human review; NFR budgets partly measured (Linux only)
-M10: IMPLEMENTED (packaging + draft-release pipeline) — no release published
+M10: IMPLEMENTED — 0.2.0 released (signed installers, in-app updates)
 Selected PTY backend: portable-pty 0.9.0 + ToolOnize mitigations
-Repository: CREATED on GitHub (public release under CRMonize.com pending release gates)
+Repository: PUBLIC on GitHub (CRMonize.com open-source project); 0.2.0 released
 ```
 
 Steward: **CRMonize.com** — ToolOnize is a CRMonize.com open-source project
@@ -38,7 +41,8 @@ milestones, no pauses"**: M3–M10 were implemented in one pass without
 stopping for review between milestones. This waives the *pauses*, not the
 reviews: every milestone, ADR-003's status change and ADR-006..008 remain
 open for human review, and public-release gates (AGENTS.md rule 9, M10
-release checklist) are untouched. No release has been tagged or published.
+release checklist) are untouched. No release had been tagged at that point;
+0.2.0 was tagged and released with the owner's approval on 2026-11-28.
 
 ## What exists now
 
@@ -54,7 +58,7 @@ release checklist) are untouched. No release has been tagged or published.
 | Setup wizard (ADR-009) | `./setup.sh` / `scripts/setup/{linux.sh,windows.ps1,macos.sh}`: one check, one plan, one consent, one authorization, one-shot install, verification. Linux implemented (apt verified; dnf/pacman/zypper best-effort); Windows (winget, one UAC prompt) and macOS (toolchain only) prepared | `scripts/setup/tests/linux_test.sh` (19 stub-based cases: single sudo call, positional package args, checksum refusal, cancel/decline, distro mapping, pkexec fallback); CI installs the Linux build deps through the wizard; Windows `-Check`/`-DryRun` on PowerShell 5.1 + 7 and macOS `--check` in CI; manual run on Ubuntu 24.04 (real install + real pinned-hash downloads). |
 | Owner-selected features (ADR-011) | SSH connection manager (Host aliases only), SSH auto-reconnect with backoff, Ctrl+click links (OSC 8 confirmed), color tags, output export to Downloads, search across all terminals | Rust: `sshconfig.rs`, `export.rs`, `app_tests.rs` (backoff rules; real-PTY reconnect with a fake ssh), `transfer.rs` (colors); frontend: `controller.test.ts`, `App.test.tsx`; manual run on Linux/WebKitGTK 2026-10-26 (all five features). |
 | Enhancement round (ADR-012..018, 2026-11) | Sticky notes; split/zoom/folders/appearance/notifications/broadcast/snippets/presentation; UI polish; full backup/restore, duplicate, templates; terminal environment variables + startup command; session memory (crash/close recovery); open at login; Arabic RTL interface; rpm bundle | Rust 208 lib tests and frontend 109 tests incl. real-PTY recovery after a simulated power loss, sanitizer fuzz test, catalog parity; real-app runs under Xvfb/WebKitGTK with kill -9 (same window, folders, output; OSC 52 not replayed), SIGTERM clean exit, backup file inspection, settings dialog, Arabic screens. |
-| M10 Packaging & release | deb + AppImage + NSIS bundle config; `release.yml` builds on tags, publishes a **draft** release with SHA-256 sums and build-provenance attestations; dependency inventory; release checklist | `docs/release/RELEASE_CHECKLIST.md`, `docs/security/DEPENDENCIES.md`. |
+| M10 Packaging & release | deb + rpm + AppImage + NSIS bundle config; signed in-app updates (ADR-019, `latest.json`); `release.yml` builds on tags, publishes a **draft** release with SHA-256 sums and build-provenance attestations; dependency inventory; release checklist | `docs/release/RELEASE_CHECKLIST.md`, `docs/security/DEPENDENCIES.md`. |
 
 ## Open items (honest list)
 

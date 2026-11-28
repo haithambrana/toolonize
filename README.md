@@ -6,7 +6,7 @@
 
 ToolOnize is a **local-first developer workspace orchestrator** for **Linux and Windows**. It discovers the launchers and tools you already have — without running any of them — lets you review them, and composes terminals, SSH/tmux sessions and GUI applications into persistent docking workspaces.
 
-> **Status: V1 implemented, pending human review.** Milestones M3–M10 were implemented in one pass after the owner waived per-milestone review pauses. No release has been published. See [`docs/product/STATUS.md`](docs/product/STATUS.md) for evidence and the honest list of open items (notably manual Windows/WebView2 verification and some performance budgets).
+> **Status: 0.2.0, the first public release.** Tested by hand on Ubuntu. The Windows build is built and tested in CI but has not been tested by hand yet. Installers are not code-signed. See [`docs/product/STATUS.md`](docs/product/STATUS.md) for evidence and the honest list of open items.
 
 ## What it does
 
@@ -24,7 +24,23 @@ ToolOnize is a **local-first developer workspace orchestrator** for **Linux and 
 - **Local-first.** No account, no cloud, no telemetry. Non-secret workspace export/import (imports land in review; nothing runs).
 - **Updates inside the app.** ToolOnize checks for a new release by itself and updates with one click; updates are signed and refused unless the signature matches (the check can be turned off).
 
-## Set up your computer
+## Install
+
+Download the file for your system from the [latest release](../../releases/latest):
+
+| System | File | Install |
+|---|---|---|
+| Ubuntu, Debian, Linux Mint | `.deb` | `sudo apt install ./ToolOnize_*_amd64.deb` |
+| Fedora, openSUSE | `.rpm` | `sudo dnf install ./ToolOnize-*.rpm` (openSUSE: `sudo zypper install ./ToolOnize-*.rpm`) |
+| Other Linux | `.AppImage` | `chmod +x ToolOnize_*.AppImage`, then run it (needs FUSE 2, e.g. `libfuse2`) |
+| Windows 10/11 | `_x64-setup.exe` | Run it. Windows may show a SmartScreen warning because the installer is not code-signed. |
+
+- **Updates come to you.** ToolOnize checks for a new release by itself and installs it with one click (Settings › Updates). Every update is signed and refused if the signature does not match.
+- **Upgrading by hand** works the same way as installing: your workspaces, notes and settings stay.
+- **Check a download** with `SHA256SUMS.txt` from the same release (`sha256sum -c SHA256SUMS.txt --ignore-missing`) or with the `gh attestation verify` command shown in the release notes.
+- **Uninstall:** `sudo apt remove tool-onize` (deb), `sudo dnf remove tool-onize` (rpm), delete the AppImage, or use Windows *Installed apps*. Your data stays in the folders listed under [Build and run](#build-and-run) until you delete them.
+
+## Set up your computer (to build from source)
 
 One command checks everything ToolOnize needs, shows a single plan, asks for your consent and administrator authorization **once**, then installs everything in one go:
 
