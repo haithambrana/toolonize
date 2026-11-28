@@ -31,7 +31,12 @@ else
   echo "Creating the update signing key. Choose a strong password and keep a backup"
   echo "of $key and the password somewhere safe: without them you cannot publish"
   echo "updates that installed copies accept."
-  (cd "$root" && npm run -s tauri -- signer generate -w "$key")
+  if [ -x "$root/node_modules/.bin/tauri" ]; then
+    (cd "$root" && npm run -s tauri -- signer generate -w "$key")
+  else
+    # No `npm ci` yet: the same CLI version as package.json, fetched by npx.
+    npx --yes @tauri-apps/cli@2.12.4 signer generate -w "$key"
+  fi
 fi
 chmod 600 "$key"
 
